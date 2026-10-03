@@ -1,0 +1,70 @@
+<Window x:Class="FileToGitHub.OctoCatSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="OctoShip for GitHub settings" Height="700" Width="760" MinHeight="580" MinWidth="640"
+        WindowStartupLocation="CenterOwner" Background="#10151E" Foreground="#EEF2F8">
+    <Window.Resources>
+        <Style TargetType="Button"><Setter Property="Background" Value="#253348"/><Setter Property="Foreground" Value="#F4F7FB"/><Setter Property="BorderBrush" Value="#3B4D66"/><Setter Property="Padding" Value="12,8"/><Setter Property="Margin" Value="0,4,8,8"/></Style>
+        <Style TargetType="TextBox"><Setter Property="Background" Value="#1A2230"/><Setter Property="Foreground" Value="#EEF2F8"/><Setter Property="BorderBrush" Value="#344256"/><Setter Property="Padding" Value="8"/><Setter Property="Margin" Value="0,4,8,8"/></Style>
+        <Style TargetType="ListBox"><Setter Property="Background" Value="#141C28"/><Setter Property="Foreground" Value="#EEF2F8"/><Setter Property="BorderBrush" Value="#344256"/></Style>
+        <Style TargetType="CheckBox"><Setter Property="Foreground" Value="#EEF2F8"/><Setter Property="Margin" Value="0,6,12,6"/></Style>
+    </Window.Resources>
+    <Grid Margin="20">
+        <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Settings and privacy" FontSize="23" FontWeight="SemiBold" Margin="0,0,0,14"/>
+                <GroupBox Header="Privacy and update channel" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
+                    <StackPanel>
+                        <CheckBox x:Name="PrivacyCheck" Content="Privacy Mode: do not retain search terms, recent repositories, or local upload paths"/>
+                        <TextBlock Text="Update channel" Foreground="#A9B9CE"/>
+                        <ComboBox x:Name="ChannelPicker" SelectedIndex="0" Width="180" HorizontalAlignment="Left" Margin="0,6,0,0">
+                            <ComboBoxItem Content="Stable"/><ComboBoxItem Content="Preview"/>
+                        </ComboBox>
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox Header="Clear saved history" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
+                    <StackPanel>
+                        <WrapPanel><CheckBox x:Name="ClearSearchCheck" Content="Search history"/><CheckBox x:Name="ClearRecentCheck" Content="Recent repositories"/><CheckBox x:Name="ClearDestinationsCheck" Content="Destination presets"/></WrapPanel>
+                        <Button Content="Clear selected history" HorizontalAlignment="Left" Click="ClearHistory_Click"/>
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox Header="Saved destination presets" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Rename a preset label or delete it. Its repository, branch, and upload path stay intact." Foreground="#A9B9CE" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <ListBox x:Name="PresetList" Height="110" DisplayMemberPath="Label" SelectionChanged="PresetList_SelectionChanged"/>
+                        <DockPanel><TextBox x:Name="PresetNameInput" DockPanel.Dock="Left" ToolTip="Preset display name"/><Button Content="Rename label" Click="RenamePreset_Click"/></DockPanel>
+                        <Button Content="Delete selected preset" HorizontalAlignment="Left" Click="DeletePreset_Click"/>
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox Header="Sensitive filename patterns" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Add glob patterns such as *.pem or **/.env. These add warnings; they do not block uploads." Foreground="#A9B9CE" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <DockPanel><TextBox x:Name="PatternInput" DockPanel.Dock="Left" ToolTip="Glob pattern"/><Button Content="Add pattern" Click="AddPattern_Click"/></DockPanel>
+                        <ListBox x:Name="PatternList" Height="105"/>
+                        <Button Content="Remove selected pattern" HorizontalAlignment="Left" Click="RemovePattern_Click"/>
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox Header="Publisher signature verification" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Checks Windows Authenticode trust for a selected executable. OctoShip for GitHub needs a trusted code-signing certificate; unsigned builds will be reported as unsigned." Foreground="#A9B9CE" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <TextBlock Text="Optional expected publisher thumbprint (pinning)" Foreground="#A9B9CE"/>
+                        <TextBox x:Name="ThumbprintInput" ToolTip="Expected signer thumbprint"/>
+                        <Button Content="Choose EXE and verify" HorizontalAlignment="Left" Click="VerifyPublisher_Click"/>
+                        <TextBlock x:Name="SignatureStatus" Text="No file checked." TextWrapping="Wrap" Foreground="#A9B9CE"/>
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox Header="Credential-free settings transfer" Foreground="#DCE6F4" Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="Exports include preferences, histories, and sensitive filename rules. Account credentials and local machine paths are never included." Foreground="#A9B9CE" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <WrapPanel><Button Content="Import settings" Click="Import_Click"/><Button Content="Export settings" Click="Export_Click"/></WrapPanel>
+                    </StackPanel>
+                </GroupBox>
+                <TextBlock x:Name="StatusText" Text="Changes apply when you select Save." Foreground="#A9B9CE" TextWrapping="Wrap" Margin="0,12,0,4"/>
+            </StackPanel>
+        </ScrollViewer>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Save" Click="Save_Click"/><Button Content="Cancel" Click="Cancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

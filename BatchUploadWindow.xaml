@@ -1,0 +1,82 @@
+<Window x:Class="FileToGitHub.BatchUploadWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Review folder upload" Height="760" Width="1040" MinHeight="600" MinWidth="820"
+        WindowStartupLocation="CenterOwner" Background="#10141D" Foreground="#F3F5FA">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="#F3F5FA"/><Setter Property="Background" Value="#273247"/>
+            <Setter Property="BorderBrush" Value="#3B4962"/><Setter Property="Padding" Value="12,7"/>
+            <Setter Property="Margin" Value="3"/><Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Foreground" Value="#F3F5FA"/><Setter Property="Background" Value="#171E2B"/>
+            <Setter Property="BorderBrush" Value="#3B4962"/><Setter Property="Padding" Value="7"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Foreground" Value="#F3F5FA"/><Setter Property="Background" Value="#171E2B"/>
+            <Setter Property="Padding" Value="6"/>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="18">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Review folder upload" FontSize="25" FontWeight="SemiBold"/>
+            <TextBlock x:Name="DestinationText" Foreground="#AEBBD0" Margin="0,4,0,0"/>
+            <TextBlock x:Name="NetworkNotice" Foreground="#E7C47D" FontSize="11" Margin="0,5,0,0" TextWrapping="Wrap"/>
+        </StackPanel>
+        <Border Grid.Row="1" Background="#171E2B" BorderBrush="#303D53" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,10">
+            <WrapPanel VerticalAlignment="Center">
+                <TextBlock Text="Commit" VerticalAlignment="Center" Margin="4"/>
+                <ComboBox x:Name="CommitModeBox" Width="170" SelectionChanged="CommitModeBox_SelectionChanged">
+                    <ComboBoxItem Content="One per file" IsSelected="True"/><ComboBoxItem Content="One for batch"/>
+                </ComboBox>
+                <TextBlock Text="Collision" VerticalAlignment="Center" Margin="14,4,4,4"/>
+                <ComboBox x:Name="CollisionBox" Width="145" SelectionChanged="CollisionBox_SelectionChanged">
+                    <ComboBoxItem Content="Rename automatically" IsSelected="True"/><ComboBoxItem Content="Skip colliding file"/>
+                </ComboBox>
+                <TextBlock Text="Max MB" VerticalAlignment="Center" Margin="14,4,4,4"/>
+                <TextBox x:Name="MaxSizeBox" Text="50" Width="58"/>
+                <TextBlock Text="Ignore patterns" VerticalAlignment="Center" Margin="14,4,4,4"/>
+                <TextBox x:Name="IgnoreBox" Width="200" ToolTip="Comma or semicolon separated filename patterns, for example *.tmp, build/**"/>
+                <Button Content="Apply rules" Click="ApplyRules_Click"/>
+            </WrapPanel>
+        </Border>
+        <DataGrid x:Name="QueueGrid" Grid.Row="2" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False"
+                  Background="#171E2B" Foreground="#F3F5FA" RowBackground="#171E2B" AlternatingRowBackground="#1D2636"
+                  GridLinesVisibility="Horizontal" HeadersVisibility="Column" SelectionMode="Extended" SelectionUnit="FullRow"
+                  CanUserSortColumns="False" Margin="0,0,0,10" CellEditEnding="QueueGrid_CellEditEnding">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Local file" Binding="{Binding SourcePath}" IsReadOnly="True" Width="2*"/>
+                <DataGridTextColumn Header="Destination path" Binding="{Binding DestinationPath, UpdateSourceTrigger=PropertyChanged}" Width="2*"/>
+                <DataGridTextColumn Header="Size" Binding="{Binding SizeText}" IsReadOnly="True" Width="80"/>
+                <DataGridTextColumn Header="Commit message" Binding="{Binding CommitMessage, UpdateSourceTrigger=PropertyChanged}" Width="1.5*"/>
+                <DataGridTextColumn Header="Progress" Binding="{Binding ProgressText}" IsReadOnly="True" Width="85"/>
+                <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" IsReadOnly="True" Width="100"/>
+                <DataGridTemplateColumn Header="GitHub" Width="70"><DataGridTemplateColumn.CellTemplate><DataTemplate>
+                    <Button Content="Open" Tag="{Binding Url}" Click="OpenLink_Click" IsEnabled="{Binding HasUrl}" Padding="5,3"/>
+                </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+        <DockPanel Grid.Row="3" Margin="0,0,0,8">
+            <TextBlock x:Name="TotalsText" DockPanel.Dock="Left" Foreground="#AEBBD0" VerticalAlignment="Center"/>
+            <ProgressBar x:Name="OverallProgress" Height="12" Minimum="0" Maximum="100" Margin="10,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="ProgressText" DockPanel.Dock="Right" Foreground="#AEBBD0" VerticalAlignment="Center"/>
+        </DockPanel>
+        <DockPanel Grid.Row="4">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                <Button x:Name="AddFilesButtonControl" Content="Add files…" Click="AddFiles_Click"/>
+                <Button x:Name="RemoveButtonControl" Content="Remove selected" Click="Remove_Click"/>
+                <Button x:Name="MoveUpButtonControl" Content="Move up" Click="MoveUp_Click"/>
+                <Button x:Name="MoveDownButtonControl" Content="Move down" Click="MoveDown_Click"/>
+                <Button x:Name="RetryButton" Content="Retry failed" Click="Retry_Click" IsEnabled="False"/>
+                <Button x:Name="PauseButton" Content="Pause" Click="Pause_Click" IsEnabled="False"/>
+                <Button x:Name="CancelButton" Content="Cancel upload" Click="Cancel_Click" IsEnabled="False"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                <Button x:Name="StartButton" Content="Upload reviewed files" Click="Start_Click" Background="#216E56"/>
+                <Button Content="Close" Click="Close_Click"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

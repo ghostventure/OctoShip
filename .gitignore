@@ -1,0 +1,16 @@
+bin/
+obj/
+dist/
+dist-*/
+installers/
+installer/payload/
+*.zip
+*.msi
+*.exe
+*.dll
+*.pdb
+*.deps.json
+*.runtimeconfig.json
+*.user
+*.suo
+*.log

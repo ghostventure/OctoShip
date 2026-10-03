@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <AssemblyName>OctoShip</AssemblyName>
+    <Product>OctoShip for GitHub</Product>
+    <Version>1.5.0</Version>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+
+</Project>
