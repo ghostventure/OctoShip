@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=OctoShip for GitHub
+Comment=Find, review, and upload files to GitHub
+Exec=octoship
+Icon=octoship
+Terminal=false
+Categories=Development;
+StartupNotify=true

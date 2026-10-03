@@ -4,7 +4,7 @@ This document describes the source snapshot in this repository and the work need
 
 ## Platform status
 
-The current 1.5.0 application is Windows-only. `FileToGitHub.csproj` targets `net6.0-windows` and enables WPF and Windows Forms. Its XAML views and code-behind use WPF windows, controls, dialogs, clipboard, file pickers, Explorer, and PowerShell. Publishing these files with a Linux runtime identifier does not make the application runnable on Linux.
+The original 1.5.0 C# application is Windows-only. The native Python/Tk Linux client now lives in `linux/`; see [Linux setup, feature coverage, packaging, and tests](linux/README.md). Its UI-independent backend implements the same GitHub REST workflow, with GitHub CLI credential integration, without requiring the Windows UI assemblies. The following platform notes describe the original C# client. `FileToGitHub.csproj` targets `net6.0-windows` and enables WPF and Windows Forms. Its XAML views and code-behind use WPF windows, controls, dialogs, clipboard, file pickers, Explorer, and PowerShell. Publishing these files with a Linux runtime identifier does not make the application runnable on Linux.
 
 To produce a supported Linux desktop app, keep the existing Windows client working while extracting platform-neutral logic and implementing a cross-platform UI. Avalonia is a reasonable C# UI choice. Then add Linux implementations for file selection, clipboard, URI/file launching, application data paths, single-instance behavior, credential setup, and updates. Build and smoke-test packages on Linux before distributing them. The Windows Inno Setup script is not a Linux installer.
 

@@ -1,6 +1,6 @@
 # OctoShip for GitHub 1.5.0
 
-OctoShip for GitHub is a Windows desktop app for finding local files and sending them to GitHub.
+OctoShip for GitHub finds local files and sends them to GitHub. The original Windows desktop client is in the repository root. A native Linux client is now available in [linux/](linux/README.md), with a desktop launcher, Debian package builder, and tested GitHub upload backend.
 
 ## Use OctoShip
 
