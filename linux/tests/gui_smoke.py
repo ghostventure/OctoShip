@@ -31,6 +31,7 @@ try:
         path.write_text('GUI upload integration test\n')
         root = tk.Tk()
         app = App(root)
+        app.mode.set('per-file')
         app.api = fixture.api
         app.repo.set('owner/project')
         app.branch.set('feature/test')

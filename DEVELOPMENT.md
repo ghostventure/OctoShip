@@ -4,7 +4,7 @@ This document describes the source snapshot in this repository and the work need
 
 ## Platform status
 
-The original 1.5.0 C# application is Windows-only. The native Python/Tk Linux client now lives in `linux/`; see [Linux setup, feature coverage, packaging, and tests](linux/README.md). Its UI-independent backend implements the same GitHub REST workflow, with GitHub CLI credential integration, without requiring the Windows UI assemblies. The following platform notes describe the original C# client. `FileToGitHub.csproj` targets `net6.0-windows` and enables WPF and Windows Forms. Its XAML views and code-behind use WPF windows, controls, dialogs, clipboard, file pickers, Explorer, and PowerShell. Publishing these files with a Linux runtime identifier does not make the application runnable on Linux.
+The original 1.5.0 C# application is Windows-only. The native Python/Tk Linux 1.6.0 client now lives in `linux/`; see [Linux setup, feature coverage, packaging, and tests](linux/README.md). Its UI-independent backend implements the GitHub REST upload, atomic batch, comparison, branch/PR, and release workflows, with GitHub CLI credential integration, without requiring the Windows UI assemblies. The following platform notes describe the original C# client. `FileToGitHub.csproj` targets `net6.0-windows` and enables WPF and Windows Forms. Its XAML views and code-behind use WPF windows, controls, dialogs, clipboard, file pickers, Explorer, and PowerShell. Publishing these files with a Linux runtime identifier does not make the application runnable on Linux.
 
 To produce a supported Linux desktop app, keep the existing Windows client working while extracting platform-neutral logic and implementing a cross-platform UI. Avalonia is a reasonable C# UI choice. Then add Linux implementations for file selection, clipboard, URI/file launching, application data paths, single-instance behavior, credential setup, and updates. Build and smoke-test packages on Linux before distributing them. The Windows Inno Setup script is not a Linux installer.
 
@@ -47,7 +47,7 @@ ISCC.exe installer\OctoShip.iss
 
 The setup output is `installers/OctoShip-Setup-v1.5.0-win-x64.exe`. It installs per-user under LocalAppData, creates a Start Menu shortcut, optionally creates a desktop shortcut, and registers an uninstaller. The installer currently requires a compatible .NET Windows Desktop Runtime and Git for Windows; it is not self-contained or Authenticode-signed. Preserve user settings and Credential Manager entries when uninstalling.
 
-The component preview includes focused offline harnesses under `verification/`. Their source templates avoid the application project's default C# compilation glob. Build the app and run these harnesses before packaging. Mock HTTP verification does not establish live GitHub integration or installer behavior. A future Linux release needs Linux CI/build tooling and real package-install/launch checks for each advertised format, such as `.deb` and AppImage.
+The component preview includes focused offline harnesses under `verification/`. Their source templates avoid the application project's default C# compilation glob. Build the app and run these harnesses before packaging. Mock HTTP verification does not establish live GitHub integration or installer behavior. The Linux package builder and offline/GUI harnesses are documented in `linux/README.md`; verification evidence is in `verification/linux-port-1.6.0.md`. Linux CI and AppImage packaging remain future work.
 
 ## Release and update configuration
 

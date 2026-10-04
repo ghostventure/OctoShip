@@ -1,8 +1,17 @@
-# OctoShip for GitHub 1.5.0
+# OctoShip for GitHub
 
 OctoShip for GitHub finds local files and sends them to GitHub. The original Windows desktop client is in the repository root. A native Linux client is now available in [linux/](linux/README.md), with a desktop launcher, Debian package builder, and tested GitHub upload backend.
 
-## Use OctoShip
+## Linux 1.6.0
+
+The native [Linux client](linux/README.md) now includes atomic or per-file batch
+uploads, opt-in saved queues, redacted content scanning, fixed-commit folder
+comparison, branch and pull-request creation, and draft-first release publishing
+with reviewed assets. The native interface has Find & upload and Repository tools
+tabs. Build packages with `./linux/packaging/build-deb.sh`; see the Linux guide for
+installation, checks, and remaining Windows-only features.
+
+## Use OctoShip on Windows
 
 Install Git for Windows and sign in through Git Credential Manager. Launch `OctoShip.exe`, choose an account, and connect. GitHub tokens stay in memory and are never written to OctoShip settings.
 

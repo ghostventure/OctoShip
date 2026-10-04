@@ -4,6 +4,8 @@ Assigned 2026-10-03. Numbers refer to the 60-component proposal. Only the first 
 
 First-wave update: implemented and integrated locally. Release build and 62 offline/service/GUI checks passed. See [verification/README.md](verification/README.md) for commands and remaining live-integration boundaries. P1-P3 remain planned work, not running agents.
 
+Linux update, 2026-10-04: the P0 feature group now has native Python/Tk implementations and an upload/tools layout. See [Linux verification](verification/linux-port-1.6.0.md) for coverage and boundaries. This does not mark the later P1–P3 backlog complete.
+
 ## Owners
 
 - `reliable_uploads`: upload reliability, queue behavior, reusable jobs, local workflow integration.

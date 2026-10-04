@@ -18,3 +18,7 @@ The root application excludes generated verification C# files from compilation. 
 Remaining verification boundary: live authenticated single-file/batch upload, branch/PR creation, release assets/publishing, restart recovery through the installed app, and repackaged installer/update delivery.
 
 GUI arrangement update, 2026-10-04: separate Release build in `dist-layout-preview` passed with zero warnings/errors. The existing 30-check scanner/release/main-window harness passed again. Additional temporary layout checks rendered 1240x820 and 1040x680 content areas, both upload modes, expanded transfer activity, and all four tools tabs. Live WPF checks confirmed editable search text round-trips, filter selection, the filter flyout, its nested dropdown, and toggle reset on dismissal. Account/update startup was disabled in the GUI harness; no GitHub writes were performed. The old running app was preserved while the separate preview was built.
+
+## Native Linux 1.6.0
+
+The first component wave is now ported to Linux. See [Linux port verification](linux-port-1.6.0.md) for the 48 backend tests, 9 GUI workflow tests, loopback GUI upload, live read-only comparison, and package/installation checks. Live GitHub writes are not covered by these checks.

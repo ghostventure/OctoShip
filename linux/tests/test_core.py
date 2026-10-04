@@ -189,7 +189,7 @@ class ApiTest(FileFixture, unittest.TestCase):
         _, items, skipped = self.plan([file], prefix='assets')
         self.assertEqual(skipped, [])
         self.assertEqual(items[0].size, len(data))
-        result = self.api.upload('owner/project', 'feature/test', items[0], 'Add binary')
+        result = self.api.upload('owner/project', 'feature/test', items[0], 'Add binary', approved=True)
         self.assertEqual(self.remote.files[items[0].destination][0], data)
         self.assertEqual(result['content']['sha'], hashlib.sha256(data).hexdigest())
         self.assertNotIn('sha', self.remote.writes[0])
