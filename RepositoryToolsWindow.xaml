@@ -10,7 +10,7 @@
     </Window.Resources>
     <Grid Margin="20">
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <TextBlock Text="Choose a repository folder" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,14"/>
+        <DockPanel><Button DockPanel.Dock="Right" Content="Compare / Branch / PR" Click="Workflow_Click" HorizontalAlignment="Right"/><TextBlock Text="Repository tools" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,14"/></DockPanel>
         <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="150"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <TextBox x:Name="RepositoryBox" Grid.Column="0" ToolTip="owner/repository"/>
             <TextBox x:Name="BranchInput" Grid.Column="1" Text="main" ToolTip="Branch"/>

@@ -1,0 +1,84 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using FileToGitHub;
+
+internal static class Program
+{
+    private const string Head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    private static int checks;
+    private static void Check(bool passed, string name) { if (!passed) throw new Exception(name); Console.WriteLine("PASS " + name); checks++; }
+    private static async Task Main()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "OctoShip-upload-checks-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var local = Path.Combine(dir, "run.sh"); await File.WriteAllTextAsync(local, "echo example");
+            var file = new BatchUploadFile(local, "run.sh", "test", new FileInfo(local).Length, File.GetLastWriteTimeUtc(local));
+            var handler = new FakeGitHub();
+            using var http = new HttpClient(handler);
+            var service = new GitHubAtomicBatchService(http);
+            var result = await service.UploadAsync("owner", "repo", "main", "fake-test-credential", new[] { file }, "test", Head,
+                validateContent: (_, bytes, _) => { Check(Encoding.UTF8.GetString(bytes) == "echo example", "validator receives exact bytes"); return Task.CompletedTask; });
+            Check(result.Count == 1 && result[0].Succeeded, "single batch reports success");
+            Check(handler.Calls.Count(x => x.Method == "PATCH") == 1 && handler.Calls.Count(x => x.Path.EndsWith("/git/commits") && x.Method == "POST") == 1, "exactly one commit and ref publication");
+            var patch = handler.Calls.Single(x => x.Method == "PATCH");
+            Check(!JsonDocument.Parse(patch.Body!).RootElement.GetProperty("force").GetBoolean(), "branch update never forces");
+            var tree = JsonDocument.Parse(handler.Calls.Single(x => x.Path.EndsWith("/git/trees") && x.Method == "POST").Body!);
+            Check(tree.RootElement.GetProperty("tree")[0].GetProperty("mode").GetString() == "100755", "existing executable mode preserved");
+            handler.Reset(); handler.Moved = true;
+            try { await service.UploadAsync("owner", "repo", "main", "fake-test-credential", new[] { file }, "test", Head); throw new Exception("Expected conflict"); }
+            catch (InvalidOperationException) { Check(handler.Calls.All(x => x.Method == "GET"), "changed head rejected before writes"); }
+            handler.Reset(); handler.Mode = "120000";
+            try { await service.UploadAsync("owner", "repo", "main", "fake-test-credential", new[] { file }, "test", Head); throw new Exception("Expected symlink rejection"); }
+            catch (InvalidOperationException) { Check(handler.Calls.All(x => x.Method == "GET"), "symlink replacement rejected before writes"); }
+            handler.Reset();
+            try { await service.UploadAsync("owner", "repo", "main", "fake-test-credential", new[] { file }, "test", Head, validateContent: (_, _, _) => throw new InvalidOperationException("scanner declined")); throw new Exception("Expected validator rejection"); }
+            catch (InvalidOperationException) { Check(handler.Calls.All(x => x.Method == "GET"), "content rejection prevents remote writes"); }
+            handler.Reset(); handler.MoveAtPublication = true;
+            try { await service.UploadAsync("owner", "repo", "main", "fake-test-credential", new[] { file }, "test", Head); throw new Exception("Expected late conflict"); }
+            catch (InvalidOperationException) { Check(handler.Calls.All(x => x.Method != "PATCH"), "late branch change prevents publication"); }
+            handler.Reset();
+            await File.AppendAllTextAsync(local, " changed");
+            try { await service.UploadAsync("owner", "repo", "main", "fake-test-credential", new[] { file }, "test", Head); throw new Exception("Expected local conflict"); }
+            catch (InvalidOperationException) { Check(handler.Calls.All(x => x.Method == "GET"), "changed local file rejected before writes"); }
+            var store = new PersistentUploadQueueStore(Path.Combine(dir, "journal"));
+            var row = new PersistentUploadQueueStore.Entry(local, "run.sh", "test", file.Size, file.CapturedLastWriteTimeUtc!.Value, "Uploading", null);
+            store.Save(new PersistentUploadQueueStore.Snapshot(1, "owner/repo", "main", 1, "batch test", new[] { row }));
+            var saved = store.Load("owner/repo", "main")!;
+            Check(saved.Entries[0].Status == "Uploading" && saved.CommitMode == 1, "queue state and mode survive restart");
+            Check(PersistentUploadQueueStore.RestoreItem(saved.Entries[0]).HasChangedOnDisk(), "restored metadata detects changed source");
+            Check(store.Load("owner/repo", "other") == null, "queues isolated by branch");
+            Check(!File.ReadAllText(Directory.GetFiles(Path.Combine(dir, "journal")).Single()).Contains("fake-test-credential"), "journal excludes credential");
+            store.Delete("owner/repo", "main"); Check(store.Load("owner/repo", "main") == null, "completed journal can be removed");
+            Console.WriteLine($"{checks} upload checks passed. No network requests were sent.");
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+    private sealed class FakeGitHub : HttpMessageHandler
+    {
+        public List<(string Method, string Path, string? Body)> Calls = new();
+        public bool Moved; public bool MoveAtPublication; public string Mode = "100755"; private int heads;
+        public void Reset() { Calls.Clear(); Moved = false; MoveAtPublication = false; Mode = "100755"; heads = 0; }
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            Calls.Add((request.Method.Method, path, request.Content == null ? null : await request.Content.ReadAsStringAsync()));
+            string json;
+            if (path.Contains("/git/ref/heads/")) json = JsonSerializer.Serialize(new { @object = new { sha = Moved || (MoveAtPublication && ++heads > 1) ? "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" : Head } });
+            else if (request.Method == HttpMethod.Get && path.Contains("/git/commits/")) json = "{\"tree\":{\"sha\":\"base-tree\"}}";
+            else if (request.Method == HttpMethod.Get && path.Contains("/git/trees/")) json = JsonSerializer.Serialize(new { truncated = false, tree = new[] { new { path = "run.sh", mode = Mode } } });
+            else if (request.Method == HttpMethod.Get) json = "{\"archived\":false,\"disabled\":false,\"permissions\":{\"push\":true}}";
+            else json = "{\"sha\":\"cccccccccccccccccccccccccccccccccccccccc\"}";
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) };
+        }
+    }
+}

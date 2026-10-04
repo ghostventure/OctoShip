@@ -1,352 +1,690 @@
-<Window x:Class="FileToGitHub.MainWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="OctoShip for GitHub" Height="880" Width="1280" MinHeight="720" MinWidth="1060"
-        Background="#0B1020" Foreground="#E9EFF8" WindowStartupLocation="CenterScreen"
-        Loaded="Window_Loaded" AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="FileToGitHub.MainWindow" Title="OctoShip for GitHub" Height="880" Width="1280" MinHeight="720" MinWidth="1060" Background="#0B1020" Foreground="#E9EFF8" WindowStartupLocation="CenterScreen" Loaded="Window_Loaded" AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver">
     <Window.Resources>
-        <SolidColorBrush x:Key="Panel" Color="#121B2B"/>
-        <SolidColorBrush x:Key="PanelSoft" Color="#0E1726"/>
-        <SolidColorBrush x:Key="Line" Color="#26354A"/>
-        <SolidColorBrush x:Key="Muted" Color="#91A0B7"/>
-        <SolidColorBrush x:Key="Accent" Color="#50D6D0"/>
+        <SolidColorBrush x:Key="Panel" Color="#121B2B" />
+        <SolidColorBrush x:Key="PanelSoft" Color="#0E1726" />
+        <SolidColorBrush x:Key="Line" Color="#26354A" />
+        <SolidColorBrush x:Key="Muted" Color="#91A0B7" />
+        <SolidColorBrush x:Key="Accent" Color="#50D6D0" />
         <Style TargetType="TextBox">
-            <Setter Property="Foreground" Value="#EDF3FC"/><Setter Property="Background" Value="#0C1422"/>
-            <Setter Property="BorderBrush" Value="#2B3A50"/><Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="11,8"/><Setter Property="FontSize" Value="13"/>
-            <Setter Property="CaretBrush" Value="#50D6D0"/><Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="#EDF3FC" />
+            <Setter Property="Background" Value="#0C1422" />
+            <Setter Property="BorderBrush" Value="#2B3A50" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="11,8" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="CaretBrush" Value="#50D6D0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Style.Triggers>
-                <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="#50D6D0"/></Trigger>
-                <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.58"/></Trigger>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="#50D6D0" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.58" />
+                </Trigger>
             </Style.Triggers>
         </Style>
         <Style TargetType="Button">
-            <Setter Property="Foreground" Value="#EAF2FB"/><Setter Property="Background" Value="#202D41"/>
-            <Setter Property="BorderBrush" Value="#34465E"/><Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="13,8"/><Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Margin" Value="0,0,7,0"/>
+            <Setter Property="Foreground" Value="#EAF2FB" />
+            <Setter Property="Background" Value="#202D41" />
+            <Setter Property="BorderBrush" Value="#34465E" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="13,8" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="0,0,7,0" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="7" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#50D6D0"/><Setter TargetName="ButtonBorder" Property="Background" Value="#293A50"/></Trigger>
-                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="ButtonBorder" Property="Opacity" Value="0.72"/></Trigger>
-                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="ButtonBorder" Property="Opacity" Value="0.45"/></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#50D6D0" />
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#293A50" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.72" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.45" />
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
         <Style TargetType="ComboBox">
-            <Setter Property="Foreground" Value="#EDF3FC"/><Setter Property="Background" Value="#0C1422"/>
-            <Setter Property="BorderBrush" Value="#2B3A50"/><Setter Property="Padding" Value="8,6"/><Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#EDF3FC" />
+            <Setter Property="Background" Value="#0C1422" />
+            <Setter Property="BorderBrush" Value="#3E536A" />
+            <Setter Property="Padding" Value="9,7" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="DropToggle" Focusable="False" IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" ClickMode="Press">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="ComboBorder" Background="#0C1422" BorderBrush="#2B3A50" BorderThickness="1" CornerRadius="5">
+                                            <Grid>
+                                                <Path Data="M 0 0 L 4 4 L 8 0" Stroke="#91A0B7" StrokeThickness="1.5" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="ComboBorder" Property="BorderBrush" Value="#50D6D0" />
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="ComboBorder" Property="BorderBrush" Value="#50D6D0" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="SelectionDisplay" IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" Margin="11,0,32,0" VerticalAlignment="Center" TextElement.Foreground="#EDF3FC" />
+                            <TextBox x:Name="PART_EditableTextBox" Visibility="Hidden" Focusable="True" IsReadOnly="{TemplateBinding IsReadOnly}" Margin="1,1,30,1" Padding="10,6" Background="#0C1422" BorderThickness="0" Foreground="#EDF3FC" CaretBrush="#50D6D0" VerticalContentAlignment="Center">
+                                <TextBox.Template>
+                                    <ControlTemplate TargetType="TextBox">
+                                        <Border Background="{TemplateBinding Background}">
+                                            <ScrollViewer x:Name="PART_ContentHost" />
+                                        </Border>
+                                    </ControlTemplate>
+                                </TextBox.Template>
+                            </TextBox>
+                            <Popup x:Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
+                                <Border Background="#121B2B" BorderBrush="#3E536A" BorderThickness="1" CornerRadius="5" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                    <ScrollViewer Margin="4" CanContentScroll="True" VerticalScrollBarVisibility="Auto">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEditable" Value="True">
+                                <Setter TargetName="SelectionDisplay" Property="Visibility" Value="Hidden" />
+                                <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Height" Value="34" />
         </Style>
-        <Style TargetType="ComboBoxItem"><Setter Property="Foreground" Value="#EDF3FC"/><Setter Property="Background" Value="#121B2B"/><Setter Property="Padding" Value="9,7"/></Style>
-        <Style TargetType="CheckBox"><Setter Property="Foreground" Value="#BCC8D9"/><Setter Property="FontSize" Value="12"/><Setter Property="VerticalAlignment" Value="Center"/></Style>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="#EDF3FC" />
+            <Setter Property="Background" Value="#121B2B" />
+            <Setter Property="Padding" Value="9,7" />
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#BCC8D9" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
         <Style TargetType="ListBox">
-            <Setter Property="Background" Value="#0C1422"/><Setter Property="Foreground" Value="#E4ECF7"/>
-            <Setter Property="BorderBrush" Value="#26354A"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="6"/>
+            <Setter Property="Background" Value="#0C1422" />
+            <Setter Property="Foreground" Value="#E4ECF7" />
+            <Setter Property="BorderBrush" Value="#26354A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6" />
         </Style>
         <Style TargetType="ListBoxItem">
-            <Setter Property="Padding" Value="11,9"/><Setter Property="Margin" Value="0,0,0,4"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding" Value="11,9" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
                         <Border x:Name="ItemBorder" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="7" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter/>
+                            <ContentPresenter />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ItemBorder" Property="Background" Value="#172337"/></Trigger>
-                            <Trigger Property="IsSelected" Value="True"><Setter TargetName="ItemBorder" Property="Background" Value="#193044"/><Setter TargetName="ItemBorder" Property="BorderBrush" Value="#3AAFAE"/></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#172337" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#193044" />
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#3AAFAE" />
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
-        <Style TargetType="Expander"><Setter Property="Foreground" Value="#DCE7F5"/><Setter Property="FontSize" Value="12"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
-        <Style x:Key="FieldLabel" TargetType="TextBlock"><Setter Property="Foreground" Value="#8FA0B8"/><Setter Property="FontSize" Value="10"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
-    </Window.Resources>
-
-    <Grid>
-    <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <Grid x:Name="HomeView" Grid.Row="0" Margin="22,22,22,10">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <!-- Brand and account actions -->
-        <Grid Grid.Row="0" Margin="0,0,0,16">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Border Width="43" Height="43" CornerRadius="13" Background="#173141" BorderBrush="#2C6D7A" BorderThickness="1" Margin="0,0,12,0">
-                    <TextBlock Text="O" Foreground="#59DAD4" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </Border>
-                <StackPanel VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal"><TextBlock Text="OCTOSHIP" Foreground="#60D7D1" FontSize="10" FontWeight="Bold"/><TextBlock Text="  /  FOR GITHUB" Foreground="#7688A2" FontSize="9" FontWeight="SemiBold" Margin="5,1,0,0"/></StackPanel>
-                </StackPanel>
-            </StackPanel>
-            <Border Grid.Column="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="12,9">
-                <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                    <StackPanel Margin="0,0,12,0" VerticalAlignment="Center">
-                        <TextBlock Text="GITHUB ACCOUNT" Style="{StaticResource FieldLabel}"/>
-                        <DockPanel Margin="0,5,0,0" LastChildFill="False">
-                            <TextBlock x:Name="AccountLabel" Text="Checking saved accounts…" Foreground="#AAB8CB" FontSize="11" VerticalAlignment="Center"/>
-                            <Button x:Name="SignOutButton" DockPanel.Dock="Right" Content="Sign out" Padding="4,2" Margin="10,0,0,0" BorderThickness="0" Background="Transparent" Foreground="#93A3B9" FontSize="10" Click="SignOut_Click"/>
-                        </DockPanel>
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <ComboBox x:Name="AccountPicker" Width="132" ToolTip="Choose a saved GitHub account" SelectionChanged="AccountPicker_SelectionChanged"/>
-                        <Button x:Name="ConnectButton" Content="Connect" Padding="11,7" Click="Connect_Click"/>
-                        <Button x:Name="AddAccountButton" Content="Add account" Padding="11,7" Margin="0" Click="AddAccount_Click"/>
-                    </StackPanel>
-                    <DockPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0">
-                        <TextBlock x:Name="VersionLabel" Text="Version 1.0.0" Foreground="#8FA0B8" FontSize="10" VerticalAlignment="Center"/>
-                        <Button x:Name="UpdateButton" DockPanel.Dock="Right" Content="Check for updates" Padding="8,4" Margin="0" FontSize="10" Click="Update_Click"/>
-                        <Button DockPanel.Dock="Right" Content="Settings &amp; tools" Padding="8,4" Margin="0,0,6,0" FontSize="10" Click="ShowToolsPage_Click"/>
-                        <TextBlock Text="AUTO-UPDATE" Foreground="#71839C" FontSize="9" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,6,0"/>
-                    </DockPanel>
-                </Grid>
-            </Border>
-        </Grid>
-
-        <!-- Search stays prominent; detailed filters remain tucked away until needed. -->
-        <Border Grid.Row="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="11" Padding="16" Margin="0,0,0,14">
-            <Grid>
-                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                <DockPanel>
-                    <Button x:Name="ClearFiltersButton" DockPanel.Dock="Right" Content="Reset filters" Padding="9,5" FontSize="10" Margin="0" Click="ClearFilters_Click"/>
-                    <StackPanel Orientation="Horizontal"><Border Width="22" Height="22" CornerRadius="7" Background="#1B3A46"><TextBlock Text="1" Foreground="#60D7D1" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="  Choose a folder and search" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
-                </DockPanel>
-                <Grid Grid.Row="1" Margin="0,11,0,0">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                    <TextBox x:Name="FolderBox" Text="Choose a folder to search…" ToolTip="Paste a folder path or browse to choose one"/>
-                    <Button x:Name="BrowseButton" Grid.Column="1" Content="Browse folders" Margin="8,0,0,0" Click="Browse_Click"/>
-                </Grid>
-                <Grid Grid.Row="2" Margin="0,8,0,0">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                    <ComboBox x:Name="SearchBox" IsEditable="True" IsTextSearchEnabled="True" StaysOpenOnEdit="True" ToolTip="Search filenames or enter a query" KeyDown="SearchBox_KeyDown"/>
-                    <Button x:Name="SearchButton" Grid.Column="1" Content="Search files" Background="#174550" BorderBrush="#2D7F83" Margin="8,0,0,0" Click="Search_Click"/>
-                    <Button x:Name="CancelSearchButton" Grid.Column="2" Content="Cancel" Padding="10,8" Margin="7,0,0,0" Visibility="Collapsed" Click="CancelSearch_Click"/>
-                </Grid>
-                <Grid x:Name="AdvancedFiltersPanel" Grid.Row="4" Visibility="Collapsed" Margin="0,12,0,0">
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="1.1*"/><ColumnDefinition Width="1.1*"/><ColumnDefinition Width="1.35*"/><ColumnDefinition Width="1.35*"/><ColumnDefinition Width="1.4*"/></Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Margin="0,0,10,8"><TextBlock Text="MATCH TYPE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/><ComboBox x:Name="SearchModePicker" SelectionChanged="SearchModePicker_SelectionChanged" ToolTip="Content search reads files up to 2 MiB each"><ComboBoxItem Content="File name"/><ComboBoxItem Content="Regular expression"/><ComboBoxItem Content="File contents"/></ComboBox></StackPanel>
-                    <StackPanel Grid.Column="1" Margin="0,0,10,8"><TextBlock Text="NAME MATCH" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/><CheckBox x:Name="ExactMatchCheck" Content="Exact name" Margin="0,1,0,4"/><CheckBox x:Name="CaseSensitiveCheck" Content="Case sensitive"/></StackPanel>
-                    <StackPanel Grid.Column="2" Margin="0,0,10,8"><TextBlock Text="SCOPE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/><CheckBox x:Name="RecursiveCheck" Content="Include subfolders" IsChecked="True" Margin="0,1,0,4"/><CheckBox x:Name="IncludeHiddenCheck" Content="Include hidden"/></StackPanel>
-                    <StackPanel Grid.Column="3" Margin="0,0,10,8"><TextBlock Text="FILE TYPE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/><TextBox x:Name="ExtensionFilterBox" Padding="8,6" ToolTip="Comma-separated, e.g. .pdf,.docx"/></StackPanel>
-                    <StackPanel Grid.Column="4" Margin="0,0,0,8"><TextBlock Text="SKIP FOLDERS" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/><TextBox x:Name="ExcludedFoldersBox" Padding="8,6" ToolTip="Comma-separated folder names"/></StackPanel>
-                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,10,0"><TextBlock Text="MINIMUM SIZE (MB)" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/><TextBox x:Name="MinSizeBox" Padding="8,6"/></StackPanel>
-                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,10,0"><TextBlock Text="MAXIMUM SIZE (MB)" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/><TextBox x:Name="MaxSizeBox" Padding="8,6"/></StackPanel>
-                    <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,10,0"><TextBlock Text="MODIFIED AFTER" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/><TextBox x:Name="ModifiedAfterBox" Padding="8,6" ToolTip="YYYY-MM-DD"/></StackPanel>
-                    <StackPanel Grid.Row="1" Grid.Column="3" Margin="0,0,10,0"><TextBlock Text="SORT RESULTS" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/><ComboBox x:Name="SortPicker"><ComboBoxItem Content="Name A–Z"/><ComboBoxItem Content="Largest"/><ComboBoxItem Content="Newest"/><ComboBoxItem Content="Oldest"/></ComboBox></StackPanel>
-                    <StackPanel Grid.Row="1" Grid.Column="4"><TextBlock Text="RESULT LIMIT" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/><ComboBox x:Name="ResultLimitPicker"><ComboBoxItem Content="50"/><ComboBoxItem Content="100"/><ComboBoxItem Content="200"/><ComboBoxItem Content="500"/></ComboBox></StackPanel>
-                </Grid>
-                <Button x:Name="FilterToggleButton" Grid.Row="3" Content="Show advanced filters" HorizontalAlignment="Left" Padding="0" Margin="0,9,0,0" BorderThickness="0" Background="Transparent" Foreground="#64CEC9" FontSize="11" Click="ToggleFilters_Click"/>
-            </Grid>
-        </Border>
-
-        <!-- Main work area -->
-        <Grid Grid.Row="2">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="1.15*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="0.85*"/></Grid.ColumnDefinitions>
-            <Border Grid.Column="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="11" Padding="14">
-                <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <DockPanel Margin="2,0,2,10">
-                        <TextBlock x:Name="ResultCount" Text="Choose a folder to begin" Foreground="#8FA0B8" FontSize="11" HorizontalAlignment="Right" DockPanel.Dock="Right" VerticalAlignment="Center"/>
-                        <StackPanel Orientation="Horizontal"><Border Width="22" Height="22" CornerRadius="7" Background="#1B3A46"><TextBlock Text="2" Foreground="#60D7D1" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="  Search results" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
-                    </DockPanel>
-                    <ListBox x:Name="ResultsList" Grid.Row="1" SelectionChanged="Results_SelectionChanged">
-                        <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Details}" TextWrapping="Wrap" FontSize="12" Foreground="#C5D2E4"/></DataTemplate></ListBox.ItemTemplate>
-                    </ListBox>
-                    <WrapPanel Grid.Row="2" Margin="0,10,0,0">
-                        <Button x:Name="OpenFileButton" Content="Open" Padding="10,6" FontSize="11" Click="OpenFile_Click" IsEnabled="False"/>
-                        <Button x:Name="RevealFileButton" Content="Show in folder" Padding="10,6" FontSize="11" Click="RevealFile_Click" IsEnabled="False"/>
-                        <Button x:Name="CopyPathButton" Content="Copy path" Padding="10,6" FontSize="11" Click="CopyPath_Click" IsEnabled="False"/>
-                        <Button x:Name="CopyHashButton" Content="Copy SHA-256" Padding="10,6" FontSize="11" Click="CopyHash_Click" IsEnabled="False"/>
-                        <Button x:Name="ReviewFileButton" Content="Preview / review" Padding="10,6" FontSize="11" Click="ReviewFile_Click" IsEnabled="False" Margin="0"/>
-                    </WrapPanel>
-                </Grid>
-            </Border>
-
-            <Border Grid.Column="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="11" Padding="16">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
-                            <Border Width="22" Height="22" CornerRadius="7" Background="#342B42"><TextBlock Text="3" Foreground="#D8A8E0" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                            <StackPanel Margin="8,0,0,0"><TextBlock Text="Send to GitHub" FontSize="14" FontWeight="SemiBold"/><TextBlock Text="Review the destination before every upload." Foreground="#899BB3" FontSize="10" Margin="0,2,0,0"/></StackPanel>
-                        </StackPanel>
-                        <TextBlock Text="DESTINATION PRESET" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/>
-                        <Grid Margin="0,0,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><ComboBox x:Name="DestinationPicker" SelectionChanged="DestinationPicker_SelectionChanged" ToolTip="Reuse a saved repository, branch, and path"/><Button x:Name="SaveDestinationButton" Grid.Column="1" Content="Save preset" Padding="9,6" Margin="7,0,0,0" FontSize="10" Click="SaveDestination_Click"/></Grid>
-
-                        <TextBlock Text="REPOSITORY" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/>
-                        <Button x:Name="RepositoryToolsButton" Content="Browse GitHub repository" HorizontalAlignment="Left" Padding="8,5" Margin="0,0,0,7" FontSize="10" Click="RepositoryTools_Click"/>
-                        <ComboBox x:Name="RepoPicker" IsEditable="True" IsTextSearchEnabled="True" StaysOpenOnEdit="True" Margin="0,0,0,11" ToolTip="Choose a repository or type owner/repository" SelectionChanged="RepoPicker_SelectionChanged"/>
-
-                        <Grid Margin="0,0,0,11">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="1*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="1.2*"/></Grid.ColumnDefinitions>
-                            <StackPanel><TextBlock Text="BRANCH" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/><TextBox x:Name="BranchBox" Text="main" TextChanged="BranchBox_TextChanged"/></StackPanel>
-                            <StackPanel Grid.Column="2"><TextBlock Text="FILE PATH IN REPOSITORY" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/><TextBox x:Name="PathBox" ToolTip="For example: uploads/report.pdf" TextChanged="PathBox_TextChanged"/></StackPanel>
-                        </Grid>
-
-                        <Border Background="{StaticResource PanelSoft}" BorderBrush="#202D41" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,11">
-                            <StackPanel><TextBlock Text="SELECTED FILE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/><TextBlock x:Name="SelectedFileLabel" Text="Select a result to review it here." Foreground="#C0CCDD" FontSize="11" TextWrapping="Wrap"/></StackPanel>
+        <Style TargetType="Expander">
+            <Setter Property="Foreground" Value="#DCE7F5" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#8FA0B8" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="#9EADC2" />
+            <Setter Property="Padding" Value="15,10" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,0,0,2" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header" />
                         </Border>
-                        <TextBlock Text="COMMIT MESSAGE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/>
-                        <TextBox x:Name="CommitMessageBox" Margin="0,0,0,12" Text="Upload via OctoShip" MaxLength="250"/>
-                        <Button x:Name="UploadButton" Content="Send selected file" IsEnabled="False" Background="#66405F" BorderBrush="#95638B" Padding="13,11" HorizontalAlignment="Stretch" Margin="0,0,0,12" Click="Upload_Click"/>
-
-                        <Expander Header="Folder batch" IsExpanded="False" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,9,0,0">
-                            <StackPanel Margin="0,9,0,0">
-                                <TextBlock Text="Upload a folder tree. OctoShip checks every destination before sending." Foreground="#91A0B7" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                                <TextBlock Text="DESTINATION FOLDER (OPTIONAL)" Style="{StaticResource FieldLabel}" Margin="0,0,0,5"/>
-                                <TextBox x:Name="QueuePathBox" Margin="0,0,0,8" ToolTip="GitHub destination folder; local subfolders are preserved"/>
-                                <WrapPanel>
-                                    <Button x:Name="QueueFolderButton" Content="Choose local folder" Padding="9,6" FontSize="10" Click="QueueFolder_Click"/>
-                                    <Button x:Name="QueueRunButton" Content="Upload batch" Padding="9,6" FontSize="10" IsEnabled="False" Click="QueueRunWindow_Click"/>
-                                    <Button x:Name="QueuePauseButton" Content="Pause" Padding="9,6" FontSize="10" IsEnabled="False" Click="QueuePause_Click"/>
-                                    <Button x:Name="QueueRetryButton" Content="Retry failed" Padding="9,6" FontSize="10" IsEnabled="False" Margin="0" Click="QueueRetry_Click"/>
-                                </WrapPanel>
-                                <TextBlock x:Name="QueueStatusLabel" Text="Choose a folder to preview its files." Foreground="#9EACC1" FontSize="10" TextWrapping="Wrap" Margin="0,6,0,5"/>
-                                <ListBox x:Name="QueueList" Height="105" Visibility="Collapsed" IsHitTestVisible="False"/>
-                            </StackPanel>
-                        </Expander>
-                        <TextBlock Text="Your GitHub credential stays in memory. OctoShip never saves the token." Foreground="#72839A" FontSize="10" TextWrapping="Wrap" Margin="0,12,0,0"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Foreground" Value="#63DDD4" />
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#50D6D0" />
+                                <Setter TargetName="TabBorder" Property="Background" Value="#192B3C" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#203248" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid KeyboardNavigation.TabNavigation="Local">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TabPanel IsItemsHost="True" Margin="0,0,0,16" />
+                            <ContentPresenter Grid.Row="1" ContentSource="SelectedContent" TextElement.Foreground="#E9EFF8" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Grid Background="#0B1020">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid x:Name="HomeView" Grid.Row="0" Margin="20,18,20,10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid Margin="0,0,0,16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <DockPanel Margin="0,0,0,12">
+                    <StackPanel x:Name="HeaderActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="VersionLabel" Text="Version 1.0.0" Foreground="#8FA0B8" FontSize="10" VerticalAlignment="Center" Margin="0,0,16,0" />
+                        <Button Content="Settings &amp; tools" Padding="14,9" Margin="0" FontSize="12" Click="ShowToolsPage_Click" />
                     </StackPanel>
-                </ScrollViewer>
+                    <StackPanel>
+                        <TextBlock Text="OctoShip" FontSize="25" FontWeight="SemiBold" />
+                        <TextBlock Text="Find local files. Review changes. Ship to GitHub." Foreground="{StaticResource Muted}" FontSize="12" Margin="0,3,0,0" />
+                    </StackPanel>
+                </DockPanel>
+                <Border Grid.Row="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Padding="12,8">
+                    <DockPanel x:Name="AccountStrip" LastChildFill="True">
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                            <ComboBox x:Name="AccountPicker" Width="132" ToolTip="Choose a saved GitHub account" SelectionChanged="AccountPicker_SelectionChanged" Margin="0,0,8,0" />
+                            <Button x:Name="ConnectButton" Content="Connect" Padding="11,7" Click="Connect_Click" Margin="0,0,8,0" />
+                            <Button x:Name="AddAccountButton" Content="Add account" Padding="11,7" Margin="0,0,8,0" Click="AddAccount_Click" />
+                            <Button x:Name="SignOutButton" Content="Sign out" Padding="4,2" Margin="0,0,8,0" BorderThickness="0" Background="Transparent" Foreground="#93A3B9" FontSize="10" Click="SignOut_Click" />
+                        </StackPanel>
+                        <TextBlock x:Name="AccountLabel" Text="Connect a GitHub account" Foreground="#AAB8CB" FontSize="11" VerticalAlignment="Center" />
+                    </DockPanel>
+                </Border>
+            </Grid>
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="390" />
+                </Grid.ColumnDefinitions>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="11" Padding="16" Margin="0,0,0,12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <DockPanel>
+                                <Button x:Name="ClearFiltersButton" DockPanel.Dock="Right" Content="Reset filters" Padding="9,5" FontSize="10" Margin="0" Click="ClearFilters_Click" />
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Width="22" Height="22" CornerRadius="7" Background="#1B3A46">
+                                        <TextBlock Text="1" Foreground="#60D7D1" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="  Find files" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DockPanel>
+                            <Grid Grid.Row="1" Margin="0,11,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="FolderBox" Text="Choose a folder to search…" ToolTip="Paste a folder path or browse to choose one" />
+                                <Button x:Name="BrowseButton" Grid.Column="1" Content="Browse folders" Margin="8,0,0,0" Click="Browse_Click" />
+                            </Grid>
+                            <Grid Grid.Row="2" Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="SearchBox" IsEditable="True" IsTextSearchEnabled="True" StaysOpenOnEdit="True" ToolTip="Search filenames or enter a query" KeyDown="SearchBox_KeyDown" />
+                                <Button x:Name="SearchButton" Grid.Column="1" Content="Search files" Background="#174550" BorderBrush="#2D7F83" Margin="8,0,0,0" Click="Search_Click" />
+                                <Button x:Name="CancelSearchButton" Grid.Column="2" Content="Cancel" Padding="10,8" Margin="7,0,0,0" Visibility="Collapsed" Click="CancelSearch_Click" />
+                            </Grid>
+                            <ToggleButton x:Name="FilterToggleButton" Grid.Row="3" Content="Search filters" HorizontalAlignment="Left" Padding="0" Margin="0,9,0,0" BorderThickness="0" Background="Transparent" Foreground="#64CEC9" FontSize="11" IsChecked="{Binding IsOpen, ElementName=FiltersPopup, Mode=TwoWay}" Focusable="True">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="Transparent" Padding="0,4">
+                                            <ContentPresenter />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Foreground" Value="#B3FFF5" />
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter Property="Foreground" Value="#B3FFF5" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <Popup x:Name="FiltersPopup" Placement="Bottom" PlacementTarget="{Binding ElementName=FilterToggleButton}" AllowsTransparency="True" StaysOpen="False" VerticalOffset="8">
+                                <Border Background="#121B2B" BorderBrush="#3E536A" BorderThickness="1" CornerRadius="8" Padding="16" Width="550">
+                                    <Grid x:Name="AdvancedFiltersPanel" Visibility="Visible" Margin="0">
+                                        <ScrollViewer MaxHeight="245" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                            <WrapPanel>
+                                                <StackPanel Margin="0,0,12,12" Width="150">
+                                                    <TextBlock Text="MATCH TYPE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <ComboBox x:Name="SearchModePicker" SelectionChanged="SearchModePicker_SelectionChanged" ToolTip="Content search reads files up to 2 MiB each">
+                                                        <ComboBoxItem Content="File name" />
+                                                        <ComboBoxItem Content="Regular expression" />
+                                                        <ComboBoxItem Content="File contents" />
+                                                    </ComboBox>
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,12,12" Width="150">
+                                                    <TextBlock Text="NAME MATCH" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <CheckBox x:Name="ExactMatchCheck" Content="Exact name" Margin="0,1,0,4" />
+                                                    <CheckBox x:Name="CaseSensitiveCheck" Content="Case sensitive" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,12,12" Width="150">
+                                                    <TextBlock Text="SCOPE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <CheckBox x:Name="RecursiveCheck" Content="Include subfolders" IsChecked="True" Margin="0,1,0,4" />
+                                                    <CheckBox x:Name="IncludeHiddenCheck" Content="Include hidden" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,12,12" Width="150">
+                                                    <TextBlock Text="FILE TYPE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBox x:Name="ExtensionFilterBox" Padding="8,6" ToolTip="Comma-separated, e.g. .pdf,.docx" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,12,12" Width="150">
+                                                    <TextBlock Text="SKIP FOLDERS" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBox x:Name="ExcludedFoldersBox" Padding="8,6" ToolTip="Comma-separated folder names" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,12,12" Width="150">
+                                                    <TextBlock Text="MINIMUM SIZE (MB)" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBox x:Name="MinSizeBox" Padding="8,6" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,12,12" Width="150">
+                                                    <TextBlock Text="MAXIMUM SIZE (MB)" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBox x:Name="MaxSizeBox" Padding="8,6" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,12,12" Width="150">
+                                                    <TextBlock Text="MODIFIED AFTER" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBox x:Name="ModifiedAfterBox" Padding="8,6" ToolTip="YYYY-MM-DD" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,12,12" Width="150">
+                                                    <TextBlock Text="SORT RESULTS" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <ComboBox x:Name="SortPicker">
+                                                        <ComboBoxItem Content="Name A–Z" />
+                                                        <ComboBoxItem Content="Largest" />
+                                                        <ComboBoxItem Content="Newest" />
+                                                        <ComboBoxItem Content="Oldest" />
+                                                    </ComboBox>
+                                                </StackPanel>
+                                                <StackPanel Width="150" Margin="0,0,12,12">
+                                                    <TextBlock Text="RESULT LIMIT" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <ComboBox x:Name="ResultLimitPicker">
+                                                        <ComboBoxItem Content="50" />
+                                                        <ComboBoxItem Content="100" />
+                                                        <ComboBoxItem Content="200" />
+                                                        <ComboBoxItem Content="500" />
+                                                    </ComboBox>
+                                                </StackPanel>
+                                            </WrapPanel>
+                                        </ScrollViewer>
+                                    </Grid>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </Border>
+                    <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="11" Padding="14" Grid.Row="1">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <DockPanel Margin="2,0,2,10">
+                                <TextBlock x:Name="ResultCount" Text="Choose a folder to begin" Foreground="#8FA0B8" FontSize="11" HorizontalAlignment="Right" DockPanel.Dock="Right" VerticalAlignment="Center" />
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Width="22" Height="22" CornerRadius="7" Background="#1B3A46">
+                                        <TextBlock Text="2" Foreground="#60D7D1" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="  Search results" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DockPanel>
+                            <ListBox x:Name="ResultsList" Grid.Row="1" SelectionChanged="Results_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" Foreground="#E8F0FA" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding FullPath}" ToolTip="{Binding FullPath}" FontSize="11" Foreground="#91A0B7" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                                            <TextBlock Text="{Binding Summary}" FontSize="10" Foreground="#728AA3" Margin="0,4,0,0" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <WrapPanel Grid.Row="2" Margin="0,10,0,0">
+                                <Button x:Name="ReviewFileButton" Content="Preview / review" Padding="10,6" FontSize="11" Click="ReviewFile_Click" IsEnabled="False" Margin="0,0,6,6" Background="#174550" />
+                                <Button x:Name="OpenFileButton" Content="Open" Padding="10,6" FontSize="11" Click="OpenFile_Click" IsEnabled="False" Margin="0,0,6,6" />
+                                <Button x:Name="RevealFileButton" Content="Show in folder" Padding="10,6" FontSize="11" Click="RevealFile_Click" IsEnabled="False" Margin="0,0,6,6" />
+                                <Button x:Name="CopyPathButton" Content="Copy path" Padding="10,6" FontSize="11" Click="CopyPath_Click" IsEnabled="False" Margin="0,0,6,6" />
+                                <Button x:Name="CopyHashButton" Content="Copy SHA-256" Padding="10,6" FontSize="11" Click="CopyHash_Click" IsEnabled="False" Margin="0,0,6,6" />
+                            </WrapPanel>
+                            <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsHitTestVisible="False" Margin="18">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ElementName=ResultsList, Path=Items.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="Your files appear here" FontSize="17" Foreground="#CEDBEA" HorizontalAlignment="Center" />
+                                <TextBlock Text="Choose a folder, then search by name or content." FontSize="12" Foreground="#8194AE" TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,0" />
+                                <TextBlock Text="Select a result to preview it before uploading." FontSize="11" Foreground="#657F99" TextWrapping="Wrap" TextAlignment="Center" Margin="0,5,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+                <Border Grid.Column="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="11" Padding="16">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <StackPanel Margin="0,0,0,14">
+                                <TextBlock Text="3  /  Upload to GitHub" FontSize="16" FontWeight="SemiBold" Foreground="#E9EFF8" />
+                                <TextBlock Text="Choose a destination, then review your upload." Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0" />
+                            </StackPanel>
+                            <Expander Header="Saved destinations" Margin="0,0,0,14" IsExpanded="False">
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox x:Name="DestinationPicker" SelectionChanged="DestinationPicker_SelectionChanged" ToolTip="Reuse a saved repository, branch, and path" />
+                                    <Button x:Name="SaveDestinationButton" Grid.Column="1" Content="Save preset" Padding="9,6" Margin="7,0,0,0" FontSize="10" Click="SaveDestination_Click" />
+                                </Grid>
+                            </Expander>
+                            <DockPanel Margin="0,0,0,6">
+                                <Button x:Name="RepositoryToolsButton" Content="Browse" HorizontalAlignment="Left" Padding="8,5" Margin="0" FontSize="10" Click="RepositoryTools_Click" DockPanel.Dock="Right" />
+                                <TextBlock Text="REPOSITORY" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <ComboBox x:Name="RepoPicker" IsEditable="True" IsTextSearchEnabled="True" StaysOpenOnEdit="True" Margin="0,0,0,12" ToolTip="Choose a repository or type owner/repository" SelectionChanged="RepoPicker_SelectionChanged" />
+                            <Grid Margin="0,0,0,12">
+                              <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="10"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="BRANCH" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                <TextBox x:Name="BranchBox" Text="main" TextChanged="BranchBox_TextChanged" Margin="0" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="COMMIT MESSAGE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                <TextBox x:Name="CommitMessageBox" Margin="0" Text="Upload via OctoShip" MaxLength="250" />
+                            </StackPanel>
+                            </Grid>
+                            <TabControl x:Name="UploadModeTabs">
+                                <TabItem Header="Selected file">
+                                    <StackPanel>
+                                        <Border Background="{StaticResource PanelSoft}" BorderBrush="#202D41" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,11">
+                                            <StackPanel>
+                                                <TextBlock Text="SELECTED FILE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                <TextBlock x:Name="SelectedFileLabel" Text="Select a result to review it here." Foreground="#C0CCDD" FontSize="11" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                        <StackPanel Margin="0,0,0,12">
+                                            <TextBlock Text="FILE PATH IN REPOSITORY" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                            <TextBox x:Name="PathBox" ToolTip="For example: uploads/report.pdf" TextChanged="PathBox_TextChanged" Margin="0" />
+                                        </StackPanel>
+                                        <Button x:Name="UploadButton" Content="Send selected file" IsEnabled="False" Background="#174550" BorderBrush="#2D7F83" Padding="13,11" HorizontalAlignment="Stretch" Margin="0" Click="Upload_Click" />
+                                    </StackPanel>
+                                </TabItem>
+                                <TabItem Header="Folder batch">
+                                    <StackPanel Margin="0">
+                                        <TextBlock Text="Upload a folder tree. OctoShip checks every destination before sending." Foreground="#91A0B7" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,8" />
+                                        <TextBlock Text="DESTINATION FOLDER (OPTIONAL)" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                        <TextBox x:Name="QueuePathBox" Margin="0,0,0,8" ToolTip="GitHub destination folder; local subfolders are preserved" />
+                                        <WrapPanel>
+                                            <Button x:Name="QueueFolderButton" Content="Choose local folder" Padding="9,6" FontSize="10" Click="QueueFolder_Click" Margin="0,0,6,6" />
+                                            <Button x:Name="QueueRunButton" Content="Review batch" Padding="9,6" FontSize="10" IsEnabled="False" Click="QueueRunWindow_Click" Margin="0,0,6,6" Background="#174550" />
+                                            <Button Content="Resume saved batch" Padding="9,6" FontSize="10" Click="ResumeBatch_Click" Margin="0,0,6,6" />
+                                            <Button x:Name="QueuePauseButton" Content="Pause" Padding="9,6" FontSize="10" IsEnabled="False" Click="QueuePause_Click" Visibility="Collapsed" Margin="0,0,6,6" />
+                                            <Button x:Name="QueueRetryButton" Content="Retry failed" Padding="9,6" FontSize="10" IsEnabled="False" Margin="0,0,6,6" Click="QueueRetry_Click" Visibility="Collapsed" />
+                                        </WrapPanel>
+                                        <TextBlock x:Name="QueueStatusLabel" Text="Choose a folder to preview its files." Foreground="#9EACC1" FontSize="10" TextWrapping="Wrap" Margin="0,6,0,5" />
+                                        <ListBox x:Name="QueueList" Height="105" Visibility="Collapsed" IsHitTestVisible="False" />
+                                    </StackPanel>
+                                </TabItem>
+                            </TabControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+            <Border Grid.Row="2" Background="#111A29" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Padding="11,8" Margin="0,12,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <DockPanel>
+                        <Button x:Name="CancelUploadButton" DockPanel.Dock="Right" Content="Cancel upload" Padding="9,4" Margin="8,0,0,0" Visibility="Collapsed" IsEnabled="False" FontSize="10" Click="CancelUpload_Click" />
+                        <TextBlock Text="STATUS" Foreground="#60D7D1" FontWeight="Bold" FontSize="9" Margin="0,0,10,0" />
+                        <TextBlock x:Name="StatusLabel" Text="Ready. Choose a folder to search." Foreground="#C0CCDD" FontSize="11" TextWrapping="Wrap" />
+                    </DockPanel>
+                    <ProgressBar x:Name="UploadProgress" Grid.Row="1" Height="7" Margin="0,7,0,0" Minimum="0" Maximum="100" Value="0" Visibility="Collapsed" Background="#202B3E" Foreground="#50D6D0" />
+                </Grid>
             </Border>
         </Grid>
-
-        <!-- Persistent status and transfer progress -->
-        <Border Grid.Row="3" Background="#111A29" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Padding="11,8" Margin="0,12,0,0">
-            <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                <DockPanel><Button x:Name="CancelUploadButton" DockPanel.Dock="Right" Content="Cancel upload" Padding="9,4" Margin="8,0,0,0" Visibility="Collapsed" IsEnabled="False" FontSize="10" Click="CancelUpload_Click"/><TextBlock Text="STATUS" Foreground="#60D7D1" FontWeight="Bold" FontSize="9" Margin="0,0,10,0"/><TextBlock x:Name="StatusLabel" Text="Ready. Choose a folder to search." Foreground="#C0CCDD" FontSize="11" TextWrapping="Wrap"/></DockPanel>
-                <ProgressBar x:Name="UploadProgress" Grid.Row="1" Height="7" Margin="0,7,0,0" Minimum="0" Maximum="100" Value="0" Visibility="Collapsed" Background="#202B3E" Foreground="#50D6D0"/>
-            </Grid>
-        </Border>
-    </Grid>
-    <Grid x:Name="ToolsView" Grid.Row="0" Margin="22,22,22,10" Visibility="Collapsed">
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <DockPanel Grid.Row="0" Margin="0,0,0,18">
-            <Button DockPanel.Dock="Right" Content="Back to search" Padding="12,8" Click="BackToSearch_Click"/>
-            <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="SETTINGS &amp; TOOLS" Foreground="#60D7D1" FontSize="10" FontWeight="Bold"/>
-                <TextBlock Text="Manage OctoShip for GitHub" FontSize="21" FontWeight="SemiBold" Margin="0,4,0,0"/>
-                <TextBlock Text="Privacy, repository browsing, updates, and app health in one place." Foreground="{StaticResource Muted}" FontSize="12" Margin="0,4,0,0"/>
-            </StackPanel>
-        </DockPanel>
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <Grid>
-                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="14"/><RowDefinition Height="Auto"/><RowDefinition Height="14"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                <Border Grid.Column="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18">
-                    <StackPanel>
-                        <TextBlock Text="PREFERENCES" Style="{StaticResource FieldLabel}"/>
-                        <TextBlock Text="Privacy and saved choices" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,6"/>
-                        <TextBlock Text="Choose an update channel, manage sensitive-file warnings, rename destination presets, clear selected histories, or import and export credential-free settings." Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16"/>
-                        <Button Content="Open settings editor" HorizontalAlignment="Left" Click="Settings_Click"/>
-                        <Button Content="Open OctoShip data folder" HorizontalAlignment="Left" Margin="0,4,0,0" Click="OpenDataFolder_Click"/>
-                        <TextBlock Text="GitHub credentials are not included in settings exports." Foreground="#72839A" TextWrapping="Wrap" FontSize="10" Margin="0,12,0,0"/>
-                    </StackPanel>
-                </Border>
-                <Border Grid.Column="2" Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18">
-                    <StackPanel>
-                        <TextBlock Text="GITHUB" Style="{StaticResource FieldLabel}"/>
-                        <TextBlock Text="Repositories and access" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,6"/>
-                        <TextBlock Text="Browse repositories and folders, check API connectivity and rate limits, then apply a repository and folder to the upload form." Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16"/>
-                        <Button Content="Browse repositories and folders" HorizontalAlignment="Left" Click="RepositoryTools_Click"/>
-                        <TextBlock x:Name="ToolsAccountStatus" Text="Account status: checking" Foreground="#AAB8CB" FontSize="11" Margin="0,12,0,0"/>
-                    </StackPanel>
-                </Border>
-                <Border Grid.Column="4" Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18">
-                    <StackPanel>
-                        <TextBlock Text="APP HEALTH" Style="{StaticResource FieldLabel}"/>
-                        <TextBlock Text="Updates and diagnostics" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,6"/>
-                        <TextBlock Text="Check the configured release channel, verify the current Windows/runtime compatibility, or copy a privacy-safe diagnostic summary." Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16"/>
-                        <Button Content="Check for updates" HorizontalAlignment="Left" Click="Update_Click"/>
-                        <Button Content="Run compatibility check" HorizontalAlignment="Left" Margin="0,4,0,0" Click="CheckCompatibility_Click"/>
-                        <Button Content="Copy diagnostics" HorizontalAlignment="Left" Margin="0,4,0,0" Click="CopyDiagnostics_Click"/>
-                        <TextBlock x:Name="NetworkStatus" Text="Network type: not checked" Foreground="#AAB8CB" FontSize="10" TextWrapping="Wrap" Margin="0,10,0,0"/>
-                        <ProgressBar x:Name="UpdateDownloadProgress" Height="7" Minimum="0" Maximum="100" Value="0" Visibility="Collapsed" Margin="0,9,0,0" Background="#202B3E" Foreground="#50D6D0"/>
-                        <TextBlock x:Name="UpdateDownloadStatus" Foreground="#91A0B7" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                        <TextBlock x:Name="CompatibilityStatus" Text="Compatibility has not been checked this session." Foreground="#72839A" TextWrapping="Wrap" FontSize="10" Margin="0,12,0,0"/>
-                    </StackPanel>
-                </Border>
-                <Border Grid.Row="2" Grid.ColumnSpan="5" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18">
-                    <Grid>
-                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="220"/></Grid.RowDefinitions>
-                        <DockPanel>
-                            <Button x:Name="GithubProjectRefreshButton" DockPanel.Dock="Right" Content="Refresh projects" Padding="10,6" Click="LoadGithubProjects_Click"/>
-                            <StackPanel>
-                                <TextBlock Text="EXISTING GITHUB PROJECTS" Style="{StaticResource FieldLabel}"/>
-                                <TextBlock Text="Find one of your existing repositories and set it as the upload target." FontSize="15" FontWeight="SemiBold" Margin="0,5,0,3"/>
-                            </StackPanel>
-                        </DockPanel>
-                        <Grid Grid.Row="1" Margin="0,10,0,8">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <TextBox x:Name="GithubProjectFilter" ToolTip="Filter by repository name or description" TextChanged="GithubProjectFilter_TextChanged"/>
-                            <Button x:Name="UseGithubProjectButton" Grid.Column="1" Content="Use selected project" Padding="10,6" Margin="7,0,0,0" IsEnabled="False" Click="UseGithubProject_Click"/>
-                            <Button x:Name="OpenGithubProjectButton" Grid.Column="2" Content="Open on GitHub" Padding="10,6" Margin="7,0,0,0" IsEnabled="False" Click="OpenGithubProject_Click"/>
-                        </Grid>
-                        <TextBlock x:Name="GithubProjectStatus" Grid.Row="2" Text="Connect an account, then refresh to list its existing repositories." Foreground="{StaticResource Muted}" FontSize="11" Margin="0,0,0,7"/>
-                        <ListBox x:Name="GithubProjectsList" Grid.Row="3" SelectionChanged="GithubProjectsList_SelectionChanged" ToolTip="Select an existing repository to use as the upload destination">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding FullName}" Foreground="#E4ECF7" FontWeight="SemiBold"/>
-                                            <TextBlock Text="{Binding Description}" Foreground="#91A0B7" FontSize="10" TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Text="{Binding Details}" Foreground="#71839C" FontSize="9" Margin="0,3,0,0"/>
-                                        </StackPanel>
-                                        <TextBlock Grid.Column="1" Text="{Binding VisibilityLabel}" Foreground="#60D7D1" FontSize="9" FontWeight="Bold" VerticalAlignment="Top" Margin="8,0,0,0"/>
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </Grid>
-                </Border>
-                <Border Grid.Row="4" Grid.ColumnSpan="5" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,0">
-                    <StackPanel>
-                        <DockPanel>
-                            <TextBlock DockPanel.Dock="Right" Text="READ ONLY" Foreground="#60D7D1" FontSize="9" FontWeight="Bold" VerticalAlignment="Center"/>
-                            <StackPanel>
-                                <TextBlock Text="USER PROFILE" Style="{StaticResource FieldLabel}"/>
-                                <TextBlock Text="Current OctoShip profile" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,3"/>
-                                <TextBlock Text="This profile summarizes the current account and app preferences. Change them using the account controls or settings editor." Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </DockPanel>
-                        <Grid Margin="0,14,0,0">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Margin="0,0,10,0"><TextBlock Text="GITHUB ACCOUNT" Style="{StaticResource FieldLabel}"/><TextBlock x:Name="ProfileAccount" Text="Not connected" Foreground="#E4ECF7" Margin="0,5,0,0"/></StackPanel>
-                            <StackPanel Grid.Column="1" Margin="0,0,10,0"><TextBlock Text="CURRENT REPOSITORY" Style="{StaticResource FieldLabel}"/><TextBlock x:Name="ProfileRepository" Text="Not selected" Foreground="#E4ECF7" Margin="0,5,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
-                            <StackPanel Grid.Column="2" Margin="0,0,10,0"><TextBlock Text="UPDATE CHANNEL" Style="{StaticResource FieldLabel}"/><TextBlock x:Name="ProfileChannel" Text="Stable" Foreground="#E4ECF7" Margin="0,5,0,0"/></StackPanel>
-                            <StackPanel Grid.Column="3"><TextBlock Text="PRIVACY MODE" Style="{StaticResource FieldLabel}"/><TextBlock x:Name="ProfilePrivacy" Text="Off" Foreground="#E4ECF7" Margin="0,5,0,0"/></StackPanel>
-                        </Grid>
-                    </StackPanel>
-                </Border>
-            </Grid>
-        </ScrollViewer>
-        <Border Grid.Row="2" Background="#111A29" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Padding="11,8" Margin="0,14,0,0">
-            <DockPanel>
-                <TextBlock x:Name="ToolsVersionLabel" DockPanel.Dock="Right" Foreground="#72839A" FontSize="10" VerticalAlignment="Center"/>
-                <TextBlock Text="Updates are verified by SHA-256 before installation. Publisher-signature verification requires a signed release." Foreground="#AAB8CB" FontSize="10" TextWrapping="Wrap"/>
+        <Grid x:Name="ToolsView" Grid.Row="0" Margin="22,22,22,10" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <DockPanel Grid.Row="0" Margin="0,0,0,18">
+                <Button DockPanel.Dock="Right" Content="Back to search" Padding="12,8" Click="BackToSearch_Click" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="SETTINGS &amp; TOOLS" Foreground="#60D7D1" FontSize="10" FontWeight="Bold" />
+                    <TextBlock Text="Projects, tools &amp; preferences" FontSize="21" FontWeight="SemiBold" Margin="0,4,0,0" />
+                    <TextBlock Text="Find a project or choose the tool you need." Foreground="{StaticResource Muted}" FontSize="12" Margin="0,4,0,0" />
+                </StackPanel>
             </DockPanel>
-        </Border>
-    </Grid>
-    <Expander x:Name="TerminalExpander" Grid.Row="1" Header="Transfer terminal · recent upload and download activity" IsExpanded="False" Margin="22,0,22,12" Foreground="#DCE7F5" FontSize="11" FontWeight="SemiBold">
-        <Border Background="#080D16" BorderBrush="#26354A" BorderThickness="1" CornerRadius="7" Padding="8" Margin="0,5,0,0">
-            <TextBox x:Name="TransferTerminal" Height="100" IsReadOnly="True" IsReadOnlyCaretVisible="True" AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="10" Foreground="#B9D7C8" Background="#080D16" BorderThickness="0" Padding="2"/>
-        </Border>
-    </Expander>
+            <TabControl Grid.Row="1" x:Name="ToolsTabs">
+                <TabItem Header="Projects">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="220" />
+                                    </Grid.RowDefinitions>
+                                    <DockPanel>
+                                        <Button x:Name="GithubProjectRefreshButton" DockPanel.Dock="Right" Content="Refresh projects" Padding="10,6" Click="LoadGithubProjects_Click" />
+                                        <StackPanel>
+                                            <TextBlock Text="EXISTING GITHUB PROJECTS" Style="{StaticResource FieldLabel}" />
+                                            <TextBlock Text="Find one of your existing repositories and set it as the upload target." FontSize="15" FontWeight="SemiBold" Margin="0,5,0,3" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <Grid Grid.Row="1" Margin="0,10,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="GithubProjectFilter" ToolTip="Filter by repository name or description" TextChanged="GithubProjectFilter_TextChanged" />
+                                        <Button x:Name="UseGithubProjectButton" Grid.Column="1" Content="Use selected project" Padding="10,6" Margin="7,0,0,0" IsEnabled="False" Click="UseGithubProject_Click" />
+                                        <Button x:Name="OpenGithubProjectButton" Grid.Column="2" Content="Open on GitHub" Padding="10,6" Margin="7,0,0,0" IsEnabled="False" Click="OpenGithubProject_Click" />
+                                    </Grid>
+                                    <TextBlock x:Name="GithubProjectStatus" Grid.Row="2" Text="Connect an account, then refresh to list its existing repositories." Foreground="{StaticResource Muted}" FontSize="11" Margin="0,0,0,7" />
+                                    <ListBox x:Name="GithubProjectsList" Grid.Row="3" SelectionChanged="GithubProjectsList_SelectionChanged" ToolTip="Select an existing repository to use as the upload destination">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding FullName}" Foreground="#E4ECF7" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding Description}" Foreground="#91A0B7" FontSize="10" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding Details}" Foreground="#71839C" FontSize="9" Margin="0,3,0,0" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="{Binding VisibilityLabel}" Foreground="#60D7D1" FontSize="9" FontWeight="Bold" VerticalAlignment="Top" Margin="8,0,0,0" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+                <TabItem Header="Repository tools">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
+                                <StackPanel>
+                                    <TextBlock Text="GITHUB" Style="{StaticResource FieldLabel}" />
+                                    <TextBlock Text="Repositories and access" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,6" />
+                                    <TextBlock Text="Browse repositories and folders, check API connectivity and rate limits, then apply a repository and folder to the upload form." Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16" />
+                                    <Button Content="Browse repositories and folders" HorizontalAlignment="Left" Click="RepositoryTools_Click" />
+                                    <Button Content="Prepare a release" HorizontalAlignment="Left" Margin="0,4,0,0" Click="ReleasePublisher_Click" />
+                                    <TextBlock x:Name="ToolsAccountStatus" Text="Account status: checking" Foreground="#AAB8CB" FontSize="11" Margin="0,12,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+                <TabItem Header="Preferences">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
+                                <StackPanel>
+                                    <TextBlock Text="PREFERENCES" Style="{StaticResource FieldLabel}" />
+                                    <TextBlock Text="Privacy and saved choices" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,6" />
+                                    <TextBlock Text="Choose an update channel, manage sensitive-file warnings, rename destination presets, clear selected histories, or import and export credential-free settings." Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16" />
+                                    <Button Content="Open settings editor" HorizontalAlignment="Left" Click="Settings_Click" />
+                                    <Button Content="Open OctoShip data folder" HorizontalAlignment="Left" Margin="0,4,0,0" Click="OpenDataFolder_Click" />
+                                    <TextBlock Text="GitHub credentials are not included in settings exports." Foreground="#72839A" TextWrapping="Wrap" FontSize="10" Margin="0,12,0,0" />
+                                </StackPanel>
+                            </Border>
+                            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="READ ONLY" Foreground="#60D7D1" FontSize="9" FontWeight="Bold" VerticalAlignment="Center" />
+                                        <StackPanel>
+                                            <TextBlock Text="USER PROFILE" Style="{StaticResource FieldLabel}" />
+                                            <TextBlock Text="Current OctoShip profile" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,3" />
+                                            <TextBlock Text="This profile summarizes the current account and app preferences. Change them using the account controls or settings editor." Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <Grid Margin="0,14,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                            <TextBlock Text="GITHUB ACCOUNT" Style="{StaticResource FieldLabel}" />
+                                            <TextBlock x:Name="ProfileAccount" Text="Not connected" Foreground="#E4ECF7" Margin="0,5,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                            <TextBlock Text="CURRENT REPOSITORY" Style="{StaticResource FieldLabel}" />
+                                            <TextBlock x:Name="ProfileRepository" Text="Not selected" Foreground="#E4ECF7" Margin="0,5,0,0" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Margin="0,0,10,0">
+                                            <TextBlock Text="UPDATE CHANNEL" Style="{StaticResource FieldLabel}" />
+                                            <TextBlock x:Name="ProfileChannel" Text="Stable" Foreground="#E4ECF7" Margin="0,5,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="3">
+                                            <TextBlock Text="PRIVACY MODE" Style="{StaticResource FieldLabel}" />
+                                            <TextBlock x:Name="ProfilePrivacy" Text="Off" Foreground="#E4ECF7" Margin="0,5,0,0" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+                <TabItem Header="Updates &amp; diagnostics">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
+                                <StackPanel>
+                                    <TextBlock Text="APP HEALTH" Style="{StaticResource FieldLabel}" />
+                                    <TextBlock Text="Updates and diagnostics" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,6" />
+                                    <TextBlock Text="Check the configured release channel, verify the current Windows/runtime compatibility, or copy a privacy-safe diagnostic summary." Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16" />
+                                    <Button Content="Check for updates" HorizontalAlignment="Left" Click="Update_Click" x:Name="UpdateButton" />
+                                    <Button Content="Run compatibility check" HorizontalAlignment="Left" Margin="0,4,0,0" Click="CheckCompatibility_Click" />
+                                    <Button Content="Copy diagnostics" HorizontalAlignment="Left" Margin="0,4,0,0" Click="CopyDiagnostics_Click" />
+                                    <TextBlock x:Name="NetworkStatus" Text="Network type: not checked" Foreground="#AAB8CB" FontSize="10" TextWrapping="Wrap" Margin="0,10,0,0" />
+                                    <ProgressBar x:Name="UpdateDownloadProgress" Height="7" Minimum="0" Maximum="100" Value="0" Visibility="Collapsed" Margin="0,9,0,0" Background="#202B3E" Foreground="#50D6D0" />
+                                    <TextBlock x:Name="UpdateDownloadStatus" Foreground="#91A0B7" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                    <TextBlock x:Name="CompatibilityStatus" Text="Compatibility has not been checked this session." Foreground="#72839A" TextWrapping="Wrap" FontSize="10" Margin="0,12,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+            <Border Grid.Row="2" Background="#111A29" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Padding="11,8" Margin="0,14,0,0">
+                <DockPanel>
+                    <TextBlock x:Name="ToolsVersionLabel" DockPanel.Dock="Right" Foreground="#72839A" FontSize="10" VerticalAlignment="Center" />
+                    <TextBlock Text="Updates are verified by SHA-256 before installation. Publisher-signature verification requires a signed release." Foreground="#AAB8CB" FontSize="10" TextWrapping="Wrap" />
+                </DockPanel>
+            </Border>
+        </Grid>
+        <Expander x:Name="TerminalExpander" Grid.Row="1" Header="Transfer activity" IsExpanded="False" Margin="20,0,20,12" Foreground="#DCE7F5" FontSize="11" FontWeight="SemiBold">
+            <Border Background="#080D16" BorderBrush="#26354A" BorderThickness="1" CornerRadius="7" Padding="8" Margin="0,5,0,0">
+                <TextBox x:Name="TransferTerminal" Height="100" IsReadOnly="True" IsReadOnlyCaretVisible="True" AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="10" Foreground="#B9D7C8" Background="#080D16" BorderThickness="0" Padding="2" />
+            </Border>
+        </Expander>
     </Grid>
 </Window>

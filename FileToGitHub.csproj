@@ -12,4 +12,10 @@
     <RollForward>Major</RollForward>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="verification\**\*.cs" />
+    <EmbeddedResource Remove="verification\**\*" />
+    <None Remove="verification\**\bin\**;verification\**\obj\**" />
+  </ItemGroup>
+
 </Project>

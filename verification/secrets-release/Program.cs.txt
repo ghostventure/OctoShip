@@ -1,0 +1,156 @@
+using System;
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using System.Collections.Generic;
+using FileToGitHub;
+
+class Program
+{
+    static int checks;
+    static void Assert(bool condition, string message) { if (!condition) throw new Exception(message); checks++; }
+    [STAThread]
+    static void Main()
+    {
+        try
+        {
+        RunChecks().GetAwaiter().GetResult();
+        SmokeWindow();
+        Console.WriteLine($"PASS: {checks} scanner/release checks including WPF render. No network calls.");
+        }
+        catch (Exception ex) { Console.Error.WriteLine(ex); Environment.ExitCode = 1; }
+    }
+    static async Task RunChecks()
+    {
+        var secret = "ghp_" + new string('A', 36);
+        var scan = ContentSecretScanner.ScanBytes(Encoding.UTF8.GetBytes("hello\n" + secret));
+        Assert(scan.HasFindings && scan.Findings[0].Line == 2 && scan.Complete, "GitHub detection and line");
+        Assert(!JsonSerializer.Serialize(scan).Contains(secret), "No raw values leak");
+        Assert(ContentSecretScanner.ScanText("password = \"abcdefgh123\"").HasFindings, "Assignment detection");
+        Assert(ContentSecretScanner.ScanText("-----BEGIN PRIVATE KEY-----").HasFindings, "Key detection");
+        Assert(!ContentSecretScanner.ScanBytes(new byte[ContentSecretScanner.MaximumBytes + 1]).Complete, "Size limit");
+        Assert(!ContentSecretScanner.ScanBytes(new byte[] { 0, 1, 2 }).Complete, "Binary limit");
+        Assert(!ContentSecretScanner.ScanBytes(new byte[] { 0xff }).Complete, "Encoding limit");
+        var utf16 = Encoding.Unicode.GetPreamble();
+        Assert(ContentSecretScanner.ScanBytes(Combine(utf16, Encoding.Unicode.GetBytes(secret))).HasFindings, "UTF16 detection");
+        Assert(!ContentSecretScanner.ScanText("ordinary text").HasFindings, "Clean text");
+        using var cts = new CancellationTokenSource(); cts.Cancel();
+        try { ContentSecretScanner.ScanBytes(Array.Empty<byte>(), cts.Token); throw new Exception("Not canceled"); } catch (OperationCanceledException) { checks++; }
+        using var handler = new FakeHandler(); using var http = new HttpClient(handler);
+        var service = new GitHubReleaseService(http);
+        var draft = await service.CreateDraftAsync("owner", "repo", "fake-test-token", "v1", "main", "Title", "notes", false);
+        Assert(draft.Id == 123 && draft.Draft, "Draft result");
+        Assert(handler.LastMethod == HttpMethod.Post && handler.LastBody.Contains("\"draft\":true"), "Draft-only creation");
+        var path = Path.Combine(Path.GetTempPath(), "octoship-test-asset.bin");
+        await File.WriteAllBytesAsync(path, new byte[] { 1, 2, 3 });
+        try { await service.UploadAssetAsync("owner", "repo", "fake-test-token", draft.Id, path); }
+        finally { File.Delete(path); }
+        Assert(handler.LastUri!.Host == "uploads.github.com" && handler.LastBytes == 3, "Asset upload host and bytes");
+        await service.PublishAsync("owner", "repo", "fake-test-token", draft.Id);
+        Assert(handler.LastMethod == HttpMethod.Patch && handler.LastBody.Contains("\"draft\":false"), "Explicit publish");
+        handler.Fail = true;
+        try { await service.PublishAsync("owner", "repo", "fake-test-token", draft.Id); throw new Exception("Expected HTTP failure"); }
+        catch (HttpRequestException ex) { Assert(!ex.Message.Contains("server-secret"), "Failure body not leaked"); }
+    }
+    static void SmokeWindow()
+    {
+        using var handler = new FakeHandler(); using var client = new HttpClient(handler);
+        var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        var window = new ReleasePublisherWindow(client, "sample-owner", "sample-repo", "main", "fake-test-token");
+        try
+        {
+            SmokeMainAndBatch();
+            window.Show();
+            window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            window.UpdateLayout();
+            Assert(window.IsVisible && window.ActualWidth > 0, "Release window shown");
+            var buttons = new List<Button>();
+            Walk(window, buttons);
+            var publish = buttons.Find(b => Equals(b.Content, "Publish release"));
+            Assert(publish != null && !publish.IsEnabled, "Publish disabled by default");
+            Assert(handler.RequestCount == 0, "Opening release window sends no HTTP requests");
+            var bitmap = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(window);
+            var screenshot = Path.Combine(Path.GetTempPath(), "OctoShip-release-smoke.png");
+            var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using (var file = File.Create(screenshot)) encoder.Save(file);
+            Assert(new FileInfo(screenshot).Length > 1000, "Window rendered to PNG");
+            Console.WriteLine("Screenshot: " + screenshot);
+        }
+        finally { window.Close(); app.Shutdown(); }
+        Assert(!window.IsVisible, "Release window closed");
+    }
+    static void Walk(DependencyObject node, List<Button> buttons)
+    {
+        if (node is Button button) buttons.Add(button);
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++) Walk(VisualTreeHelper.GetChild(node, i), buttons);
+    }
+    static void SmokeMainAndBatch()
+    {
+        var main = new MainWindow();
+        bool loaded = false;
+        main.Loaded += (_, _) => loaded = true;
+        try
+        {
+            var content = (FrameworkElement)main.Content;
+            RenderContent(content, "OctoShip-main-smoke.png", 1050, 900);
+            var buttons = new List<Button>(); Walk(content, buttons); WalkLogical(content, buttons);
+            Assert(buttons.Exists(b => Equals(b.Content, "Resume saved batch")), "Resume saved batch control present");
+            var tools = buttons.Find(b => Equals(b.Content, "Settings & tools"));
+            Assert(tools != null, "Tools navigation present");
+            tools!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            RenderContent(content, "OctoShip-tools-smoke.png", 1050, 900);
+            buttons.Clear(); Walk(content, buttons); WalkLogical(content, buttons);
+            Assert(buttons.Exists(b => Equals(b.Content, "Prepare a release")), "Prepare a release control present in tools");
+            Assert(((FrameworkElement)main.FindName("ToolsView")).Visibility == Visibility.Visible, "Tools view selected");
+            Assert(!loaded && !main.IsVisible, "Main smoke does not invoke Loaded authentication/update handlers");
+        }
+        finally { main.Close(); }
+        var batch = new BatchUploadWindow(Array.Empty<UploadQueueItem>(), "sample-owner/sample-repo", "main", "Test upload",
+            (file, progress, ct) => throw new Exception("Smoke test must not upload"), persistQueue: false);
+        try
+        {
+            RenderContent((FrameworkElement)batch.Content, "OctoShip-batch-smoke.png", 1050, 700);
+            Assert(batch.FindName("CommitModeBox") is ComboBox, "Batch commit mode control constructed");
+            Assert(!batch.IsVisible, "Batch smoke does not start queue recovery");
+        }
+        finally { batch.Close(); }
+    }
+    static void RenderContent(FrameworkElement content, string name, int width, int height)
+    {
+        content.Measure(new Size(width, height)); content.Arrange(new Rect(0, 0, width, height)); content.UpdateLayout();
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32); bitmap.Render(content);
+        var path = Path.Combine(Path.GetTempPath(), name);
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using (var file = File.Create(path)) encoder.Save(file);
+        Assert(new FileInfo(path).Length > 1000, "Rendered " + name);
+        Console.WriteLine("Screenshot: " + path);
+    }
+    static void WalkLogical(DependencyObject node, List<Button> buttons)
+    {
+        if (node is Button button && !buttons.Contains(button)) buttons.Add(button);
+        foreach (var child in LogicalTreeHelper.GetChildren(node)) if (child is DependencyObject dependency) WalkLogical(dependency, buttons);
+    }
+    static byte[] Combine(byte[] a, byte[] b) { var c = new byte[a.Length+b.Length]; a.CopyTo(c,0); b.CopyTo(c,a.Length); return c; }
+}
+class FakeHandler : HttpMessageHandler
+{
+    public HttpMethod? LastMethod; public Uri? LastUri; public string LastBody = ""; public int LastBytes; public bool Fail; public int RequestCount;
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        LastMethod = request.Method; LastUri = request.RequestUri;
+        RequestCount++;
+        var data = request.Content == null ? Array.Empty<byte>() : await request.Content.ReadAsByteArrayAsync(ct);
+        LastBody = Encoding.UTF8.GetString(data); LastBytes = data.Length;
+        return new HttpResponseMessage(Fail ? HttpStatusCode.Forbidden : HttpStatusCode.Created) { Content = new StringContent(Fail ? "server-secret" : "{\"id\":123,\"html_url\":\"https://github.com/owner/repo/releases/123\",\"draft\":true}") };
+    }
+}

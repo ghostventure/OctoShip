@@ -1,0 +1,64 @@
+using System; using System.IO; using System.Linq; using System.Collections.Generic; using System.Threading; using System.Threading.Tasks; using System.Net.Http;
+using FileToGitHub;
+using System.Net;
+using System.Text.Json;
+class Program {
+static void Assert(bool ok,string name) { if(!ok) throw new Exception(name); Console.WriteLine("PASS " + name); }
+[STAThread] static void Main() { Run().GetAwaiter().GetResult(); Smoke(); }
+static void Smoke() {
+ using var handler=new Fake(); using var http=new HttpClient(handler);
+ var app=new System.Windows.Application {ShutdownMode=System.Windows.ShutdownMode.OnExplicitShutdown};
+ var window=new RepositoryWorkflowWindow(http,()=>"fake-token","owner/repo","main","");
+ try {
+  window.Show(); window.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle); window.UpdateLayout();
+  var root=(System.Windows.Controls.StackPanel)((System.Windows.Controls.ScrollViewer)window.Content).Content;
+  var tabs=root.Children.OfType<System.Windows.Controls.TabControl>().Single();
+  Assert(tabs.Items.Count==3,"three workflow tabs exist");
+  for(int i=0;i<tabs.Items.Count;i++) {
+   tabs.SelectedIndex=i; window.UpdateLayout(); window.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+   var panel=(System.Windows.Controls.StackPanel)((System.Windows.Controls.TabItem)tabs.Items[i]).Content;
+   Assert(panel.ActualWidth>0 && panel.Children.OfType<System.Windows.Controls.TextBox>().All(x=>x.ActualHeight>15),"tab "+i+" fields rendered");
+   Assert(panel.Children.OfType<System.Windows.Controls.TextBlock>().All(x=>!Equals(x.Foreground,panel.Background)),"tab "+i+" labels contrast");
+   var image=new System.Windows.Media.Imaging.RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,System.Windows.Media.PixelFormats.Pbgra32); image.Render(window);
+   var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder(); encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image));
+   using var output=File.Create(Path.Combine(Path.GetTempPath(),"OctoShip-workflow-tab-"+i+".png")); encoder.Save(output);
+  }
+  Assert(handler.Requests.Count==0,"opening and switching tabs sends no HTTP");
+ } finally {window.Close();app.Shutdown();}
+ Console.WriteLine("PASS STA workflow show/render/close");
+}
+static async Task Run() {
+ var folder=Path.Combine(Path.GetTempPath(),"octoship-compare-"+Guid.NewGuid()); Directory.CreateDirectory(folder);
+ try {
+ await File.WriteAllTextAsync(Path.Combine(folder,"same.txt"),"hello\n");
+ await File.WriteAllTextAsync(Path.Combine(folder,"changed.txt"),"new");
+ await File.WriteAllTextAsync(Path.Combine(folder,"local.txt"),"local");
+ var hash=await RepositoryWorkflowService.HashBlobAsync(Path.Combine(folder,"same.txt"));
+ Assert(hash=="ce013625030ba8dba906f756967f9e9ca394464a","Git blob known vector");
+ var handler=new Fake(); using var http=new HttpClient(handler); var svc=new RepositoryWorkflowService(http);
+ handler.Responses.Enqueue("{\"sha\":\"commit123\",\"commit\":{\"tree\":{\"sha\":\"tree123\"}}}");
+ handler.Responses.Enqueue(JsonSerializer.Serialize(new {truncated=false,tree=new[]{new{path="docs/same.txt",type="blob",mode="100644",sha=hash},new{path="docs/changed.txt",type="blob",mode="100644",sha=hash},new{path="docs/remote.txt",type="blob",mode="100644",sha=hash},new{path="elsewhere.txt",type="blob",mode="100644",sha=hash}}}));
+ var result=await svc.CompareAsync("owner/repo","feature/test","docs",folder,"test-token");
+ Assert(result.Files.Count==4 && result.Files.Any(x=>x.Status=="Same content") && result.Files.Any(x=>x.Status=="Changed content") && result.Files.Any(x=>x.Status=="Local only") && result.Files.Any(x=>x.Status=="Remote only"),"comparison classifications and folder scoping");
+ Assert(handler.Requests.All(x=>x.Method=="GET"),"comparison never writes");
+ handler.Responses.Enqueue("{\"sha\":\"commit123\",\"commit\":{\"tree\":{\"sha\":\"tree123\"}}}"); handler.Responses.Enqueue("{\"truncated\":true,\"tree\":[]}");
+ try {await svc.CompareAsync("owner/repo","main","",folder,"test-token"); throw new Exception("truncation accepted");} catch(InvalidOperationException) {Console.WriteLine("PASS truncated tree rejected");}
+ handler.Responses.Enqueue("{\"object\":{\"sha\":\"abc123\"}}"); handler.Responses.Enqueue("{\"ref\":\"refs/heads/new/feature\"}");
+ await svc.CreateBranchAsync("owner/repo","main","new/feature","test-token");
+ using(var body=JsonDocument.Parse(handler.Requests.Last().Body)) Assert(body.RootElement.GetProperty("ref").GetString()=="refs/heads/new/feature" && body.RootElement.GetProperty("sha").GetString()=="abc123","branch payload source SHA and full reference");
+ handler.Responses.Enqueue("{\"html_url\":\"https://github.com/owner/repo/pull/1\"}");
+ var url=await svc.CreatePullRequestAsync("owner/repo","new/feature","main","Title","Body",true,"test-token");
+ using(var body=JsonDocument.Parse(handler.Requests.Last().Body)) Assert(body.RootElement.GetProperty("draft").GetBoolean() && body.RootElement.GetProperty("head").GetString()=="new/feature" && url.EndsWith("/1"),"draft PR payload and URL");
+ foreach(var bad in new[]{"a..b","bad.lock","/a","a/","a//b","a b",".hidden","a@{b"}) {try {RepositoryWorkflowService.ValidateBranch(bad); throw new Exception("accepted "+bad);} catch(ArgumentException) {}}
+ Console.WriteLine("PASS invalid branch validation");
+ var before=handler.Requests.Count; try {await svc.CreatePullRequestAsync("owner/repo","main","main","T","",true,"test-token"); throw new Exception("same branches accepted");} catch(ArgumentException) {}
+ Assert(before==handler.Requests.Count,"invalid PR does not call network");
+ } finally { Directory.Delete(folder,true); }
+}
+}
+class Fake:HttpMessageHandler {
+ public Queue<string> Responses=new(); public List<(string Method,string Body)> Requests=new();
+ protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct) { Requests.Add((request.Method.Method,request.Content==null?"":await request.Content.ReadAsStringAsync(ct))); return new(HttpStatusCode.OK){Content=new StringContent(Responses.Dequeue())}; }
+}
+
+

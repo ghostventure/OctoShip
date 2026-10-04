@@ -16,7 +16,10 @@ To produce a supported Linux desktop app, keep the existing Windows client worki
 | `MainWindow.xaml`, `MainWindow.xaml.cs` | Main search/upload UI, account connection, repository catalog, settings/tools navigation, updater, transfer progress and terminal. Most presentation and application orchestration currently lives in this code-behind. |
 | `SearchService.cs` | Local file discovery and content-search behavior. |
 | `GitHubRepositoryService.cs` | GitHub repository API models and repository operations. |
-| `UploadQueueService.cs`, `BatchUploadWindow.*` | Batch planning, filtering, collision choices, progress, pause/cancel/retry UI. A batch currently creates one commit per file. |
+| `UploadQueueService.cs`, `BatchUploadWindow.*`, `PersistentUploadQueueStore.cs`, `GitHubAtomicBatchService.cs` | Batch planning, filtering, collision choices, progress, recovery, per-file or single-commit publication. |
+| `ContentSecretScanner.cs` | Bounded content scanning that returns redacted finding metadata. |
+| `RepositoryWorkflowService.cs`, `RepositoryWorkflowWindow.cs` | Fixed-commit folder comparison and explicit branch/pull-request creation. |
+| `GitHubReleaseService.cs`, `ReleasePublisherWindow.cs` | Draft releases, asset uploads, and explicit publishing. |
 | `FileSafetyRules.cs`, `FileReviewWindow.*` | Sensitive-file checks and local/remote file review. |
 | `RepositoryToolsWindow.*` | Repository folder browser and GitHub connection/quota tools. |
 | `OctoCatPreferencesService.cs`, `OctoCatSettingsWindow.*` | Preference normalization/import/export, history clearing, publisher verification, and settings UI. |
@@ -44,7 +47,7 @@ ISCC.exe installer\OctoShip.iss
 
 The setup output is `installers/OctoShip-Setup-v1.5.0-win-x64.exe`. It installs per-user under LocalAppData, creates a Start Menu shortcut, optionally creates a desktop shortcut, and registers an uninstaller. The installer currently requires a compatible .NET Windows Desktop Runtime and Git for Windows; it is not self-contained or Authenticode-signed. Preserve user settings and Credential Manager entries when uninstalling.
 
-This repository snapshot has no automated test project. At minimum, build the app and launch the installed package on Windows. A future Linux release needs Linux CI/build tooling and real package-install/launch checks for each advertised format, such as `.deb` and AppImage.
+The component preview includes focused offline harnesses under `verification/`. Their source templates avoid the application project's default C# compilation glob. Build the app and run these harnesses before packaging. Mock HTTP verification does not establish live GitHub integration or installer behavior. A future Linux release needs Linux CI/build tooling and real package-install/launch checks for each advertised format, such as `.deb` and AppImage.
 
 ## Release and update configuration
 

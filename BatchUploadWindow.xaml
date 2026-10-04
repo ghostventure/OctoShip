@@ -1,4 +1,4 @@
-<Window x:Class="FileToGitHub.BatchUploadWindow"
+﻿<Window x:Class="FileToGitHub.BatchUploadWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Review folder upload" Height="760" Width="1040" MinHeight="600" MinWidth="820"
@@ -14,9 +14,11 @@
             <Setter Property="BorderBrush" Value="#3B4962"/><Setter Property="Padding" Value="7"/>
         </Style>
         <Style TargetType="ComboBox">
-            <Setter Property="Foreground" Value="#F3F5FA"/><Setter Property="Background" Value="#171E2B"/>
+            <Setter Property="Foreground" Value="#111827"/><Setter Property="Background" Value="#E8EDF5"/>
             <Setter Property="Padding" Value="6"/>
         </Style>
+        <Style TargetType="ComboBoxItem"><Setter Property="Foreground" Value="#111827"/><Setter Property="Background" Value="#E8EDF5"/></Style>
+        <Style TargetType="DataGridColumnHeader"><Setter Property="Foreground" Value="#F3F5FA"/><Setter Property="Background" Value="#273247"/><Setter Property="Padding" Value="8"/></Style>
     </Window.Resources>
     <Grid Margin="18">
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -31,6 +33,8 @@
                 <ComboBox x:Name="CommitModeBox" Width="170" SelectionChanged="CommitModeBox_SelectionChanged">
                     <ComboBoxItem Content="One per file" IsSelected="True"/><ComboBoxItem Content="One for batch"/>
                 </ComboBox>
+                <TextBlock Text="Batch message" VerticalAlignment="Center" Margin="14,4,4,4"/>
+                <TextBox x:Name="BatchMessageBox" Width="220" MaxLength="250"/>
                 <TextBlock Text="Collision" VerticalAlignment="Center" Margin="14,4,4,4"/>
                 <ComboBox x:Name="CollisionBox" Width="145" SelectionChanged="CollisionBox_SelectionChanged">
                     <ComboBoxItem Content="Rename automatically" IsSelected="True"/><ComboBoxItem Content="Skip colliding file"/>
@@ -39,13 +43,14 @@
                 <TextBox x:Name="MaxSizeBox" Text="50" Width="58"/>
                 <TextBlock Text="Ignore patterns" VerticalAlignment="Center" Margin="14,4,4,4"/>
                 <TextBox x:Name="IgnoreBox" Width="200" ToolTip="Comma or semicolon separated filename patterns, for example *.tmp, build/**"/>
-                <Button Content="Apply rules" Click="ApplyRules_Click"/>
+                <Button x:Name="ApplyRulesButton" Content="Apply rules" Click="ApplyRules_Click"/>
             </WrapPanel>
         </Border>
         <DataGrid x:Name="QueueGrid" Grid.Row="2" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False"
                   Background="#171E2B" Foreground="#F3F5FA" RowBackground="#171E2B" AlternatingRowBackground="#1D2636"
                   GridLinesVisibility="Horizontal" HeadersVisibility="Column" SelectionMode="Extended" SelectionUnit="FullRow"
                   CanUserSortColumns="False" Margin="0,0,0,10" CellEditEnding="QueueGrid_CellEditEnding">
+            <DataGrid.RowStyle><Style TargetType="DataGridRow"><Setter Property="ToolTip" Value="{Binding Error}"/></Style></DataGrid.RowStyle>
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Local file" Binding="{Binding SourcePath}" IsReadOnly="True" Width="2*"/>
                 <DataGridTextColumn Header="Destination path" Binding="{Binding DestinationPath, UpdateSourceTrigger=PropertyChanged}" Width="2*"/>

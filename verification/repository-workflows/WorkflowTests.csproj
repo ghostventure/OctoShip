@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(TEMP)/OctoShipWorkflowPersistedObj/</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+    <OutputPath>$(TEMP)/OctoShipWorkflowPersistedBin/</OutputPath>
+  </PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net6.0-windows</TargetFramework><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+  <ItemGroup><Compile Include="../../RepositoryWorkflowService.cs" Link="RepositoryWorkflowService.cs" /><Compile Include="Program.cs.txt" /><Compile Include="../../RepositoryWorkflowWindow.cs" Link="RepositoryWorkflowWindow.cs" /></ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+</Project>
+
+

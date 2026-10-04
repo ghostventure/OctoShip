@@ -189,13 +189,6 @@ public partial class MainWindow : Window
         if (SearchModePicker.SelectedIndex != 0 && ExactMatchCheck is not null) ExactMatchCheck.IsChecked = false;
     }
 
-    private void ToggleFilters_Click(object sender, RoutedEventArgs e)
-    {
-        var show = AdvancedFiltersPanel.Visibility != Visibility.Visible;
-        AdvancedFiltersPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        FilterToggleButton.Content = show ? "Hide advanced filters" : "Show advanced filters";
-    }
-
     private void SetSearchFolder(string folder)
     {
         FolderBox.Text = folder;
@@ -823,6 +816,26 @@ public partial class MainWindow : Window
         SaveSettings(); SetStatus($"Selected {selectedRepo} · {BranchBox.Text} · {chosenFolder}");
     }
 
+    private void ReleasePublisher_Click(object sender, RoutedEventArgs e)
+    {
+        var repository = RepoPicker.Text.Trim();
+        if (string.IsNullOrWhiteSpace(_token) || !RepositoryPattern.IsMatch(repository))
+        { SetStatus("Connect an account and select a repository before preparing a release.", true); return; }
+        var parts = repository.Split('/', 2);
+        new ReleasePublisherWindow(_http, parts[0], parts[1], BranchBox.Text.Trim(), _token) { Owner = this }.ShowDialog();
+    }
+
+    private async Task ValidateUploadContentAsync(string sourcePath, byte[] bytes, CancellationToken ct)
+    {
+        var result = await Task.Run(() => ContentSecretScanner.ScanBytes(bytes, ct), ct);
+        if (!result.HasFindings && result.Complete) return;
+        ct.ThrowIfCancellationRequested();
+        var accepted = await Dispatcher.InvokeAsync(() => MessageBox.Show(this,
+            $"Review content scan for {Path.GetFileName(sourcePath)}:\n\n{result.Summary}\n\nSecret detection is not exhaustive. Published content can remain in Git history. Continue with this file?",
+            "Review content before upload", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes);
+        if (!accepted) throw new OperationCanceledException("Content review declined. Nothing further was sent.", ct);
+    }
+
     private void ShowToolsPage_Click(object sender, RoutedEventArgs e)
         => ShowToolsPage();
 
@@ -1240,6 +1253,7 @@ public partial class MainWindow : Window
 
             SetStatus("Reading the selected file…");
             var bytes = await ReadStableFileAsync(selected.FullPath, selected.Size, selected.LastWriteTimeUtc, token);
+            await ValidateUploadContentAsync(selected.FullPath, bytes, token);
             if (bytes.LongLength > MaxUploadBytes) throw new InvalidOperationException("The file grew larger than the 50 MB upload limit. Nothing was sent.");
             LogTransfer($"Sending {Path.GetFileName(selected.FullPath)} to {repository}/{targetPath} · {FormatSize(bytes.Length)} via {DetectNetwork().Name}.");
             SetStatus("Uploading 0%…");
@@ -1380,6 +1394,7 @@ public partial class MainWindow : Window
                     throw new OperationCanceledException("User declined a potentially sensitive file.", ct);
                 if (item.CapturedLength > MaxUploadBytes) throw new InvalidOperationException("This file exceeds the 50 MB per-file limit.");
                 var bytes = await ReadStableFileAsync(item.SourcePath, item.CapturedLength, item.CapturedLastWriteTimeUtc, ct);
+                await ValidateUploadContentAsync(item.SourcePath, bytes, ct);
                 if (bytes.LongLength > MaxUploadBytes) throw new InvalidOperationException("The file grew larger than 50 MB after queueing.");
                 var encoded = string.Join("/", targetPath.Split('/').Select(Uri.EscapeDataString));
                 using var content = new UploadJsonContent(bytes, message, branch, _queueExistingShas.GetValueOrDefault(targetPath), new Progress<double>(value =>
@@ -1411,14 +1426,21 @@ public partial class MainWindow : Window
     }
 
     private async void QueueRunWindow_Click(object sender, RoutedEventArgs e)
+        => await OpenBatchWindowAsync(false);
+
+    private async void ResumeBatch_Click(object sender, RoutedEventArgs e)
+        => await OpenBatchWindowAsync(true);
+
+    private async Task OpenBatchWindowAsync(bool restoreOnly)
     {
-        if (_uploadQueue is null || string.IsNullOrWhiteSpace(_token) || string.IsNullOrWhiteSpace(_account)) { SetStatus("Connect a GitHub account and choose a folder first.", true); return; }
+        if ((!restoreOnly && _uploadQueue is null) || string.IsNullOrWhiteSpace(_token) || string.IsNullOrWhiteSpace(_account)) { SetStatus("Connect a GitHub account and choose a folder first.", true); return; }
+        if (restoreOnly && _appPreferences.PrivacyMode) { SetStatus("Saved queue recovery is disabled in privacy mode.", true); return; }
         var repository = RepoPicker.Text.Trim(); var branch = BranchBox.Text.Trim(); var message = CommitMessageBox.Text.Trim();
         var folder = QueuePathBox.Text.Trim().Replace('\\', '/').Trim('/');
-        if (!string.Equals(folder, _queuedDestinationFolder, StringComparison.Ordinal)) { SetStatus("The destination folder changed after queueing. Choose the local folder again to rebuild it.", true); return; }
+        if (!restoreOnly && !string.Equals(folder, _queuedDestinationFolder, StringComparison.Ordinal)) { SetStatus("The destination folder changed after queueing. Choose the local folder again to rebuild it.", true); return; }
         if (!RepositoryPattern.IsMatch(repository) || branch.Length == 0 || message.Length is < 1 or > 250) { SetStatus("Check the repository, branch, and commit message.", true); return; }
-        var sourceItems = _uploadQueue.Items.Where(x => x.State is UploadQueueItemState.Queued or UploadQueueItemState.Failed).ToArray();
-        if (sourceItems.Length == 0) return;
+        var sourceItems = restoreOnly ? Array.Empty<UploadQueueItem>() : _uploadQueue!.Items.Where(x => x.State is UploadQueueItemState.Queued or UploadQueueItemState.Failed).ToArray();
+        if (!restoreOnly && sourceItems.Length == 0) return;
         using var cts = new CancellationTokenSource();
         _uploadCancellation = cts; CancelUploadButton.Visibility = Visibility.Visible; CancelUploadButton.IsEnabled = true;
         SetBusy(true, "Checking repository and destination conflicts…");
@@ -1453,11 +1475,14 @@ public partial class MainWindow : Window
                     Dispatcher.Invoke(() => MessageBox.Show(this, $"{Path.GetFileName(file.SourcePath)} matches a sensitive-file rule. It may contain credentials and remain in Git history. Upload it?", "Sensitive file warning", MessageBoxButton.YesNo, MessageBoxImage.Warning)) != MessageBoxResult.Yes)
                     throw new OperationCanceledException("Upload declined for a sensitive file.", ct);
                 if (file.Size > MaxUploadBytes) throw new InvalidOperationException("This file exceeds the 50 MiB limit.");
-                var source = sourceItems.FirstOrDefault(x => string.Equals(x.SourcePath, file.SourcePath, StringComparison.OrdinalIgnoreCase))
-                    ?? throw new InvalidOperationException("Queued source file could not be found.");
-                var bytes = await ReadStableFileAsync(file.SourcePath, source.CapturedLength, source.CapturedLastWriteTimeUtc, ct);
+                if (file.CapturedLastWriteTimeUtc is not DateTime captured) throw new InvalidOperationException("Review the source file again before uploading.");
+                var bytes = await ReadStableFileAsync(file.SourcePath, file.Size, captured, ct);
+                await ValidateUploadContentAsync(file.SourcePath, bytes, ct);
                 var encodedPath = string.Join("/", file.DestinationPath.Split('/').Select(Uri.EscapeDataString));
-                var destinationSha = shas.GetValueOrDefault(file.DestinationPath);
+                var target = await _repositoryService.GetTargetFileAsync(parts[0], parts[1], branch, file.DestinationPath, _token!, ct);
+                if (target.Exists && MessageBox.Show(this, $"Replace the current GitHub file at {file.DestinationPath}?", "Review destination", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                    throw new OperationCanceledException("Destination replacement declined.", ct);
+                var destinationSha = target.Sha;
                 LogTransfer($"Uploading {Path.GetFileName(file.SourcePath)} to {repository}/{file.DestinationPath} · {FormatSize(bytes.Length)}.");
                 using var content = new UploadJsonContent(bytes, file.CommitMessage, branch, destinationSha,
                     new Progress<double>(value => progress.Report(value * 100)));
@@ -1468,7 +1493,27 @@ public partial class MainWindow : Window
                 try { using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()); htmlUrl = json.RootElement.GetProperty("content").GetProperty("html_url").GetString(); } catch { }
                 LogTransfer($"Upload complete: {repository}/{file.DestinationPath}.");
                 return new BatchUploadResult(file.SourcePath, true, htmlUrl);
-            }, transferNotice: transferNotice) { Owner = this };
+            }, uploadBatch: async (files, batchMessage, progress, ct) =>
+            {
+                var service = new GitHubAtomicBatchService(_http);
+                var expectedHead = await service.GetHeadAsync(parts[0], parts[1], branch, _token!, ct);
+                var replacements = new List<string>();
+                foreach (var file in files)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if ((LooksSensitive(file.SourcePath) || LooksSensitive(file.DestinationPath)) && MessageBox.Show(this,
+                        $"{Path.GetFileName(file.SourcePath)} matches a sensitive-file rule. Include it in this commit?", "Sensitive file warning", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                        throw new OperationCanceledException("Sensitive file declined.", ct);
+                    var target = await _repositoryService.GetTargetFileAsync(parts[0], parts[1], branch, file.DestinationPath, _token!, ct);
+                    if (target.Exists) replacements.Add(file.DestinationPath);
+                }
+                if (replacements.Count > 0 && MessageBox.Show(this,
+                    $"This commit replaces {replacements.Count} current file(s):\n\n{string.Join("\n", replacements.Take(12))}\n\nContinue?",
+                    "Review batch replacements", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                    throw new OperationCanceledException("Batch replacement declined.", ct);
+                return await service.UploadAsync(parts[0], parts[1], branch, _token!, files, batchMessage,
+                    expectedHead, progress, ct, ValidateUploadContentAsync);
+            }, transferNotice: transferNotice, persistQueue: !_appPreferences.PrivacyMode) { Owner = this };
             _ = dialog.ShowDialog();
             if (dialog.FinalResults is { } results)
             {
@@ -1664,6 +1709,7 @@ public partial class MainWindow : Window
         }
         public bool HasChangedOnDisk() => !File.Exists(FullPath) || new FileInfo(FullPath).Length != Size || File.GetLastWriteTimeUtc(FullPath) != LastWriteTimeUtc;
         public string Details => $"{Name}   ·   {FormatSize(Size)}   ·   {LastModified:yyyy-MM-dd HH:mm}\n{FullPath}";
+        public string Summary => $"{FormatSize(Size)}  ·  {LastModified:yyyy-MM-dd HH:mm}";
     }
 
     private enum SearchSort { Name, Largest, Newest, Oldest }

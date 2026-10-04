@@ -47,6 +47,11 @@ public partial class RepositoryToolsWindow : Window
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await LoadFolderAsync(_folder);
     private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
 
+    private void Workflow_Click(object sender, RoutedEventArgs e)
+    {
+        new RepositoryWorkflowWindow(_http, _tokenProvider, RepositoryBox.Text.Trim(), BranchInput.Text.Trim(), PathInput.Text.Trim()) { Owner = this }.ShowDialog();
+    }
+
     private async void CheckConnection_Click(object sender, RoutedEventArgs e)
     {
         if (!TryGetToken(out var token)) return;

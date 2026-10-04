@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -36,6 +36,14 @@ public sealed class UploadQueueItem
         if (!info.Exists) throw new FileNotFoundException("The selected file does not exist.", SourcePath);
         CapturedLength = info.Length;
         CapturedLastWriteTimeUtc = info.LastWriteTimeUtc;
+    }
+
+    internal UploadQueueItem(string sourcePath, string destinationPath, long capturedLength, DateTime capturedLastWriteTimeUtc)
+    {
+        SourcePath = Path.GetFullPath(sourcePath);
+        DestinationPath = NormalizeDestination(destinationPath);
+        CapturedLength = capturedLength;
+        CapturedLastWriteTimeUtc = capturedLastWriteTimeUtc;
     }
 
     public string SourcePath { get; }

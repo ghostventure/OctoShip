@@ -41,11 +41,23 @@ public partial class FileReviewWindow : Window
             WarningText.Text += (WarningText.Text.Length == 0 ? "" : " ") + "GitHub's regular file upload API does not accept files above 50 MiB.";
         }
         ConfigurePreview(info);
+        Loaded += ScanContentOnLoad;
         if (_remoteContentLoader == null) { CompareButton.IsEnabled = false; CompareStatus.Text = "Remote comparison is unavailable until the destination connection is supplied."; }
     }
 
     public string DestinationRepositoryPath { get; }
     public bool ContinueUpload { get; private set; }
+
+    private async void ScanContentOnLoad(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var scan = await ContentSecretScanner.ScanAsync(_localPath, _lifetime.Token);
+            WarningCard.Visibility = Visibility.Visible;
+            WarningText.Text += (WarningText.Text.Length == 0 ? "" : "\n") + scan.Summary;
+        }
+        catch (OperationCanceledException) { }
+    }
 
     private void ConfigurePreview(FileInfo info)
     {
