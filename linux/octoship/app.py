@@ -15,6 +15,7 @@ from .scanner import scan_bytes
 from .queue_store import QueueStore
 from . import workflows as flow
 from .tools_ui import ToolsPanel
+from .theme import apply_dark_theme
 
 class App:
     def __init__(self, root, queue_store=None):
@@ -47,13 +48,7 @@ class App:
         self.keep_paths = tk.BooleanVar(value=True)
         self.account = tk.StringVar(value='Connect using your GitHub CLI account')
         self.status = tk.StringVar(value='Ready. Sign in with gh auth login, then connect.')
-        style = ttk.Style(root)
-        style.theme_use('clam')
-        style.configure('TFrame', background='#f1f5f9')
-        style.configure('TLabel', background='#f1f5f9', foreground='#172033')
-        style.configure('Header.TLabel', font=('Sans', 23, 'bold'))
-        style.configure('TButton', padding=4)
-        style.configure('Treeview', rowheight=26)
+        apply_dark_theme(root)
         body = ttk.Frame(root, padding=16)
         body.pack(fill='both', expand=True)
         header = ttk.Frame(body); header.pack(fill='x')
@@ -122,7 +117,7 @@ class App:
         ttk.Button(actions, text='Open last result', command=self.open_last).pack(side='right')
         self.progress = ttk.Progressbar(footer, mode='determinate'); self.progress.pack(fill='x', pady=(10,5))
         ttk.Label(footer, textvariable=self.status, wraplength=1000).pack(anchor='w')
-        self.log = tk.Text(footer, height=3, bg='#182235', fg='#dce7f5', relief='flat', font=('Monospace', 9), state='disabled')
+        self.log = tk.Text(footer, height=3, relief='flat', font=('Monospace', 9), state='disabled')
         self.activity = tk.BooleanVar(value=False)
         ttk.Checkbutton(footer, text='Show transfer activity', variable=self.activity, command=self.toggle_activity).pack(anchor='w')
         self.drain_timer = self.root.after(80, self.drain)

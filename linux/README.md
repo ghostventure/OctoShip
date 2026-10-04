@@ -15,7 +15,8 @@ pip or npm dependencies are needed. Sign in using `gh auth login`, then run:
 ```
 
 Use **Connect / Refresh**, choose a repository and branch, then use **Find &
-upload** or **Repository tools**. The interface keeps destination selection and
+upload** or **Repository tools**. The interface uses a consistent dark theme across controls, dropdowns, tools,
+previews, and review windows. It keeps destination selection and
 transfer status visible across tabs and supports a minimum 1000×760 window.
 **Show transfer activity** expands the log (minimum height 840 pixels).
 Opening a tool tab does not contact GitHub or make changes.
