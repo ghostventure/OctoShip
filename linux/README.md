@@ -1,16 +1,28 @@
-# OctoShip for Linux 1.6.0
+# OctoShip for Linux 1.6.1
 
 A native Python/Tk desktop client for the OctoShip GitHub workflow. Version 1.6.0
 ports the Windows component preview's atomic uploads, saved queues, folder
 comparison, branch/PR creation, content scanning, and release publishing. The
 original Windows WPF client remains in the repository root.
 
-## Run
+## Install or run
 
-Requires Python 3.10+, Tk (`python3-tk` on Debian/Kali), and GitHub CLI (`gh`). No
-pip or npm dependencies are needed. Sign in using `gh auth login`, then run:
+The **self-contained installer** includes Python, Tcl/Tk, GitHub CLI, and certificate
+data. The destination computer does not need to install those separately:
 
 ```sh
+sh OctoShip-1.6.1-linux-x86_64.run
+```
+
+Choose **OctoShip GitHub Sign-in** from the application menu to sign in, then open
+OctoShip and connect. The installer works offline; GitHub authentication and remote
+operations need internet. See [installer instructions and platform support](packaging/README.md).
+
+Running directly from source still requires Python 3.10+, Tk (`python3-tk` on
+Debian/Kali), and GitHub CLI (`gh`). No pip or npm dependencies are needed:
+
+```sh
+gh auth login
 ./linux/octoship-linux
 ```
 
@@ -118,17 +130,18 @@ Windows settings and saved queues are not migrated. AppImage is not provided.
 
 ## Packages
 
+Build the self-contained installer, bundled Debian package, and portable archive:
+
 ```sh
-./linux/packaging/build-deb.sh
-sudo apt install ./dist/linux/octoship_1.6.0-1_all.deb
-octoship
+python3 linux/packaging/build-standalone.py
+# Bundled Debian/Ubuntu/Kali alternative:
+sudo apt install ./dist/linux/octoship_1.6.1-1_amd64.deb
 ```
 
-The Debian package registers a desktop entry. The portable
-`dist/linux/octoship-linux-1.6.0.tar.gz` archive runs with `./octoship-linux` after
-extraction and has the same runtime dependencies. Packages contain architecture
-independent Python source, not a self-contained executable. Generated packages
-remain local unless separately attached to a GitHub release.
+These include the runtime and target Intel/AMD x86_64 Linux with glibc 2.17+ and an
+X11/XWayland desktop. The older `build-deb.sh` source-only package remains available
+for distributions that manage Python/Tk/gh themselves. See [packaging details](packaging/README.md).
+Generated packages remain local unless separately attached to a GitHub release.
 
 ## Validate
 

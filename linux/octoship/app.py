@@ -10,7 +10,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import webbrowser
 from . import __version__
-from .core import GitHub, OctoShipError, search_files, plan_upload, read_file, sensitive
+from .core import GitHub, OctoShipError, search_files, plan_upload, read_file, sensitive, login_instructions
 from .scanner import scan_bytes
 from .queue_store import QueueStore
 from . import workflows as flow
@@ -46,8 +46,8 @@ class App:
         self.contents = tk.BooleanVar()
         self.hidden = tk.BooleanVar()
         self.keep_paths = tk.BooleanVar(value=True)
-        self.account = tk.StringVar(value='Connect using your GitHub CLI account')
-        self.status = tk.StringVar(value='Ready. Sign in with gh auth login, then connect.')
+        self.account = tk.StringVar(value='Connect using your GitHub account')
+        self.status = tk.StringVar(value='Ready. Choose Sign in… to connect your GitHub account.')
         apply_dark_theme(root)
         body = ttk.Frame(root, padding=16)
         body.pack(fill='both', expand=True)
@@ -55,6 +55,7 @@ class App:
         ttk.Label(header, text='OctoShip', style='Header.TLabel').pack(side='left')
         ttk.Label(header, text=f'  for GitHub · Linux {__version__}', font=('Sans', 12)).pack(side='left', pady=9)
         ttk.Button(header, text='Connect / Refresh', command=self.connect).pack(side='right')
+        ttk.Button(header, text='Sign in…', command=lambda: messagebox.showinfo('GitHub sign-in', login_instructions(), parent=root)).pack(side='right', padx=8)
         ttk.Label(body, textvariable=self.account).pack(anchor='w', pady=(4, 12))
         target = ttk.LabelFrame(body, text='GitHub destination', padding=10); target.pack(fill='x')
         ttk.Label(target, text='Repository').grid(row=0, column=0, sticky='w')

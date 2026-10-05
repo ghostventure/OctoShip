@@ -1,6 +1,7 @@
 """Native GUI component checks under Xvfb; all GitHub operations use a fixture."""
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import time
 import tkinter as tk
@@ -65,9 +66,11 @@ class GuiWorkflows(unittest.TestCase):
             self.assertLess(button.winfo_rooty() + button.winfo_height(), self.root.winfo_rooty() + self.root.winfo_height())
         self.assertEqual(self.api.calls, [])
         output = Path('/tmp/octoship-linux-1.6-upload.png')
-        subprocess.run(['import', '-window', str(self.root.winfo_id()), str(output)], check=True)
+        if shutil.which('import'):
+            subprocess.run(['import', '-window', str(self.root.winfo_id()), str(output)], check=True)
         self.app.notebook.select(1); self.app.tools.tabs.select(3); self.root.update()
-        subprocess.run(['import', '-window', str(self.root.winfo_id()), '/tmp/octoship-linux-1.6-tools.png'], check=True)
+        if shutil.which('import'):
+            subprocess.run(['import', '-window', str(self.root.winfo_id()), '/tmp/octoship-linux-1.6-tools.png'], check=True)
 
     def test_atomic_review_confirmation_and_persisted_success(self):
         self.app.remember.set(True)

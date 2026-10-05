@@ -8,6 +8,8 @@ from pathlib import Path
 import re
 import stat
 import subprocess
+import shlex
+from . import __version__
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, build_opener, HTTPRedirectHandler
@@ -19,13 +21,21 @@ SENSITIVE = ('.env', '.env.*', '*.pem', '*.key', '*.p12', '*.pfx', 'id_rsa*',
              'id_ed25519*', '*credential*', '*secret*', '*password*', '*.publishsettings', '*.keystore')
 EXCLUDED = {'.git', '.hg', '.svn', 'node_modules', '__pycache__', '.venv', 'venv'}
 
+def login_instructions():
+    bundle = os.environ.get('OCTOSHIP_BUNDLE_ROOT')
+    if bundle:
+        return ('Open OctoShip GitHub Sign-in from your application menu, or run this in a terminal:\n\n'
+                + shlex.quote(str(Path(bundle) / 'octoship')) + ' --login\n\nThen return here and choose Connect / Refresh.')
+    return 'Run gh auth login in a terminal, then choose Connect / Refresh.'
+
+
 class OctoShipError(Exception):
     pass
 
 class ApiError(OctoShipError):
     def __init__(self, status):
         self.status = status
-        messages = {401: 'Authentication expired. Run gh auth login and reconnect.',
+        messages = {401: 'Authentication expired. ' + login_instructions(),
                     403: 'Access denied or API rate limit reached.',
                     404: 'Repository, branch, or file not found.',
                     409: 'Remote file changed. Review the upload again.',
@@ -49,15 +59,15 @@ class GitHub:
             result = subprocess.run(['gh', 'auth', 'token', '--hostname', 'github.com'],
                                     capture_output=True, text=True, timeout=20)
         except (OSError, subprocess.TimeoutExpired):
-            raise OctoShipError('Install GitHub CLI and run gh auth login in a terminal.') from None
+            raise OctoShipError('GitHub CLI could not start. ' + login_instructions()) from None
         if result.returncode or not result.stdout.strip():
-            raise OctoShipError('Sign in first: run gh auth login in a terminal.')
+            raise OctoShipError('Sign in first. ' + login_instructions())
         return cls(result.stdout.strip())
 
     def request(self, path, method='GET', body=None):
         data = json.dumps(body).encode() if body is not None else None
         req = Request(self.base_url + path, data=data, method=method, headers={
-            'Authorization': 'Bearer ' + self._token, 'User-Agent': 'OctoShip-Linux/1.6.0',
+            'Authorization': 'Bearer ' + self._token, 'User-Agent': 'OctoShip-Linux/' + __version__,
             'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28',
             'Content-Type': 'application/json'})
         try:
@@ -78,7 +88,7 @@ class GitHub:
                 yield chunk
         check_cancel(cancel)
         req = Request(self.uploads_url + path, data=chunks(), method='POST', headers={
-            'Authorization': 'Bearer ' + self._token, 'User-Agent': 'OctoShip-Linux/1.6.0',
+            'Authorization': 'Bearer ' + self._token, 'User-Agent': 'OctoShip-Linux/' + __version__,
             'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28',
             'Content-Type': 'application/octet-stream', 'Content-Length': str(size)})
         try:

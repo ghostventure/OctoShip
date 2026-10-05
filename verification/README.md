@@ -22,3 +22,7 @@ GUI arrangement update, 2026-10-04: separate Release build in `dist-layout-previ
 ## Native Linux 1.6.0
 
 The first component wave is now ported to Linux. See [Linux port verification](linux-port-1.6.0.md) for the 48 backend tests, 9 GUI workflow tests, loopback GUI upload, live read-only comparison, and package/installation checks. Live GitHub writes are not covered by these checks.
+
+## Self-contained Linux 1.6.1 installer
+
+See [standalone installer verification](standalone-installer-1.6.1.md) for offline installation without system Python/Tk/gh, bundled runtime checks, 54 backend/installer tests, 9 GUI checks, and package lifecycle validation.

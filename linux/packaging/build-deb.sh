@@ -17,7 +17,7 @@ cp "$SOURCE/packaging/octoship.desktop" "$STAGE/usr/share/applications/"
 cp "$SOURCE/packaging/octoship.svg" "$STAGE/usr/share/icons/hicolor/scalable/apps/"
 cat > "$STAGE/DEBIAN/control" <<'CONTROL'
 Package: octoship
-Version: 1.6.0-1
+Version: 1.6.1-1
 Section: devel
 Priority: optional
 Architecture: all
@@ -29,6 +29,6 @@ Description: Native Linux desktop uploader for GitHub
 CONTROL
 chmod -R go-w "$STAGE"
 find "$STAGE" -type d -exec chmod 755 {} +
-dpkg-deb --root-owner-group --build "$STAGE" "$OUTPUT/octoship_1.6.0-1_all.deb"
-tar --exclude=__pycache__ -czf "$OUTPUT/octoship-linux-1.6.0.tar.gz" -C "$SOURCE" octoship octoship-linux README.md
+dpkg-deb --root-owner-group --build "$STAGE" "$OUTPUT/octoship_1.6.1-1_all.deb"
+tar --exclude=__pycache__ -czf "$OUTPUT/octoship-linux-1.6.1.tar.gz" -C "$SOURCE" octoship octoship-linux README.md
 printf 'Built packages in %s\n' "$OUTPUT"

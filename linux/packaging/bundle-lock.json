@@ -1,0 +1,28 @@
+{
+  "platform": "linux-x86_64",
+  "minimum_glibc": "2.17",
+  "python": {
+    "version": "3.12.15",
+    "filename": "python-3.12.15-linux-x86_64.tar.gz",
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261003/cpython-3.12.15%2B20261003-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+    "sha256": "731af898886c5f821890dc901eca3c651cca8e51fa7308c159d12a1194aeac91"
+  },
+  "gh": {
+    "version": "2.102.0",
+    "filename": "gh-2.102.0-linux-x86_64.tar.gz",
+    "url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_amd64.tar.gz",
+    "sha256": "bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386"
+  },
+  "certifi": {
+    "version": "2026.7.22",
+    "filename": "certifi-2026.7.22.whl",
+    "url": "https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl",
+    "sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775"
+  },
+  "python_notices": {
+    "version": "5e46737f6480fc315ebfea83866910cbfcc772f0",
+    "filename": "python-build-standalone-notices.tar.gz",
+    "url": "https://github.com/astral-sh/python-build-standalone/archive/5e46737f6480fc315ebfea83866910cbfcc772f0.tar.gz",
+    "sha256": "2c4bc5e43a0276046f080f40f0bd9586b10f2a6aa1714c592557f57ef0821e0c"
+  }
+}
