@@ -8,10 +8,10 @@ verified downloads are cached under ignored `dist/linux/bundle-cache`.
 
 Outputs under `dist/linux`:
 
-- `OctoShip-1.6.1-linux-x86_64.run`: offline graphical/per-user installer.
-- `octoship_1.6.1-1_amd64.deb`: system-wide bundled Debian package.
-- `octoship-1.6.1-linux-x86_64-bundled.tar.gz`: portable bundle.
-- `OctoShip-1.6.1-SHA256SUMS.txt`: SHA-256 checksums for those artifacts.
+- `OctoShip-1.7.0-linux-x86_64.run`: offline graphical/per-user installer.
+- `octoship_1.7.0-1_amd64.deb`: system-wide bundled Debian package.
+- `octoship-1.7.0-linux-x86_64-bundled.tar.gz`: portable bundle.
+- `OctoShip-1.7.0-SHA256SUMS.txt`: SHA-256 checksums for those artifacts.
 
 The separate `build-deb.sh` retains the older source-package approach; its `all`
 architecture package requires distro Python/Tk/gh. Distribute the **amd64** package
@@ -37,11 +37,11 @@ headlessly with `--install`. A desktop terminal/browser is used for GitHub sign-
 ## Installation and authentication
 
 ```sh
-sh OctoShip-1.6.1-linux-x86_64.run
+sh OctoShip-1.7.0-linux-x86_64.run
 # Or install without the graphical installer:
-sh OctoShip-1.6.1-linux-x86_64.run --install
+sh OctoShip-1.7.0-linux-x86_64.run --install
 # Optional custom prefix, without menu entries:
-sh OctoShip-1.6.1-linux-x86_64.run --install --prefix "$HOME/Apps/OctoShip" --no-desktop
+sh OctoShip-1.7.0-linux-x86_64.run --install --prefix "$HOME/Apps/OctoShip" --no-desktop
 ```
 
 The default prefix is `$XDG_DATA_HOME/octoship` or `~/.local/share/octoship`.
@@ -54,7 +54,7 @@ credential storage. Authentication still needs internet access.
 For Debian/Ubuntu/Kali, the alternative bundled package can be installed with:
 
 ```sh
-sudo apt install ./octoship_1.6.1-1_amd64.deb
+sudo apt install ./octoship_1.7.0-1_amd64.deb
 ```
 
 It installs under `/opt/octoship` and declares only glibc as a package dependency.
@@ -83,7 +83,7 @@ are verification tools, not runtime requirements for the installer.
 
 ```sh
 xvfb-run -a python3 linux/tests/verify_bundle.py \
-  dist/linux/OctoShip-1.6.1-linux-x86_64.run /path/to/debian-12-rootfs
+  dist/linux/OctoShip-1.7.0-linux-x86_64.run /path/to/debian-12-rootfs
 ```
 
 It installs to a path containing spaces, runs bundled diagnostics and GUI smoke,
@@ -95,3 +95,11 @@ Upstream runtime details:
 [Python standalone distributions](https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.md),
 [Tcl/Tk runtime behavior](https://github.com/astral-sh/python-build-standalone/blob/main/docs/quirks.md),
 [GitHub CLI release](https://github.com/cli/cli/releases/tag/v2.102.0).
+
+## Account-lock platform dependency
+
+The 1.7.0 application uses the host Linux PAM library and `login` authentication
+policy to unlock the workspace. The bundled Debian package declares `libpam0g`
+and `libpam-modules`; portable/.run users need compatible system PAM. No PAM
+configuration is installed or changed. Missing or rejecting PAM keeps a locked
+workspace locked. Windows Hello and Authenticode are not available on Linux.

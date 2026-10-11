@@ -62,3 +62,17 @@ The source repository is `ghostventure/OctoShip` and its default branch is `main
 ## Shipping workflow extensions
 
 [SHIPPING-PREPARATION.md](SHIPPING-PREPARATION.md) records architecture, storage, safety limits and verification for feature additions 13–28. [SHIPPING-WORKBENCH.md](SHIPPING-WORKBENCH.md) covers features 1–12. The preparation module uses ShippingPreparationWindow, ShippingInspectionService and SelectiveTextChanges; shared atomic timeout reconciliation lives in GitHubAtomicBatchService and move annotations in RepositoryWorkflowService.
+
+## Linux October 11 port (1.7.0)
+
+`workbench.py` handles reviewed shipment/delivery; `preparation.py` handles offline
+plans and pinned selective publication; `inspection.py` contains bounded local
+checks. `workbench_ui.py` exposes them as native tabs. `session.py` owns the
+persistent shield, PAM authentication and optional logind monitor; `storage.py`
+provides private atomic JSON saves. Shared API transport enforces the lock and
+strips authorization when following signed asset-download redirects. The atomic
+uploader reconciles uncertain ref updates without retrying PATCH.
+
+Run the commands in [linux/README.md](linux/README.md). Shipping and lock
+regressions are in `linux/tests/test_shipping.py` and `gui_shipping.py`.
+See [port verification](verification/linux-port-1.7.0.md) for evidence and limits.

@@ -109,7 +109,7 @@ Section: devel
 Priority: optional
 Architecture: amd64
 Installed-Size: {size}
-Depends: libc6 (>= 2.17)
+Depends: libc6 (>= 2.17), libpam0g, libpam-modules
 Maintainer: OctoShip local build <noreply@localhost>
 Description: Self-contained OctoShip GitHub desktop client
  Bundles Python, Tcl/Tk, GitHub CLI, and certificate data.

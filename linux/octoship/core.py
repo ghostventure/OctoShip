@@ -16,7 +16,7 @@ from urllib.request import Request, build_opener, HTTPRedirectHandler
 from dataclasses import dataclass
 from contextlib import contextmanager
 
-MAX_BYTES = 25 * 1024 * 1024
+MAX_BYTES = 50 * 1024 * 1024
 SENSITIVE = ('.env', '.env.*', '*.pem', '*.key', '*.p12', '*.pfx', 'id_rsa*',
              'id_ed25519*', '*credential*', '*secret*', '*password*', '*.publishsettings', '*.keystore')
 EXCLUDED = {'.git', '.hg', '.svn', 'node_modules', '__pycache__', '.venv', 'venv'}
@@ -33,14 +33,18 @@ class OctoShipError(Exception):
     pass
 
 class ApiError(OctoShipError):
-    def __init__(self, status):
+    def __init__(self, status, headers=None):
         self.status = status
+        headers = headers or {}
+        self.evidence = {key: headers.get(key) for key in ("X-RateLimit-Remaining", "X-RateLimit-Reset") if headers.get(key) is not None}
+        if headers.get("X-GitHub-SSO"): self.evidence["SSO"] = "GitHub returned an SSO authorization requirement."
         messages = {401: 'Authentication expired. ' + login_instructions(),
                     403: 'Access denied or API rate limit reached.',
                     404: 'Repository, branch, or file not found.',
                     409: 'Remote file changed. Review the upload again.',
                     422: 'GitHub rejected the change. Check branch protection and file path.'}
-        super().__init__(messages.get(status, f'GitHub returned HTTP {status}.'))
+        evidence = ' Evidence: ' + json.dumps(self.evidence) if self.evidence else ''
+        super().__init__(messages.get(status, f'GitHub returned HTTP {status}.') + evidence)
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -49,6 +53,8 @@ class NoRedirect(HTTPRedirectHandler):
 class GitHub:
     def __init__(self, token, base_url='https://api.github.com', uploads_url='https://uploads.github.com'):
         self._token = token
+        self.guard = lambda: None
+        self.timeout = 45
         self.base_url = base_url.rstrip('/')
         self.uploads_url = uploads_url.rstrip('/')
         self.opener = build_opener(NoRedirect())
@@ -65,25 +71,28 @@ class GitHub:
         return cls(result.stdout.strip())
 
     def request(self, path, method='GET', body=None):
+        self.guard()
         data = json.dumps(body).encode() if body is not None else None
         req = Request(self.base_url + path, data=data, method=method, headers={
             'Authorization': 'Bearer ' + self._token, 'User-Agent': 'OctoShip-Linux/' + __version__,
             'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28',
             'Content-Type': 'application/json'})
         try:
-            with self.opener.open(req, timeout=45) as response:
+            with self.opener.open(req, timeout=self.timeout) as response:
                 return json.load(response)
         except HTTPError as exc:
-            status = exc.code
+            status, headers = exc.code, exc.headers
             exc.close()
-            raise ApiError(status) from None
+            raise ApiError(status, headers) from None
         except (URLError, TimeoutError, OSError, ValueError):
             raise OctoShipError('GitHub connection failed. Check your network and try again.') from None
 
     def asset_request(self, path, stream, size, cancel=None):
+        self.guard()
         from .scanner import check_cancel
         def chunks():
             while chunk := stream.read(1024 * 1024):
+                self.guard()
                 check_cancel(cancel)
                 yield chunk
         check_cancel(cancel)
@@ -97,6 +106,54 @@ class GitHub:
         except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
             if isinstance(exc, HTTPError): exc.close()
             raise OctoShipError('Asset upload not confirmed. Inspect the draft assets on GitHub before retrying.') from None
+
+    def download_digest(self, path, cancel=None):
+        """Follow signed HTTPS asset redirects with a fresh, credential-free request."""
+        from .scanner import check_cancel
+        from urllib.parse import urlsplit
+        self.guard()
+        request = Request(self.base_url + path, headers={
+            'Authorization': 'Bearer ' + self._token, 'Accept': 'application/octet-stream',
+            'User-Agent': 'OctoShip-Linux/' + __version__})
+        try:
+            try:
+                response = self.opener.open(request, timeout=30)
+            except HTTPError as exc:
+                location = exc.headers.get('Location', '')
+                code = exc.code
+                exc.close()
+                parsed = urlsplit(location)
+                if code not in (301, 302, 303, 307, 308) or parsed.scheme != 'https' or not parsed.hostname or parsed.username:
+                    raise OctoShipError('Asset download unavailable.') from None
+                self.guard()
+                response = build_opener(NoRedirect()).open(Request(location, headers={'User-Agent': 'OctoShip-Linux/' + __version__}), timeout=30)
+            with response:
+                digest = hashlib.sha256(); size = 0
+                while chunk := response.read(1024 * 1024):
+                    self.guard(); check_cancel(cancel)
+                    size += len(chunk)
+                    if size > 2 * 1024**3: raise OctoShipError('Download exceeds 2 GiB.')
+                    digest.update(chunk)
+            return size, digest.hexdigest()
+        except (HTTPError, URLError, TimeoutError, OSError) as exc:
+            if isinstance(exc, HTTPError): exc.close()
+            raise OctoShipError('Asset download failed; content unverified.') from None
+
+    def public_download_status(self, url):
+        from urllib.parse import urlsplit
+        self.guard()
+        parsed = urlsplit(url)
+        if parsed.scheme != 'https' or parsed.hostname != 'github.com' or parsed.username:
+            return 'Public link unverified: unsupported URL'
+        try:
+            # A redirect is evidence of a download route, not proof of final access.
+            with build_opener(NoRedirect()).open(Request(url, method='HEAD'), timeout=20) as response:
+                return 'Anonymous link accessible: HTTP ' + str(response.status)
+        except HTTPError as exc:
+            status = exc.code; exc.close()
+            return ('Anonymous link redirects; final access unverified' if status in (301, 302, 303, 307, 308)
+                    else 'Anonymous link inaccessible: HTTP ' + str(status))
+        except (URLError, OSError, ValueError): return 'Anonymous link could not be checked'
 
     def pages(self, path):
         items = []
@@ -181,11 +238,11 @@ def read_file(path):
     with open_regular(path) as source:
         before = os.fstat(source.fileno())
         if before.st_size > MAX_BYTES:
-            raise OctoShipError(f'Only regular files up to 25 MiB can be uploaded: {path.name}')
+            raise OctoShipError(f'Only regular files up to 50 MiB can be uploaded: {path.name}')
         content = source.read(MAX_BYTES + 1)
         after = os.fstat(source.fileno())
         if len(content) > MAX_BYTES:
-            raise OctoShipError(f'File exceeds 25 MiB: {path.name}')
+            raise OctoShipError(f'File exceeds 50 MiB: {path.name}')
         if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (len(content), after.st_mtime_ns, after.st_ctime_ns):
             raise OctoShipError('Local file changed while reading: ' + path.name)
         return content

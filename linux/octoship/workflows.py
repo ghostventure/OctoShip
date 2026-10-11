@@ -110,6 +110,22 @@ def atomic_upload(api, repo, branch, items, message, expected_head, approved=Fal
     try:
         api.request(root + '/git/refs/heads/' + quote(branch, safe='/'), 'PATCH', {'sha': commit, 'force': False})
     except OctoShipError:
+        # Never replay PATCH. Read back with a separate bounded budget, even after cancellation.
+        import copy
+        import time
+        probe = copy.copy(api)
+        deadline = time.monotonic() + 20
+        try:
+            probe.timeout = max(0.1, deadline - time.monotonic())
+            current = head(probe, repo, branch)
+            if current == commit:
+                return 'https://github.com/' + repo + '/commit/' + commit
+            probe.timeout = max(0.1, deadline - time.monotonic())
+            comparison = probe.request(root + '/compare/' + commit + '...' + current)
+            if comparison.get('status') in ('ahead', 'identical') and comparison.get('merge_base_commit', {}).get('sha') == commit:
+                return 'https://github.com/' + repo + '/commit/' + commit
+        except Exception:
+            pass
         raise OctoShipError(f'Publication not confirmed. Inspect commit {commit} on GitHub before retrying; the branch may have advanced.') from None
     return 'https://github.com/' + repo + '/commit/' + commit
 

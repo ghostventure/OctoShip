@@ -16,10 +16,14 @@ from .queue_store import QueueStore
 from . import workflows as flow
 from .tools_ui import ToolsPanel
 from .theme import apply_dark_theme
+from .workbench_ui import WorkbenchPanel
 
 class App:
     def __init__(self, root, queue_store=None):
         self.root = root
+        self.session = None
+        self.persist_workspace = False
+        self.pending_reconnect = False
         root.title(f'OctoShip for GitHub — Linux {__version__}')
         root.geometry('1180x860')
         root.minsize(1000, 760)
@@ -72,6 +76,9 @@ class App:
         upload_page = ttk.Frame(notebook, padding=8); tools_page = ttk.Frame(notebook, padding=8)
         notebook.add(upload_page, text='Find & upload'); notebook.add(tools_page, text='Repository tools')
         self.tools = ToolsPanel(self, tools_page)
+        workbench_page = ttk.Frame(notebook, padding=8)
+        notebook.add(workbench_page, text="Shipping workbench")
+        self.workbench = WorkbenchPanel(self, workbench_page)
         self.notebook = notebook
         upload_page.columnconfigure(0, weight=1); upload_page.rowconfigure(2, weight=1)
         search = ttk.LabelFrame(upload_page, text='Find local files', padding=10); search.grid(row=0, column=0, sticky='ew', pady=(0, 8))
@@ -135,6 +142,8 @@ class App:
         self.log.configure(state='normal'); self.log.insert('end', text+'\n'); self.log.see('end'); self.log.configure(state='disabled')
 
     def run(self, label, work, done, on_error=None):
+        if self.session and self.session.state.check():
+            self.session.shield(); return
         if self.busy:
             self.record('An operation is running. Wait or cancel it first.')
             return
@@ -148,6 +157,14 @@ class App:
         threading.Thread(target=worker, daemon=True).start()
 
     def drain(self):
+        # Keep completed callbacks and their potentially sensitive windows hidden until unlock.
+        if self.session and self.session.state.check():
+            self.session.shield()
+            self.drain_timer = self.root.after(80, self.drain)
+            return
+        if self.pending_reconnect and not self.busy:
+            self.pending_reconnect = False
+            self.connect()
         try:
             while True:
                 event = self.events.get_nowait()
@@ -166,6 +183,7 @@ class App:
     def connect(self):
         def work():
             api = GitHub.from_cli()
+            if self.session: api.guard = self.session.state.guard
             return api, api.request('/user'), api.repositories()
         def done(result):
             self.api, user, repos = result
@@ -365,10 +383,14 @@ class App:
             webbrowser.open(self.last_url)
 
     def close(self):
+        if self.persist_workspace:
+            try: self.workbench.persist_preferences()
+            except OSError: pass
         if self.busy:
             if not messagebox.askyesno('Operation running', 'Cancel and close? A request already sent to GitHub may still finish.'):
                 return
             self.cancel.set()
+        if self.session: self.session.close()
         self.root.after_cancel(self.drain_timer)
         self.root.destroy()
 
@@ -384,6 +406,17 @@ def main():
         except BlockingIOError:
             print('OctoShip is already running.'); return
         root = tk.Tk(); app = App(root)
+        if not args.smoke_test:
+            from .session import SessionController
+            app.persist_workspace = True
+            app.workbench.restore_preferences()
+            app.session = SessionController(app)
+            app.pending_reconnect = app.workbench.reconnect.get()
+            def save_focus(event):
+                if event.widget is root:
+                    try: app.workbench.persist_preferences()
+                    except OSError: pass
+            root.bind('<FocusOut>', save_focus, add='+')
         if args.smoke_test: root.after(500, root.destroy)
         root.mainloop()
 

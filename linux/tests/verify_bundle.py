@@ -39,6 +39,7 @@ export PYTHONPATH="$BUNDLE/app" SSL_CERT_FILE="$BUNDLE/certs/cacert.pem"
 "$BUNDLE/runtime/bin/python3" -m unittest discover -s /opt/tests -v
 "$BUNDLE/runtime/bin/python3" /opt/tests/gui_smoke.py
 "$BUNDLE/runtime/bin/python3" /opt/tests/gui_workflows.py
+"$BUNDLE/runtime/bin/python3" /opt/tests/gui_shipping.py
 /bin/sh /opt/installer.run --install --prefix '/home/test/OctoShip offline'
 test "$(find '/home/test/OctoShip offline/builds' -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1
 printf 'uninstall\n' | '/home/test/OctoShip offline/octoship' --uninstall

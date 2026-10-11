@@ -4,13 +4,16 @@ The Windows development build now retains account/workspace preferences and lock
 
 OctoShip for GitHub finds local files and sends them to GitHub. The original Windows desktop client is in the repository root. A native Linux client is now available in [linux/](linux/README.md), with a desktop launcher, Debian package builder, and tested GitHub upload backend.
 
-## Linux 1.6.1
+## Linux 1.7.0
 
-The native [Linux client](linux/README.md) now includes atomic or per-file batch
+The native [Linux client](linux/README.md) now ports the latest Windows shipping
+workbench, offline preparation and selective publishing, inspection and delivery
+checks, display/privacy settings, and a persistent inactivity lock using Linux PAM.
+See the Linux guide for platform differences and authentication limits. It includes atomic or per-file batch
 uploads, opt-in saved queues, redacted content scanning, fixed-commit folder
 comparison, branch and pull-request creation, and draft-first release publishing
 with reviewed assets. The native interface has Find & upload and Repository tools
-tabs. Build a self-contained installer with `python3 linux/packaging/build-standalone.py`.
+and Shipping workbench tabs. Build a self-contained installer with `python3 linux/packaging/build-standalone.py`.
 It bundles Python, Tcl/Tk, GitHub CLI, and certificates, including a dark installer
 window and offline installation. See the Linux guide for installation, checks, and
 remaining Windows-only features.
