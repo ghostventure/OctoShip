@@ -43,7 +43,7 @@ The **Settings & Tools** page houses preferences, GitHub repository tools, updat
 
 OctoShip detects active Wi-Fi or Ethernet adapters. Before uploads it warns when Wi-Fi is active because transfers may take longer. Upload and update-download progress include a remaining-time estimate when the transfer size is known. The expandable terminal at the bottom records recent transfer filenames, destinations, progress, and outcomes; it does not record tokens.
 
-Developer architecture, build prerequisites, security boundaries, and Linux-port notes are in [DEVELOPMENT.md](DEVELOPMENT.md).
+Developer architecture, build prerequisites, security boundaries, and Linux-port notes are in [DEVELOPMENT.md](DEVELOPMENT.md). For comprehensive end-to-end technical documentation covering all features, design systems, and security mechanisms, see [OCTOSHIP-GUIDE.md](OCTOSHIP-GUIDE.md).
 
 OctoShip checks the existing `ghostventure/OctoCat` release repository at startup. Stable releases use GitHub's latest release; Preview uses the latest published prerelease. The updater verifies GitHub's SHA-256 digest before staging an update and asks before installing it. New releases must attach `OctoShip-win-x64.zip` containing `OctoShip.exe` and `OctoShip.dll`. The release source and renamed update asset have not been verified as published. Internet access and a writable install folder are required.
 

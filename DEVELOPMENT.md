@@ -1,6 +1,6 @@
 # OctoShip developer notes
 
-Account retention, the 30-minute inactivity lock, Windows authentication, and its verification boundaries are documented in [ACCOUNT-SESSION.md](ACCOUNT-SESSION.md). The development target is now `net6.0-windows10.0.19041.0`; older target-path references below describe the original packaged release.
+For exhaustive, end-to-end documentation across all features, architecture, and verification, see [OCTOSHIP-GUIDE.md](OCTOSHIP-GUIDE.md). Account retention, the 30-minute inactivity lock, Windows authentication, and its verification boundaries are documented in [ACCOUNT-SESSION.md](ACCOUNT-SESSION.md). The development target is now `net6.0-windows10.0.19041.0`; older target-path references below describe the original packaged release.
 
 This document describes the source snapshot in this repository and the work needed to combine it with a Linux version.
 

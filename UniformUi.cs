@@ -156,7 +156,7 @@ public static class UniformUi
             if (control is Button button)
             {
                 var name = button.Content as string ?? "";
-                var primary = name.StartsWith("Upload", StringComparison.OrdinalIgnoreCase) || name.StartsWith("Publish", StringComparison.OrdinalIgnoreCase)
+                var primary = name.StartsWith("Upload ", StringComparison.OrdinalIgnoreCase) || name.StartsWith("Publish ", StringComparison.OrdinalIgnoreCase)
                     || name.StartsWith("Validate and publish", StringComparison.OrdinalIgnoreCase) || name.StartsWith("Create ", StringComparison.OrdinalIgnoreCase)
                     || name.StartsWith("Unlock with", StringComparison.OrdinalIgnoreCase) || name.StartsWith("Continue to", StringComparison.OrdinalIgnoreCase)
                     || name.StartsWith("3. Create", StringComparison.OrdinalIgnoreCase) || name is "Connect" or "Save" or "Save settings";
