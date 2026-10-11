@@ -32,6 +32,7 @@ public partial class OctoCatSettingsWindow : Window
         SensitivePatterns = Array.Empty<string>();
         DestinationPresets = Array.Empty<DestinationPreset>();
         PrivacyCheck.IsChecked = _preferences.PrivacyMode;
+        AutomaticUpdatesCheck.IsChecked = _preferences.AutomaticUpdates;
         ChannelPicker.SelectedIndex = _preferences.UpdateChannel == OctoCatUpdateChannel.Preview ? 1 : 0;
         _patterns.AddRange(NormalizePatterns(sensitivePatterns ?? Array.Empty<string>()));
         _presets.AddRange((destinationPresets ?? ToPresets(_preferences.Destinations)).Where(IsValidPreset).Take(50));
@@ -136,6 +137,7 @@ public partial class OctoCatSettingsWindow : Window
             }
             PrivacyCheck.IsChecked = _preferences.PrivacyMode;
             ChannelPicker.SelectedIndex = _preferences.UpdateChannel == OctoCatUpdateChannel.Preview ? 1 : 0;
+            AutomaticUpdatesCheck.IsChecked = _preferences.AutomaticUpdates;
             PatternList.ItemsSource = _patterns.ToArray();
             RefreshPresets();
             SetStatus("Settings imported into this window. Select Save to apply them.");
@@ -180,6 +182,7 @@ public partial class OctoCatSettingsWindow : Window
         {
             PrivacyMode = privacy,
             UpdateChannel = channel,
+            AutomaticUpdates = AutomaticUpdatesCheck.IsChecked == true,
             Destinations = values,
             SearchHistory = privacy ? Array.Empty<string>() : _preferences.SearchHistory,
             RecentRepositories = privacy ? Array.Empty<string>() : _preferences.RecentRepositories

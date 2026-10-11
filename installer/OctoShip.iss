@@ -1,5 +1,5 @@
 #define MyAppName "OctoShip for GitHub"
-#define MyAppVersion "1.6.0-preview.1"
+#define MyAppVersion "1.6.0-preview.2"
 #ifndef PayloadDir
 #define PayloadDir "payload"
 #endif

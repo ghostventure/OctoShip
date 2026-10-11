@@ -45,7 +45,8 @@ public static class OctoCatPreferencesService
             .Where(pair => IsRepository(pair.Key) && IsSafeRepoFolder(pair.Value))
             .Take(100).ToDictionary(pair => pair.Key, pair => pair.Value.Trim('/'), StringComparer.OrdinalIgnoreCase),
         PrivacyMode = value.PrivacyMode,
-        UpdateChannel = value.UpdateChannel == OctoCatUpdateChannel.Preview ? OctoCatUpdateChannel.Preview : OctoCatUpdateChannel.Stable
+        UpdateChannel = value.UpdateChannel == OctoCatUpdateChannel.Preview ? OctoCatUpdateChannel.Preview : OctoCatUpdateChannel.Stable,
+        AutomaticUpdates = value.AutomaticUpdates
     };
 
     /// <summary>Checks the Windows Authenticode signature and optional expected signer thumbprint.</summary>
@@ -156,4 +157,5 @@ public sealed record OctoCatPreferences
     public Dictionary<string, string> DefaultUploadFolders { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public bool PrivacyMode { get; init; }
     public OctoCatUpdateChannel UpdateChannel { get; init; } = OctoCatUpdateChannel.Stable;
+    public bool AutomaticUpdates { get; init; } = true;
 }

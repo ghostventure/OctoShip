@@ -1,0 +1,54 @@
+using System;
+using System.IO;
+using System.IO.Compression;
+using System.Reflection;
+using System.Security.Cryptography;
+using FileToGitHub;
+
+var count = 0;
+void Check(bool condition, string label) { if (!condition) throw new Exception(label); count++; }
+void Reject(Action action, string label) { try { action(); } catch (InvalidOperationException) { count++; return; } throw new Exception(label); }
+Check(ReleaseVersion.Parse("v1.6.0-preview.10").CompareTo(ReleaseVersion.Parse("1.6.0-preview.2")) > 0, "numeric preview ordering");
+Check(ReleaseVersion.Parse("1.6.0").CompareTo(ReleaseVersion.Parse("1.6.0-preview.99")) > 0, "stable promotes preview");
+Check(ReleaseVersion.Parse("1.5.0").CompareTo(ReleaseVersion.Parse("1.6.0-preview.1")) < 0, "no downgrade");
+Check(ReleaseVersion.Parse("1.6.0+build.1").CompareTo(ReleaseVersion.Parse("1.6.0+build.2")) == 0, "build metadata ignored");
+Reject(() => ReleaseVersion.Parse("../../malicious"), "invalid tag");
+var prefs = OctoCatPreferencesService.Normalize(new OctoCatPreferences { AutomaticUpdates = false });
+Check(!prefs.AutomaticUpdates, "opt out survives normalization");
+Check(new OctoCatPreferences().AutomaticUpdates, "automatic updates enabled by default");
+var root = Path.Combine(Path.GetTempPath(), "OctoShip-update-checks-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(root);
+var version = ReleaseVersion.Parse(typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion);
+byte[] Zip(string? special = null, bool missing = false)
+{
+    using var bytes = new MemoryStream();
+    using (var zip = new ZipArchive(bytes, ZipArchiveMode.Create, true))
+    {
+        if (special != null) { using var writer = new StreamWriter(zip.CreateEntry(special).Open()); writer.Write("test"); }
+        else if (!missing)
+        {
+            zip.CreateEntryFromFile(typeof(MainWindow).Assembly.Location, "OctoShip.dll");
+            using var writer = new StreamWriter(zip.CreateEntry("OctoShip.exe").Open()); writer.Write("test apphost placeholder; never executed");
+        }
+    }
+    return bytes.ToArray();
+}
+string Stage(byte[] bytes, ReleaseVersion? v = null) => UpdatePackage.Stage(bytes, Convert.ToHexString(SHA256.HashData(bytes)), v ?? version, root);
+var valid = Zip();
+var stage = Stage(valid);
+Check(File.Exists(Path.Combine(stage, "OctoShip.dll")), "matching verified package stages");
+Reject(() => UpdatePackage.Stage(valid, new string('0', 64), version, root), "bad digest rejected");
+Reject(() => Stage(Zip("../escape.txt")), "traversal rejected");
+Reject(() => Stage(Zip("OctoShip.exe:stream")), "alternate streams rejected");
+Reject(() => Stage(Zip(missing: true)), "missing files rejected");
+Reject(() => Stage(valid, ReleaseVersion.Parse("99.0.0")), "tag/package mismatch rejected");
+Check(!File.Exists(Path.Combine(root, "escape.txt")), "no escaped files written");
+var exported = Path.Combine(root, "prefs.json");
+OctoCatPreferencesService.Export(exported, prefs);
+Check(!OctoCatPreferencesService.Import(exported).AutomaticUpdates, "opt out survives export/import");
+using var releases = System.Text.Json.JsonDocument.Parse("[{\"tag_name\":\"linux-v99.0.0\",\"draft\":false,\"prerelease\":false,\"assets\":[{\"name\":\"linux.deb\"}]},{\"tag_name\":\"v1.7.0\",\"draft\":false,\"prerelease\":false,\"assets\":[{\"name\":\"OctoShip-win-x64.zip\"}]},{\"tag_name\":\"v1.8.0-preview.1\",\"draft\":false,\"prerelease\":true,\"assets\":[{\"name\":\"OctoShip-win-x64.zip\"}]},{\"tag_name\":\"v1.6.0\",\"draft\":false,\"prerelease\":false,\"assets\":[{\"name\":\"OctoShip-win-x64.zip\"}]},{\"tag_name\":\"v99.0.0\",\"draft\":true,\"prerelease\":false,\"assets\":[{\"name\":\"OctoShip-win-x64.zip\"}]}]");
+Check(WindowsUpdateRelease.Select(releases.RootElement, false).GetProperty("tag_name").GetString() == "v1.7.0", "stable skips Linux, drafts and prereleases and chooses greatest Windows version");
+Check(WindowsUpdateRelease.Select(releases.RootElement, true).GetProperty("tag_name").GetString() == "v1.8.0-preview.1", "preview selects Windows prerelease");
+using var empty = System.Text.Json.JsonDocument.Parse("[]");
+Check(WindowsUpdateRelease.Select(empty.RootElement, false).ValueKind == System.Text.Json.JsonValueKind.Undefined, "no Windows release is explicit");
+Console.WriteLine($"PASS: {count} update version, package safety and preference checks; no network or app replacement.");

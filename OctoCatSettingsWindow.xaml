@@ -13,6 +13,8 @@
                 <GroupBox Header="Privacy and update channel" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
                     <StackPanel>
                         <CheckBox x:Name="PrivacyCheck" Content="Privacy Mode: do not retain search terms, recent repositories, or local upload paths"/>
+                        <CheckBox x:Name="AutomaticUpdatesCheck" Content="Automatically download updates and install when OctoShip closes"/>
+                        <TextBlock Text="Checks ghostventure/OctoShip at startup and hourly. Private releases require a connected account with access." TextWrapping="Wrap"/>
                         <TextBlock Text="Update channel" Foreground="#A9B9CE"/>
                         <ComboBox x:Name="ChannelPicker" SelectedIndex="0" Width="180" HorizontalAlignment="Left" Margin="0,6,0,0">
                             <ComboBoxItem Content="Stable"/><ComboBoxItem Content="Preview"/>

@@ -28,7 +28,7 @@ The release tester checks matching filenames, downloaded byte counts and SHA-256
 
 Version 1 recipes contain only repository, base branch, relative destination, exclusion globs and a release naming convention. They exclude local absolute folders and credentials; import is capped at 64 KiB and validates paths. The naming convention is portable metadata for reuse, not automatic version inference.
 
-The workbench includes adjustable text size, compact spacing, named screen-reader inputs/buttons, standard keyboard navigation and a scrollable 430-pixel minimum-width layout. This setting applies to the workbench rather than replacing every legacy application window's styling. Cancellation stops the current operation; reopen the window for a fresh cancellation scope.
+The workbench includes adjustable text size, compact spacing, named screen-reader inputs/buttons, standard keyboard navigation and a scrollable 430-pixel minimum-width layout. Text size and spacing now apply throughout the Windows app through Settings and the shared UI resources. Cancellation stops the current operation; reopen the window for a fresh cancellation scope.
 
 ## Developer checks
 
