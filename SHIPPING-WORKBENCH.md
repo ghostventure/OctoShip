@@ -1,5 +1,7 @@
 # Shipping workbench (features 1–12)
 
+This document describes the Windows implementation. For Linux 1.7.0 behavior, platform differences and verification, see the [Linux guide](linux/README.md) and [release handoff](docs/linux-1.7.0-handoff.md).
+
 Open **Ship project & delivery checks** from the main window. This window reuses the selected repository and account, and obtains the current token for each operation.
 
 ## Ship project

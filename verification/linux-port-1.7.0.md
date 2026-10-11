@@ -56,8 +56,13 @@ Commands are in [the Linux guide](../linux/README.md). Installer isolation harne
 
 ## Artifact checksums
 
-Built locally under ignored `dist/linux/`; binaries are not committed or attached
-to a GitHub release by this source update.
+Built locally under ignored `dist/linux/`; binaries are not committed to Git.
+They were subsequently published as [linux-v1.7.0](https://github.com/ghostventure/OctoShip/releases/tag/linux-v1.7.0)
+on 2026-10-11 at 17:06:04 UTC and marked **Latest**. All four release assets
+matched local sizes and GitHub SHA-256 digests before publication. The public
+latest endpoint and anonymous checksum download passed after publication.
+See the [complete handoff](../docs/linux-1.7.0-handoff.md) for downloads, the
+checksum-file digest, installation/recovery instructions and release procedures.
 
 ```text
 15c301663a297a35d5121d0bb6dd730fa80bed347c031fe57979af2d009b2ba3  OctoShip-1.7.0-linux-x86_64.run
@@ -67,9 +72,10 @@ a668d86472e2312fbf843a0377f3942da59ea4c2950aafb1b81684177461b084  octoship-1.7.0
 
 ## Boundaries
 
-GitHub mutations and real release/attestation trust workflows were exercised with
-fixtures, not against a live destination. The real PAM success check covers this
-host's account/policy, not every Linux distribution or desktop. Desktop lock
+In-app GitHub mutation and release workflows were exercised with fixtures, not
+against a live destination; real attestation trust remains unverified. Publishing
+the software release through GitHub CLI was a separate authorized live operation.
+The real PAM success check covers this host's account/policy, not every Linux distribution or desktop. Desktop lock
 monitoring depends on logind and a session ID; the app's timeout/manual lock works
 independently. The lock does not encrypt project data.
 

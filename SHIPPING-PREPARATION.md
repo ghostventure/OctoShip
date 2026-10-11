@@ -1,5 +1,7 @@
 # Preparation and inspection features (development build)
 
+This document describes the Windows implementation. For Linux 1.7.0 behavior, platform differences and verification, see the [Linux guide](linux/README.md) and [release handoff](docs/linux-1.7.0-handoff.md).
+
 Open **Prepare & inspect** in the main header. This source work extends the packaged 1.5.0 application; it does not itself publish a GitHub release. Features 1–12 are described separately in [SHIPPING-WORKBENCH.md](SHIPPING-WORKBENCH.md).
 
 | Requested feature | Available behavior and boundary |

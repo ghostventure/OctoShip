@@ -1,5 +1,7 @@
 # Retained account information and inactivity locking
 
+This document describes the Windows implementation. For Linux 1.7.0 behavior, platform differences and verification, see the [Linux guide](linux/README.md) and [release handoff](docs/linux-1.7.0-handoff.md).
+
 The Windows development build retains the selected GitHub account, reconnect preference, destination presets, repository/branch/destination selection, and existing application preferences on this computer. Settings are saved when the main window loses focus or closes, as well as during existing save actions. Privacy mode continues to suppress search history, the previous local search folder, and the newly remembered repository/branch/path workspace fields. GitHub credentials remain managed by Git Credential Manager; OctoShip settings never contain tokens or passwords. This is local retention, not cloud synchronization or a new OctoShip account service.
 
 After **30 minutes without activity in OctoShip**, the application replaces the contents and titles of its WPF windows with a privacy shield. Native dialogs owned by the application are hidden and disabled until unlock. Keyboard/mouse/touch activity in the application resets the timeout; network transfers and activity in unrelated applications do not. The first input after an expired interval does not reset it. A Windows session lock/disconnect also locks OctoShip. The profile card includes **Lock account workspace now**.

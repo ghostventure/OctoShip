@@ -27,7 +27,7 @@ This document provides comprehensive, end-to-end documentation for **OctoShip fo
 - **Local Discovery:** Multithreaded file search by name and content with regex support and reparse-point protection.
 - **Pre-Flight Safety:** Deep file inspection, selective hunk/line staging, heuristic secret scanning, and sensitive-file rules.
 - **Atomic Operations:** Single-commit batch uploads, fixed-commit directory comparisons, branch generation, and draft release publishing.
-- **Session Protection:** Account preference retention and an automatic 30-minute inactivity lock backed by native Windows Hello / password verification.
+- **Session Protection:** Account preference retention and an automatic 30-minute inactivity lock backed by Windows Hello / password verification on Windows and system PAM on Linux.
 - **Consistent UX:** A uniform, dark-themed interface across all 10 desktop windows and dialogs.
 - **Cross-Platform Delivery:** A framework-dependent Windows desktop client (.NET 6 WPF) alongside a native Linux desktop client (Python 3.10+ / Tkinter) with standalone packaging.
 
@@ -200,12 +200,16 @@ OctoShip provides a consistent, cohesive design system across all 10 application
 
 ## 8. Cross-Platform Linux Client
 
-The Linux implementation (`linux/`) offers a parallel native experience without Mono or Wine:
+The Linux implementation (`linux/`) offers a native Python/Tk experience without Mono or Wine. **Linux 1.7.0 is published** as [linux-v1.7.0](https://github.com/ghostventure/OctoShip/releases/tag/linux-v1.7.0), marked Latest on 2026-10-11.
 
-- **Technology Stack:** Python 3.10+, Tkinter, and GitHub CLI (`gh`).
-- **Feature Parity:** Implements atomic and per-file batch uploads, saved queues, secret scanning, directory comparison, branch creation, draft PRs, and release publishing.
-- **Credential Storage:** Uses the host system's `gh auth` session; zero plain-text tokens stored.
-- **Standalone Distribution:** `linux/packaging/build-standalone.py` bundles Python, Tcl/Tk, GitHub CLI, CA certificates, and application code into a self-extracting shell installer (`.sh`) or Debian package (`.deb`).
+- **Technology stack:** source execution uses Python 3.10+, Tkinter and GitHub CLI; the self-contained distribution bundles its runtime.
+- **Workflows:** atomic/per-file uploads, saved queues, scanning, folder comparison, branches, PRs and releases, plus the shipping workbench, offline preparation plans, selective text edits, account bindings, local inspection and delivery checks.
+- **Session protection:** a persistent 30-minute/manual privacy lock authenticates the current Linux account with system PAM. Windows Hello is not used on Linux.
+- **Credential storage:** GitHub CLI owns its credential storage; OctoShip does not write tokens or passwords to its settings. CLI storage protection depends on the host configuration.
+- **Distribution:** `linux/packaging/build-standalone.py` builds a `.run` installer, bundled `.deb`, portable `.tar.gz` and SHA-256 file. The target is x86_64/glibc Linux with X11/XWayland and compatible host PAM policy.
+- **Verification:** 86 backend tests, 15 GUI tests, loopback HTTP upload checks, isolated installer checks and a real current-user PAM GUI unlock passed. In-app production mutations and real attestation trust remain separate verification boundaries.
+
+The [Linux user guide](linux/README.md) records behavior and limits. The [complete release handoff](docs/linux-1.7.0-handoff.md) records downloads, checksums, architecture, storage, installation/rollback, verification commands and publication procedure. Windows-only features and platform differences are listed there; full feature parity is not claimed.
 
 ---
 
@@ -229,7 +233,7 @@ dotnet publish FileToGitHub.csproj -c Release --no-restore -p:DebugType=None -o 
 Compress-Archive -Path installer\payload-1.6.0-preview.1\* -DestinationPath installers\OctoShip-v1.6.0-preview.1-win-x64.zip -Force
 
 # 4. Compile Inno Setup installer
-& "C:\Users\solid\AppData\Local\Programs\Inno Setup 6\ISCC.exe" /Q "/DPayloadDir=payload-1.6.0-preview.1" installer\OctoShip.iss
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" /Q "/DPayloadDir=payload-1.6.0-preview.1" installer\OctoShip.iss
 ```
 
 ### 9.3 Installation Verification

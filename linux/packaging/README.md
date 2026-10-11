@@ -1,5 +1,8 @@
 # Self-contained Linux installers
 
+[Published Linux 1.7.0 downloads](https://github.com/ghostventure/OctoShip/releases/tag/linux-v1.7.0)
+· [Full release handoff and checksums](../../docs/linux-1.7.0-handoff.md)
+
 `python3 linux/packaging/build-standalone.py` builds the x86_64 distribution.
 The builder needs Python 3.12+, `dpkg-deb`, and internet access on its first run.
 It does not use the build host's Python runtime or copy host credentials/settings.
@@ -57,7 +60,8 @@ For Debian/Ubuntu/Kali, the alternative bundled package can be installed with:
 sudo apt install ./octoship_1.7.0-1_amd64.deb
 ```
 
-It installs under `/opt/octoship` and declares only glibc as a package dependency.
+It installs under `/opt/octoship` and declares `libc6 (>= 2.17)`, `libpam0g`,
+and `libpam-modules` as package dependencies.
 If a prior per-user installation shadows `/usr/bin/octoship`, launch the new system
 package explicitly via `/usr/bin/octoship` or update the per-user installation.
 

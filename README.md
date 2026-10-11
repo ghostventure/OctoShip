@@ -6,13 +6,16 @@ OctoShip for GitHub finds local files and sends them to GitHub. The original Win
 
 ## Linux 1.7.0
 
+**Published:** [Download Linux 1.7.0](https://github.com/ghostventure/OctoShip/releases/tag/linux-v1.7.0)
+(marked Latest on 2026-10-11). [Complete release and maintainer handoff](docs/linux-1.7.0-handoff.md).
+
 The native [Linux client](linux/README.md) now ports the latest Windows shipping
 workbench, offline preparation and selective publishing, inspection and delivery
 checks, display/privacy settings, and a persistent inactivity lock using Linux PAM.
 See the Linux guide for platform differences and authentication limits. It includes atomic or per-file batch
 uploads, opt-in saved queues, redacted content scanning, fixed-commit folder
 comparison, branch and pull-request creation, and draft-first release publishing
-with reviewed assets. The native interface has Find & upload and Repository tools
+with reviewed assets. The native interface has Find & upload, Repository tools,
 and Shipping workbench tabs. Build a self-contained installer with `python3 linux/packaging/build-standalone.py`.
 It bundles Python, Tcl/Tk, GitHub CLI, and certificates, including a dark installer
 window and offline installation. See the Linux guide for installation, checks, and

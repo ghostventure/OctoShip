@@ -57,7 +57,7 @@ The source repository is `ghostventure/OctoShip` and its default branch is `main
 
 ## Repository hygiene
 
-`.gitignore` excludes build output, installers, archives, and compiled files. Do not commit local settings, tokens, Credential Manager output, signing keys, or generated packages. The GitHub repository is private. No license file is included in this snapshot; do not assume public redistribution terms until a license is chosen.
+`.gitignore` excludes build output, installers, archives, and compiled files. Do not commit local settings, tokens, Credential Manager output, signing keys, or generated packages. The GitHub repository is public (verified 2026-10-11); review source, history, documentation and release assets accordingly. No license file is included in this snapshot; do not assume public redistribution terms until a license is chosen.
 
 ## Shipping workflow extensions
 
@@ -75,4 +75,6 @@ uploader reconciles uncertain ref updates without retrying PATCH.
 
 Run the commands in [linux/README.md](linux/README.md). Shipping and lock
 regressions are in `linux/tests/test_shipping.py` and `gui_shipping.py`.
-See [port verification](verification/linux-port-1.7.0.md) for evidence and limits.
+See [port verification](verification/linux-port-1.7.0.md) for evidence and limits,
+and the [release handoff](docs/linux-1.7.0-handoff.md) for published artifacts,
+architecture/storage, recovery, reproduction commands and future release procedures.

@@ -1,5 +1,8 @@
 # OctoShip for Linux 1.7.0
 
+[Download the published release](https://github.com/ghostventure/OctoShip/releases/tag/linux-v1.7.0)
+· [Release, installation and maintainer handoff](../docs/linux-1.7.0-handoff.md)
+
 A native Python/Tk desktop client for the OctoShip GitHub workflow. Version 1.7.0
 ports the October 11 Windows shipping workbench, preparation and inspection tools,
 workspace retention, inactivity locking, and display settings. It retains atomic
@@ -189,7 +192,8 @@ Where `$XDG_SESSION_ID` and `loginctl` are available, desktop lock/inactivity is
 polled every two seconds. Platforms without that integration still have the app
 inactivity/manual lock. This is a local privacy shield, not encryption, protection
 from another process running as the same user, or a replacement for the desktop
-lock. Successful real PAM authentication remains an interactive verification step.
+lock. Successful real PAM authentication was verified in the running GUI on Kali;
+other account policies and distributions require their own verification.
 
 ### Platform differences
 
@@ -232,7 +236,8 @@ sudo apt install ./dist/linux/octoship_1.7.0-1_amd64.deb
 These include the runtime and target Intel/AMD x86_64 Linux with glibc 2.17+ and an
 X11/XWayland desktop. The older `build-deb.sh` source-only package remains available
 for distributions that manage Python/Tk/gh themselves. See [packaging details](packaging/README.md).
-Generated packages remain local unless separately attached to a GitHub release.
+The bundled 1.7.0 installer, Debian package, portable bundle and checksums are
+published on the linked GitHub release. Source-only packages remain local.
 
 ## Validate
 
