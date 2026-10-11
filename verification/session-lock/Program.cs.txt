@@ -1,0 +1,94 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media.Imaging;
+using FileToGitHub;
+
+internal static class Program
+{
+    private static int checks;
+    [STAThread] static int Main()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "OctoShipSessionChecks-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        Application? app = null;
+        AccountSessionLock? session = null;
+        try
+        {
+            var now = new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
+            var state = new AccountSessionState(now);
+            Require(!state.CheckTimeout(now.AddMinutes(29).AddSeconds(59)), "does not lock early");
+            Require(state.CheckTimeout(now.AddMinutes(30)), "locks at exactly 30 minutes");
+            state.RecordActivity(now.AddMinutes(31));
+            Require(state.IsLocked, "late input cannot unlock");
+            state.UnlockAfterVerification(now.AddMinutes(32));
+            Require(!state.IsLocked && state.LastActivityUtc == now.AddMinutes(32), "verified unlock resets timeout");
+            Require(!state.CheckTimeout(now.AddMinutes(61)), "full idle period after unlock");
+            Require(state.CheckTimeout(now.AddMinutes(62)), "locks again after unlock");
+            var activity = new AccountSessionState(now);
+            activity.RecordActivity(now.AddMinutes(20));
+            Require(!activity.CheckTimeout(now.AddMinutes(40)), "real activity extends session");
+            activity.RecordActivity(now.AddMinutes(51));
+            Require(activity.IsLocked, "first input after long sleep cannot reset timer");
+            var backward = new AccountSessionState(now);
+            Require(backward.CheckTimeout(now.AddSeconds(-1)), "clock rollback fails closed");
+            var path = Path.Combine(directory, "session.json");
+            state.Save(path);
+            Require(AccountSessionState.Load(path, now.AddMinutes(63)).IsLocked, "locked restart stays locked");
+            var expired = new AccountSessionState(now); expired.Save(path);
+            Require(AccountSessionState.Load(path, now.AddMinutes(30)).IsLocked, "idle closed app returns locked");
+            Require(!AccountSessionState.Load(path, now.AddMinutes(2)).IsLocked, "active saved session survives restart");
+            File.WriteAllText(path, "broken");
+            Require(AccountSessionState.Load(path, now).IsLocked, "corrupt existing state fails closed");
+            File.WriteAllText(path, "{\"Version\":99}");
+            Require(AccountSessionState.Load(path, now).IsLocked, "unsupported session fails closed");
+            File.Delete(path);
+            Require(!AccountSessionState.Load(path, now).IsLocked, "first use starts normally");
+            app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            UniformUi.Initialize(app, loadPreferences: false);
+            var original = new TextBox { Text = "Private account workspace", Width = 220 };
+            var main = new Window { Title = "Private repository", Content = original, Width = 350, Height = 240, ShowInTaskbar = false };
+            app.MainWindow = main; main.Show();
+            session = new AccountSessionLock(app, path);
+            Require(!session.IsLocked, "new live session active");
+            session.Lock(); main.UpdateLayout();
+            var pendingUnlock = session.WaitUntilUnlockedAsync();
+            Require(!pendingUnlock.IsCompleted, "startup connection waits for authenticated unlock");
+            Require(session.IsLocked && main.Content != original && main.Title == "OctoShip — Locked", "main content and title shielded");
+            var childContent = new TextBox { Text = "Draft private changes" };
+            var child = new Window { Title = "Private draft", Content = childContent, Width = 300, Height = 200, ShowInTaskbar = false };
+            child.Show(); session.Check();
+            Require(child.Content != childContent, "new child windows shielded");
+            main.Close();
+            Require(main.IsVisible, "closing workspace cannot bypass lock");
+            var lockWindow = app.Windows.Cast<Window>().Single(w => w.Title == "Unlock OctoShip");
+            lockWindow.Close();
+            Require(lockWindow.IsVisible, "closing unlock window cannot bypass lock");
+            using var http = new HttpClient(new SessionLockHttpHandler());
+            var blocked = false;
+            try { http.GetAsync("https://example.invalid/not-sent").GetAwaiter().GetResult(); }
+            catch (InvalidOperationException) { blocked = true; }
+            Require(blocked, "new network operation blocked before send");
+            lockWindow.UpdateLayout();
+            Require(lockWindow.ActualWidth >= 450 && lockWindow.ActualHeight > 250, "lock UI renders");
+            var bitmap = new RenderTargetBitmap((int)lockWindow.ActualWidth, (int)lockWindow.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            bitmap.Render(lockWindow);
+            var screenshot = Path.Combine(directory, "lock-window.png");
+            var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using (var stream = File.Create(screenshot)) encoder.Save(stream);
+            Console.WriteLine("Lock UI screenshot: " + screenshot);
+            session.Dispose(); session = null;
+            Require(pendingUnlock.IsCanceled, "shutdown cancels pending startup connection");
+            Require(AccountSessionState.Load(path, DateTimeOffset.UtcNow).IsLocked, "shutdown retains lock");
+            Console.WriteLine("PASS: " + checks + " session policy, persistence, WPF shielding and HTTP gating checks. Real Windows authentication requires interactive verification.");
+            return 0;
+        }
+        catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+        finally { session?.Dispose(); app?.Shutdown(); }
+    }
+    private static void Require(bool condition, string name)
+    { if (!condition) throw new Exception("FAIL: " + name); checks++; }
+}

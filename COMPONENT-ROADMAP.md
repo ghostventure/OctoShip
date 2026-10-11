@@ -48,3 +48,7 @@ Linux update, 2026-10-04: the P0 feature group now has native Python/Tk implemen
 ## Dependency notes
 
 Persistent queues and saved jobs should precede watchers and schedules. Comparison and remote-change checks should precede synchronization and restore/revert workflows. Extract reusable services before implementing CLI, extensions, or another platform. Approval of this roadmap does not authorize scheduled or automatic remote writes; users configure and approve those behaviors in the implemented application.
+
+## Follow-up feature additions
+
+The separately requested additions 1–28 are tracked with implemented behavior and remaining boundaries in [SHIPPING-WORKBENCH.md](SHIPPING-WORKBENCH.md) and [SHIPPING-PREPARATION.md](SHIPPING-PREPARATION.md). This supplements the original component numbering rather than renumbering it.

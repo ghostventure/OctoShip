@@ -112,6 +112,12 @@ class Program
             buttons.Clear(); Walk(content, buttons); WalkLogical(content, buttons);
             Assert(buttons.Exists(b => Equals(b.Content, "Prepare a release")), "Prepare a release control present in tools");
             Assert(((FrameworkElement)main.FindName("ToolsView")).Visibility == Visibility.Visible, "Tools view selected");
+            var tabs = (TabControl)main.FindName("ToolsTabs");
+            tabs.SelectedIndex = 2;
+            RenderContent(content, "OctoShip-profile-smoke.png", 1050, 900);
+            Assert(tabs.Template.FindName("PART_SelectedContentHost", tabs) is ContentPresenter, "Selected tools content is exposed to accessibility automation");
+            buttons.Clear(); Walk(content, buttons);
+            Assert(buttons.Exists(b => Equals(b.Content, "Lock account workspace now") && b.ActualWidth > 0), "Account lock button renders in Preferences");
             Assert(!loaded && !main.IsVisible, "Main smoke does not invoke Loaded authentication/update handlers");
         }
         finally { main.Close(); }

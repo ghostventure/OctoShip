@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -95,7 +95,9 @@ public partial class BatchUploadWindow : Window
     public BatchUploadWindow(System.Collections.Generic.IEnumerable<UploadQueueItem> items, string repository, string branch,
         string defaultCommitMessage, SingleFileUpload uploadOne, SingleCommitUpload? uploadBatch = null, string transferNotice = "", bool persistQueue = true)
     {
+        UniformUi.Prepare(this);
         InitializeComponent();
+        UniformUi.SetDestination(this, () => repository + "  /  " + branch);
         _persistQueue = persistQueue;
         _repository = repository ?? ""; _branch = branch ?? ""; _defaultCommitMessage = defaultCommitMessage ?? "Upload files";
         _uploadOne = uploadOne ?? throw new ArgumentNullException(nameof(uploadOne)); _uploadBatch = uploadBatch;
@@ -109,7 +111,7 @@ public partial class BatchUploadWindow : Window
         Loaded += RestoreQueue;
         Closing += (_, e) =>
         {
-            if (_runCts != null) { e.Cancel = true; MessageBox.Show(this, "Cancel the active upload and wait for it to finish before closing."); return; }
+            if (_runCts != null) { e.Cancel = true; OctoShipDialog.Show(this, "Cancel the active upload and wait for it to finish before closing."); return; }
             SaveQueue();
         };
         UpdateSummary();
@@ -138,7 +140,7 @@ public partial class BatchUploadWindow : Window
         {
             var entry = new BatchUploadEntry(item, _defaultCommitMessage);
             if (_entries.Any(x => x.SourcePath.Equals(entry.SourcePath, StringComparison.OrdinalIgnoreCase))) continue;
-            if (_entries.Count >= 100) { MessageBox.Show(this, "A batch supports at most 100 files."); break; }
+            if (_entries.Count >= 100) { OctoShipDialog.Show(this, "A batch supports at most 100 files."); break; }
             _entries.Add(entry);
         }
         ApplyRules(); UpdateSummary();
@@ -163,7 +165,7 @@ public partial class BatchUploadWindow : Window
     private bool ApplyRules()
     {
         var maxMB = 50d;
-        if (!double.TryParse(MaxSizeBox.Text, out maxMB) || !double.IsFinite(maxMB) || maxMB <= 0 || maxMB > 50) { MessageBox.Show(this, "Enter a maximum size greater than zero and at most 50 MiB.", "Invalid size", MessageBoxButton.OK, MessageBoxImage.Warning); return false; }
+        if (!double.TryParse(MaxSizeBox.Text, out maxMB) || !double.IsFinite(maxMB) || maxMB <= 0 || maxMB > 50) { OctoShipDialog.Show(this, "Enter a maximum size greater than zero and at most 50 MiB.", "Invalid size", MessageBoxButton.OK, MessageBoxImage.Warning); return false; }
         var patterns = IgnoreBox.Text.Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).Where(x => x.Length > 0).ToArray();
         foreach (var entry in _entries)
         {
@@ -203,23 +205,23 @@ public partial class BatchUploadWindow : Window
         if (!QueueGrid.CommitEdit(DataGridEditingUnit.Cell, true) || !QueueGrid.CommitEdit(DataGridEditingUnit.Row, true)) return;
         if (!ApplyRules()) return;
         var ready = _entries.Where(x => x.StatusText is "Ready" or "Failed").ToArray();
-        if (ready.Length == 0) { MessageBox.Show(this, "There are no ready files to upload.", "Upload", MessageBoxButton.OK, MessageBoxImage.Information); return; }
-        if (ready.Length > 100) { MessageBox.Show(this, "A batch supports at most 100 files."); return; }
+        if (ready.Length == 0) { OctoShipDialog.Show(this, "There are no ready files to upload.", "Upload", MessageBoxButton.OK, MessageBoxImage.Information); return; }
+        if (ready.Length > 100) { OctoShipDialog.Show(this, "A batch supports at most 100 files."); return; }
         foreach (var entry in ready)
         {
             if (entry.Item.HasChangedOnDisk())
             {
-                MessageBox.Show(this, $"The file is missing or changed since it was queued:\n{entry.SourcePath}\n\nRemove it and add it again to review the current version.", "Queue needs review");
+                OctoShipDialog.Show(this, $"The file is missing or changed since it was queued:\n{entry.SourcePath}\n\nRemove it and add it again to review the current version.", "Queue needs review");
                 return;
             }
             try { UploadQueueItem.NormalizeDestination(entry.DestinationPath); }
-            catch (ArgumentException ex) { MessageBox.Show(this, ex.Message); return; }
+            catch (ArgumentException ex) { OctoShipDialog.Show(this, ex.Message); return; }
         }
         if ((CommitMode == BatchCommitMode.SingleBatch && string.IsNullOrWhiteSpace(BatchMessageBox.Text)) ||
             (CommitMode == BatchCommitMode.PerFile && ready.Any(x => string.IsNullOrWhiteSpace(x.CommitMessage))))
-        { MessageBox.Show(this, "Enter a commit message before uploading."); return; }
+        { OctoShipDialog.Show(this, "Enter a commit message before uploading."); return; }
         var totalBytes = ready.Sum(x => x.Size);
-        if (MessageBox.Show(this, $"Upload {ready.Length} files ({FormatBytes(totalBytes)}) to {_repository}?\n\nReview the paths and commit settings before continuing.", "Confirm upload", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if (OctoShipDialog.Show(this, $"Upload {ready.Length} files ({FormatBytes(totalBytes)}) to {_repository}?\n\nReview the paths and commit settings before continuing.", "Confirm upload", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         _runCts = new CancellationTokenSource(); SetRunning(true);
         try
         {
@@ -230,11 +232,11 @@ public partial class BatchUploadWindow : Window
         {
             foreach (var entry in ready.Where(x => x.StatusText is "Ready" or "Uploading")) { entry.StatusText = "Cancelled"; entry.Error = "Cancelled. Check GitHub before retrying."; entry.Refresh(); }
         }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Batch upload failed"); }
+        catch (Exception ex) { OctoShipDialog.Show(this, ex.Message, "Batch upload failed"); }
         finally { _runCts.Dispose(); _runCts = null; SetRunning(false); SaveQueue(); }
         FinalResults = _entries.Select(x => new BatchUploadResult(x.SourcePath, x.StatusText == "Uploaded", x.Url, x.Error)).ToArray();
         var ok = FinalResults.Count(x => x.Succeeded); var skipped = _entries.Count(x => x.StatusText == "Skipped"); var failed = FinalResults.Count(x => !x.Succeeded) - skipped;
-        MessageBox.Show(this, $"Batch finished.\n\nUploaded: {ok}\nSkipped: {skipped}\nFailed or cancelled: {Math.Max(0, failed)}", "Upload summary", MessageBoxButton.OK, ok == ready.Length ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        OctoShipDialog.Show(this, $"Batch finished.\n\nUploaded: {ok}\nSkipped: {skipped}\nFailed or cancelled: {Math.Max(0, failed)}", "Upload summary", MessageBoxButton.OK, ok == ready.Length ? MessageBoxImage.Information : MessageBoxImage.Warning);
     }
     private async Task RunPerFileAsync(BatchUploadEntry[] entries, CancellationToken token)
     {
@@ -299,7 +301,7 @@ public partial class BatchUploadWindow : Window
         else { _resumeSignal?.TrySetResult(true); _resumeSignal = null; PauseButton.Content = "Pause"; }
     }
     private void Cancel_Click(object sender, RoutedEventArgs e) => _runCts?.Cancel();
-    private void Close_Click(object sender, RoutedEventArgs e) { if (_runCts != null) { MessageBox.Show(this, "Cancel the active upload before closing."); return; } Close(); }
+    private void Close_Click(object sender, RoutedEventArgs e) { if (_runCts != null) { OctoShipDialog.Show(this, "Cancel the active upload before closing."); return; } Close(); }
     private void OpenLink_Click(object sender, RoutedEventArgs e) { if ((sender as Button)?.Tag is string url && Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == "https" && uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)) Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true }); }
     private void SetRunning(bool running)
     {
@@ -326,7 +328,7 @@ public partial class BatchUploadWindow : Window
             if (!_persistQueue) return;
             var saved = _queueStore.Load(_repository, _branch);
             if (saved == null) return;
-            if (MessageBox.Show(this, $"Restore {saved.Entries.Length} saved queue entries for {_repository} ({_branch})?\n\nLocal files and remote destinations will be checked again. If an upload was interrupted, check GitHub before retrying it: publication may already have completed. Choosing No replaces the saved queue with the current selection.", "Recover upload queue", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (OctoShipDialog.Show(this, $"Restore {saved.Entries.Length} saved queue entries for {_repository} ({_branch})?\n\nLocal files and remote destinations will be checked again. If an upload was interrupted, check GitHub before retrying it: publication may already have completed. Choosing No replaces the saved queue with the current selection.", "Recover upload queue", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             _entries.Clear();
             foreach (var row in saved.Entries)
             {
@@ -341,7 +343,7 @@ public partial class BatchUploadWindow : Window
             CommitModeBox.SelectedIndex = saved.CommitMode == 1 && _uploadBatch != null ? 1 : 0;
             BatchMessageBox.Text = saved.BatchMessage;
         }
-        catch (Exception ex) { MessageBox.Show(this, "The saved queue could not be restored: " + ex.Message, "Queue recovery"); }
+        catch (Exception ex) { OctoShipDialog.Show(this, "The saved queue could not be restored: " + ex.Message, "Queue recovery"); }
         finally { _recoveryLoaded = true; UpdateSummary(); }
     }
 
@@ -359,7 +361,7 @@ public partial class BatchUploadWindow : Window
         {
             if (_saveWarningShown) return;
             _saveWarningShown = true;
-            MessageBox.Show(this, "Queue recovery could not be saved. Keep this window open until finished. " + ex.Message, "Queue recovery unavailable");
+            OctoShipDialog.Show(this, "Queue recovery could not be saved. Keep this window open until finished. " + ex.Message, "Queue recovery unavailable");
         }
     }
 

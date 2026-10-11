@@ -18,7 +18,7 @@ public sealed class RepositoryWorkflowService
 {
     private readonly HttpClient _http;
     public RepositoryWorkflowService(HttpClient http) => _http = http;
-    public sealed record ComparisonRow(string Path, string Status);
+    public sealed record ComparisonRow(string Path, string Status, string? PossibleMoveFrom = null);
     public sealed record ComparisonResult(string Commit, IReadOnlyList<ComparisonRow> Files);
 
     public async Task<ComparisonResult> CompareAsync(string repository, string branch, string remoteFolder, string localFolder, string token, CancellationToken ct = default)
@@ -70,6 +70,21 @@ public sealed class RepositoryWorkflowService
             }
             foreach (var target in remote.Where(x => !seen.Contains(x.Key))) rows.Add(new(target.Key, target.Value.Regular ? "Remote only" : "Unsupported remote link/submodule"));
         }, ct);
+        // Only annotate unique exact-content matches. Preserve Local only/Remote only statuses:
+        // comparison does not authorize deletion of the previous path.
+        var missingPaths = new HashSet<string>(rows.Where(r => r.Status == "Remote only").Select(r => r.Path), StringComparer.Ordinal);
+        var missingByHash = remote.Where(x => x.Value.Regular && missingPaths.Contains(x.Key))
+            .GroupBy(x => x.Value.Sha, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() == 1)
+            .ToDictionary(g => g.Key, g => g.Single().Key, StringComparer.OrdinalIgnoreCase);
+        var candidates = new List<(int Index, string OldPath)>();
+        for (int i = 0; i < rows.Count; i++)
+        {
+            if (rows[i].Status != "Local only") continue;
+            var hash = await HashBlobAsync(System.IO.Path.Combine(localFolder, rows[i].Path.Replace('/', System.IO.Path.DirectorySeparatorChar)), ct);
+            if (missingByHash.TryGetValue(hash, out var oldPath)) candidates.Add((i, oldPath));
+        }
+        foreach (var candidate in candidates.GroupBy(x => x.OldPath).Where(g => g.Count() == 1).Select(g => g.Single()))
+            rows[candidate.Index] = rows[candidate.Index] with { PossibleMoveFrom = candidate.OldPath };
         return new(sha, rows.OrderBy(x => x.Path, StringComparer.Ordinal).ToArray());
     }
 

@@ -27,8 +27,8 @@ public partial class MainWindow : Window
     private const long MaxUploadBytes = 50L * 1024 * 1024;
     private const string DefaultUpdateRepository = "ghostventure/OctoCat";
     private static readonly Regex RepositoryPattern = new("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", RegexOptions.Compiled);
-    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromMinutes(3) };
-    private readonly HttpClient _updateHttp = new() { Timeout = TimeSpan.FromMinutes(2) };
+    private readonly HttpClient _http = new(new SessionLockHttpHandler()) { Timeout = TimeSpan.FromMinutes(3) };
+    private readonly HttpClient _updateHttp = new(new SessionLockHttpHandler()) { Timeout = TimeSpan.FromMinutes(2) };
     private CancellationTokenSource? _uploadCancellation;
     private CancellationTokenSource? _searchCancellation;
     private readonly SearchService _searchService = new();
@@ -44,6 +44,7 @@ public partial class MainWindow : Window
     private bool _pathManuallyEdited;
     private bool _autoConnect = true;
     private string? _preferredAccount;
+    private bool _settingsLoaded;
     private string _updateRepository = DefaultUpdateRepository;
     private bool _checkingForUpdates;
     private readonly List<string> _searchHistory = new();
@@ -56,6 +57,7 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        UniformUi.Prepare(this);
         InitializeComponent();
         _repositoryService = new GitHubRepositoryService(_http);
         _loadingAccounts = false;
@@ -67,6 +69,10 @@ public partial class MainWindow : Window
         BranchBox.TextChanged += (_, _) => { if (!_loadingAccounts) _branchManuallyEdited = true; };
         PathBox.TextChanged += (_, _) => { if (!_loadingAccounts) _pathManuallyEdited = true; };
         VersionLabel.Text = $"Version {GetCurrentVersion()}";
+        RepoPicker.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, _) => UpdateNavigationContext()));
+        BranchBox.TextChanged += (_, _) => UpdateNavigationContext();
+        Closing += (_, _) => { if (_settingsLoaded) SaveSettings(); };
+        Deactivated += (_, _) => { if (_settingsLoaded) SaveSettings(); };
         Closed += (_, _) => { _searchCancellation?.Cancel(); _uploadCancellation?.Cancel(); _http.Dispose(); _updateHttp.Dispose(); _token = null; };
     }
 
@@ -328,6 +334,13 @@ public partial class MainWindow : Window
         SearchBox.ItemsSource = _searchHistory;
         DestinationPicker.ItemsSource = _namedPresets.Select(x => x.Label == x.Value ? x.Value : x.Label + "  ·  " + x.Value).ToList();
         if (!_appPreferences.PrivacyMode && !string.IsNullOrWhiteSpace(saved.LastFolder) && Directory.Exists(saved.LastFolder)) FolderBox.Text = saved.LastFolder;
+        RestoreWorkspaceSettings();
+        _settingsLoaded = true;
+        if (AccountSessionLock.Current is { } session)
+        {
+            try { await session.WaitUntilUnlockedAsync(); }
+            catch (TaskCanceledException) { return; }
+        }
         await RefreshAccountsAsync(autoConnect: _autoConnect);
         if (!string.IsNullOrWhiteSpace(_updateRepository)) _ = CheckForUpdatesAsync(silent: true);
     }
@@ -389,7 +402,7 @@ public partial class MainWindow : Window
 
     private async void AddAccount_Click(object sender, RoutedEventArgs e)
     {
-        var confirm = MessageBox.Show(this,
+        var confirm = OctoShipDialog.Show(this,
             "OctoShip for GitHub will open Git Credential Manager’s sign-in in your browser. Sign in to the account you want to add, then return here. Your current connection stays available until you switch accounts.",
             "Add a GitHub account", MessageBoxButton.OKCancel, MessageBoxImage.Information);
         if (confirm != MessageBoxResult.OK) return;
@@ -758,6 +771,24 @@ public partial class MainWindow : Window
         SaveSettings();
     }
 
+    private void RestoreWorkspaceSettings()
+    {
+        if (_appPreferences.PrivacyMode) return;
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(PreferencesPath));
+            var root = document.RootElement;
+            string Read(string name, int limit) => root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+                && value.GetString() is string text && text.Length <= limit ? text : "";
+            var repository = Read("lastRepository", 250);
+            if (RepositoryPattern.IsMatch(repository)) RepoPicker.Text = repository;
+            var branch = Read("lastBranch", 250);
+            if (!string.IsNullOrWhiteSpace(branch)) BranchBox.Text = branch;
+            PathBox.Text = Read("lastDestinationPath", 2048);
+        }
+        catch { /* Existing files remain untouched if a saved workspace cannot be read. */ }
+    }
+
     private void SaveSettings()
     {
         string? temporary = null;
@@ -770,6 +801,9 @@ public partial class MainWindow : Window
             {
                 githubAccount = _preferredAccount,
                 autoConnect = _autoConnect,
+                lastRepository = _appPreferences.PrivacyMode ? null : RepoPicker.Text.Trim(),
+                lastBranch = _appPreferences.PrivacyMode ? null : BranchBox.Text.Trim(),
+                lastDestinationPath = _appPreferences.PrivacyMode ? null : PathBox.Text.Trim(),
                 lastFolder = !_appPreferences.PrivacyMode && Directory.Exists(FolderBox.Text) ? FolderBox.Text : null,
                 searchHistory = (_appPreferences.PrivacyMode ? new List<string>() : _searchHistory.Take(12).ToList()),
                 destinations = _destinationHistory.Take(12).ToList(),
@@ -789,8 +823,18 @@ public partial class MainWindow : Window
             });
             OctoCatPreferencesService.Export(AppPreferencesPath, _appPreferences);
         }
-        catch { /* Account selection is still active for this run; credentials are never written here. */ }
+        catch { if (_settingsLoaded) SetStatus("Your latest preferences could not be saved. Check access to the OctoShip LocalAppData folder; existing saved settings and credentials are retained.", true); }
         finally { if (temporary is not null) try { File.Delete(temporary); } catch { } }
+    }
+
+    private void ShippingPreparation_Click(object sender, RoutedEventArgs e)
+    {
+        new ShippingPreparationWindow(_http, () => _token, () => _account, RepoPicker.Text.Trim(), BranchBox.Text.Trim(), QueuePathBox.Text.Trim()) { Owner = this }.ShowDialog();
+    }
+
+    private void ShippingWorkbench_Click(object sender, RoutedEventArgs e)
+    {
+        new ShippingWorkbenchWindow(_http, () => _token, RepoPicker.Text.Trim(), BranchBox.Text.Trim(), QueuePathBox.Text.Trim()) { Owner = this }.ShowDialog();
     }
 
     private void RepositoryTools_Click(object sender, RoutedEventArgs e)
@@ -830,7 +874,7 @@ public partial class MainWindow : Window
         var result = await Task.Run(() => ContentSecretScanner.ScanBytes(bytes, ct), ct);
         if (!result.HasFindings && result.Complete) return;
         ct.ThrowIfCancellationRequested();
-        var accepted = await Dispatcher.InvokeAsync(() => MessageBox.Show(this,
+        var accepted = await Dispatcher.InvokeAsync(() => OctoShipDialog.Show(this,
             $"Review content scan for {Path.GetFileName(sourcePath)}:\n\n{result.Summary}\n\nSecret detection is not exhaustive. Published content can remain in Git history. Continue with this file?",
             "Review content before upload", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes);
         if (!accepted) throw new OperationCanceledException("Content review declined. Nothing further was sent.", ct);
@@ -851,16 +895,34 @@ public partial class MainWindow : Window
 
     private void UpdateReadOnlyProfile()
     {
+        UpdateNavigationContext();
         ProfileAccount.Text = _account ?? _preferredAccount ?? "Not set";
         ProfileRepository.Text = string.IsNullOrWhiteSpace(RepoPicker.Text) ? "Not selected" : RepoPicker.Text.Trim();
         ProfileChannel.Text = _appPreferences.UpdateChannel.ToString();
         ProfilePrivacy.Text = _appPreferences.PrivacyMode ? "On" : "Off";
     }
 
+    private void LockAccount_Click(object sender, RoutedEventArgs e)
+    {
+        SaveSettings();
+        AccountSessionLock.Current?.Lock();
+    }
+
     private void BackToSearch_Click(object sender, RoutedEventArgs e)
     {
         ToolsView.Visibility = Visibility.Collapsed;
         HomeView.Visibility = Visibility.Visible;
+    }
+
+    private void NavigateRepositories_Click(object sender, RoutedEventArgs e) { ShowToolsPage(); ToolsTabs.SelectedIndex = 0; }
+    private void NavigateAccount_Click(object sender, RoutedEventArgs e) { ShowToolsPage(); ToolsTabs.SelectedIndex = 2; }
+    private void NavigateActivity_Click(object sender, RoutedEventArgs e) { TerminalExpander.IsExpanded = true; TransferTerminal.Focus(); }
+    private void UpdateNavigationContext()
+    {
+        if (NavigationContext is null) return;
+        UniformUi.SetAccount(_account);
+        NavigationContext.Text = "Account: " + (_account ?? "not connected") + "   ·   " +
+            (string.IsNullOrWhiteSpace(RepoPicker.Text) ? "No repository selected" : RepoPicker.Text.Trim() + "  /  " + BranchBox.Text.Trim());
     }
 
     private void OpenDataFolder_Click(object sender, RoutedEventArgs e)
@@ -871,7 +933,7 @@ public partial class MainWindow : Window
             Directory.CreateDirectory(folder);
             Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
         }
-        catch (Exception ex) { MessageBox.Show(this, "Could not open the OctoShip data folder: " + SafeMessage(ex), "OctoShip for GitHub", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        catch (Exception ex) { OctoShipDialog.Show(this, "Could not open the OctoShip data folder: " + SafeMessage(ex), "OctoShip for GitHub", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
 
     private void CheckCompatibility_Click(object sender, RoutedEventArgs e)
@@ -1018,7 +1080,7 @@ public partial class MainWindow : Window
             var current = GetCurrentVersion();
             if (latest <= current)
             {
-                if (!silent) MessageBox.Show(this, $"OctoShip for GitHub {current} is up to date.", "No updates available", MessageBoxButton.OK, MessageBoxImage.Information);
+                if (!silent) OctoShipDialog.Show(this, $"OctoShip for GitHub {current} is up to date.", "No updates available", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -1035,7 +1097,7 @@ public partial class MainWindow : Window
             if (downloadUrl is null || !Uri.TryCreate(downloadUrl, UriKind.Absolute, out var assetUri) || assetUri.Scheme != Uri.UriSchemeHttps || assetUri.Host != "github.com")
                 throw new InvalidOperationException("The release package URL is not a valid GitHub HTTPS download.");
 
-            var install = MessageBox.Show(this,
+            var install = OctoShipDialog.Show(this,
                 $"OctoShip for GitHub {latest} is available (you have {current}).\n\nInstall it now? OctoShip will download the release, verify its SHA-256 digest, close, and restart with the update.",
                 "OctoShip update available", MessageBoxButton.YesNo, MessageBoxImage.Information);
             if (install != MessageBoxResult.Yes) return;
@@ -1048,7 +1110,7 @@ public partial class MainWindow : Window
             UpdateDownloadProgress.Visibility = Visibility.Collapsed;
             UpdateDownloadStatus.Text = "Update download failed: " + SafeMessage(ex);
             LogTransfer("Update download failed: " + SafeMessage(ex));
-            if (!silent) MessageBox.Show(this, SafeMessage(ex), "Update check failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+            if (!silent) OctoShipDialog.Show(this, SafeMessage(ex), "Update check failed", MessageBoxButton.OK, MessageBoxImage.Warning);
             else SetStatus("Automatic update check failed. Use Check for updates to retry.", true);
         }
         finally
@@ -1166,7 +1228,7 @@ public partial class MainWindow : Window
             if (!File.Exists(marker)) return;
             var reason = File.ReadAllText(marker);
             File.Delete(marker);
-            MessageBox.Show(this, $"The update could not replace the current app files. OctoShip started with the previous version.\n\n{reason}", "Update could not be installed", MessageBoxButton.OK, MessageBoxImage.Warning);
+            OctoShipDialog.Show(this, $"The update could not replace the current app files. OctoShip started with the previous version.\n\n{reason}", "Update could not be installed", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch { }
     }
@@ -1206,12 +1268,12 @@ public partial class MainWindow : Window
             var destination = $"https://github.com/{repository}/blob/{Uri.EscapeDataString(branch)}/{string.Join("/", targetPath.Split('/').Select(Uri.EscapeDataString))}";
             var networkNotice = GetNetworkNotice();
             var prompt = $"Send this file to GitHub?\n\nAccount: {_account}\nRepository: {repository}\nBranch: {branch}\nPath: {targetPath}\nCommit message: {commitMessage}\nLocal file: {selected.FullPath}\nSize: {FormatSize(info.Length)}\n\n{networkNotice}\n\nGitHub will record a commit on this branch.";
-            if (MessageBox.Show(this, prompt, "Review upload", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (OctoShipDialog.Show(this, prompt, "Review upload", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             LogTransfer($"Starting upload: {Path.GetFileName(selected.FullPath)} → {repository}/{targetPath} ({FormatSize(info.Length)}). {networkNotice}");
             if (LooksSensitive(selected.Name) || LooksSensitive(Path.GetFileName(targetPath)))
             {
                 var warning = "This filename is commonly used for credentials or private keys. GitHub commits can remain in repository history after deletion.\n\nUpload this file anyway?";
-                if (MessageBox.Show(this, warning, "Possible secret file", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                if (OctoShipDialog.Show(this, warning, "Possible secret file", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             }
 
             var cancellation = new CancellationTokenSource();
@@ -1231,7 +1293,7 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("This repository is archived or disabled, so OctoShip will not upload to it.");
             if (repositoryInfo.CanPush == false)
                 throw new InvalidOperationException("GitHub confirms that this account cannot push to this repository.");
-            if (repositoryInfo.CanPush is null && MessageBox.Show(this,
+            if (repositoryInfo.CanPush is null && OctoShipDialog.Show(this,
                     "GitHub did not report whether this account can push to the repository. Continue with the normal destination checks?",
                     "Write access could not be confirmed", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                 return;
@@ -1245,7 +1307,7 @@ public partial class MainWindow : Window
                     using var doc = JsonDocument.Parse(await existing.Content.ReadAsStringAsync(token));
                     if (doc.RootElement.TryGetProperty("type", out var type) && type.GetString() != "file") throw new InvalidOperationException("That destination is a directory. Choose a file path.");
                     existingSha = doc.RootElement.GetProperty("sha").GetString();
-                    var overwrite = MessageBox.Show(this, $"The destination already exists. Replace it with {selected.Name}?\n\n{destination}", "Confirm replacement", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                    var overwrite = OctoShipDialog.Show(this, $"The destination already exists. Replace it with {selected.Name}?\n\n{destination}", "Confirm replacement", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                     if (overwrite != MessageBoxResult.Yes) { SetStatus("Upload cancelled. The existing GitHub file was left unchanged."); return; }
                 }
                 else if (existing.StatusCode != HttpStatusCode.NotFound) await EnsureSuccess(existing);
@@ -1280,7 +1342,7 @@ public partial class MainWindow : Window
             if (_destinationHistory.Count > 12) _destinationHistory.RemoveAt(_destinationHistory.Count - 1);
             DestinationPicker.ItemsSource = null; DestinationPicker.ItemsSource = _destinationHistory; SaveSettings();
             SetStatus($"Uploaded successfully to {repository}/{targetPath}. GitHub commit created.");
-            if (url is not null && MessageBox.Show(this, "File uploaded successfully. Open it on GitHub?", "Upload complete", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+            if (url is not null && OctoShipDialog.Show(this, "File uploaded successfully. Open it on GitHub?", "Upload complete", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
                 Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch (OperationCanceledException) { LogTransfer($"Upload canceled: {repository}/{targetPath}. Confirm GitHub state before retrying."); SetStatus("Upload canceled. If data was already sending, check GitHub before retrying; the commit may have completed.", true); }
@@ -1358,7 +1420,7 @@ public partial class MainWindow : Window
             var metadata = await _repositoryService.GetRepositoryAsync(identity[0], identity[1], _token, cancellation.Token);
             if (metadata.Archived || metadata.Disabled) throw new InvalidOperationException("This repository is archived or disabled.");
             if (metadata.CanPush == false) throw new InvalidOperationException("GitHub confirms that this account cannot push to this repository.");
-            if (metadata.CanPush is null && MessageBox.Show(this, "GitHub did not report write permission for this repository. Continue with branch and file checks?", "Write access could not be confirmed", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (metadata.CanPush is null && OctoShipDialog.Show(this, "GitHub did not report write permission for this repository. Continue with branch and file checks?", "Write access could not be confirmed", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             using (var branchResponse = await SendAsync(HttpMethod.Get, $"https://api.github.com/repos/{repository}/branches/{Uri.EscapeDataString(branch)}", _token, cancellationToken: cancellation.Token)) await EnsureSuccess(branchResponse);
 
             var existingPaths = new List<string>();
@@ -1372,7 +1434,7 @@ public partial class MainWindow : Window
             var policy = UploadCollisionPolicy.Skip;
             if (existingPaths.Count > 0)
             {
-                var choice = MessageBox.Show(this, $"{existingPaths.Count} destination file(s) already exist. Choose Yes to replace them, No to skip collisions, or Cancel to stop.\n\n{string.Join("\n", existingPaths.Take(8))}{(existingPaths.Count > 8 ? "\n…" : "")}", "Resolve upload collisions", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
+                var choice = OctoShipDialog.Show(this, $"{existingPaths.Count} destination file(s) already exist. Choose Yes to replace them, No to skip collisions, or Cancel to stop.\n\n{string.Join("\n", existingPaths.Take(8))}{(existingPaths.Count > 8 ? "\n…" : "")}", "Resolve upload collisions", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
                 if (choice == MessageBoxResult.Cancel) return;
                 policy = choice == MessageBoxResult.Yes ? UploadCollisionPolicy.Replace : UploadCollisionPolicy.Skip;
             }
@@ -1382,13 +1444,13 @@ public partial class MainWindow : Window
             if (total == 0) { SetStatus("Every queued destination already exists and was set to skip. Nothing was uploaded."); return; }
             var destinations = string.Join("\n", _uploadQueue.Items.Where(item => item.State != UploadQueueItemState.Skipped).Take(8).Select(item => item.DestinationPath));
             if (total > 8) destinations += "\n…";
-            var confirm = MessageBox.Show(this, $"Upload {total} file(s) to {repository} on {branch}?\n\nAccount: {_account}\nDestination paths:\n{destinations}\nCommit message: {message}\nEach file creates a separate GitHub commit.", "Review folder batch", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            var confirm = OctoShipDialog.Show(this, $"Upload {total} file(s) to {repository} on {branch}?\n\nAccount: {_account}\nDestination paths:\n{destinations}\nCommit message: {message}\nEach file creates a separate GitHub commit.", "Review folder batch", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (confirm != MessageBoxResult.Yes) return;
             UploadProgress.IsIndeterminate = false;
             await _uploadQueue.RunAsync(async (item, itemProgress, ct) =>
             {
                 var targetPath = item.DestinationPath;
-                if (LooksSensitive(Path.GetFileName(item.SourcePath)) && Dispatcher.Invoke(() => MessageBox.Show(this,
+                if (LooksSensitive(Path.GetFileName(item.SourcePath)) && Dispatcher.Invoke(() => OctoShipDialog.Show(this,
                     $"{Path.GetFileName(item.SourcePath)} may contain credentials or private keys. It can remain in repository history after deletion. Upload this file?",
                     "Possible secret file", MessageBoxButton.YesNo, MessageBoxImage.Warning)) != MessageBoxResult.Yes)
                     throw new OperationCanceledException("User declined a potentially sensitive file.", ct);
@@ -1450,7 +1512,7 @@ public partial class MainWindow : Window
             var parts = repository.Split('/', 2);
             var metadata = await _repositoryService.GetRepositoryAsync(parts[0], parts[1], _token, cts.Token);
             if (metadata.Archived || metadata.Disabled || metadata.CanPush == false) throw new InvalidOperationException("The repository is archived, disabled, or not writable.");
-            if (metadata.CanPush is null && MessageBox.Show(this, "GitHub did not confirm write access. Continue with destination checks?", "Write access unconfirmed", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (metadata.CanPush is null && OctoShipDialog.Show(this, "GitHub did not confirm write access. Continue with destination checks?", "Write access unconfirmed", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             using (var branchResponse = await SendAsync(HttpMethod.Get, $"https://api.github.com/repos/{repository}/branches/{Uri.EscapeDataString(branch)}", _token, cancellationToken: cts.Token)) await EnsureSuccess(branchResponse);
             var existing = new List<string>();
             foreach (var item in sourceItems)
@@ -1462,7 +1524,7 @@ public partial class MainWindow : Window
             var policy = UploadCollisionPolicy.Skip;
             if (existing.Count > 0)
             {
-                var choice = MessageBox.Show(this, $"{existing.Count} path(s) already exist. Yes replaces them; No renames colliding files; Cancel stops.\n\n{string.Join("\n", existing.Take(6))}", "Resolve GitHub conflicts", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
+                var choice = OctoShipDialog.Show(this, $"{existing.Count} path(s) already exist. Yes replaces them; No renames colliding files; Cancel stops.\n\n{string.Join("\n", existing.Take(6))}", "Resolve GitHub conflicts", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
                 if (choice == MessageBoxResult.Cancel) return;
                 policy = choice == MessageBoxResult.Yes ? UploadCollisionPolicy.Replace : UploadCollisionPolicy.Rename;
             }
@@ -1472,7 +1534,7 @@ public partial class MainWindow : Window
             var dialog = new BatchUploadWindow(planned, repository, branch, message, async (file, progress, ct) =>
             {
                 if (new FileSafetyRules(_sensitivePatterns.Length == 0 ? null : _sensitivePatterns).Match(file.SourcePath).Count > 0 &&
-                    Dispatcher.Invoke(() => MessageBox.Show(this, $"{Path.GetFileName(file.SourcePath)} matches a sensitive-file rule. It may contain credentials and remain in Git history. Upload it?", "Sensitive file warning", MessageBoxButton.YesNo, MessageBoxImage.Warning)) != MessageBoxResult.Yes)
+                    Dispatcher.Invoke(() => OctoShipDialog.Show(this, $"{Path.GetFileName(file.SourcePath)} matches a sensitive-file rule. It may contain credentials and remain in Git history. Upload it?", "Sensitive file warning", MessageBoxButton.YesNo, MessageBoxImage.Warning)) != MessageBoxResult.Yes)
                     throw new OperationCanceledException("Upload declined for a sensitive file.", ct);
                 if (file.Size > MaxUploadBytes) throw new InvalidOperationException("This file exceeds the 50 MiB limit.");
                 if (file.CapturedLastWriteTimeUtc is not DateTime captured) throw new InvalidOperationException("Review the source file again before uploading.");
@@ -1480,7 +1542,7 @@ public partial class MainWindow : Window
                 await ValidateUploadContentAsync(file.SourcePath, bytes, ct);
                 var encodedPath = string.Join("/", file.DestinationPath.Split('/').Select(Uri.EscapeDataString));
                 var target = await _repositoryService.GetTargetFileAsync(parts[0], parts[1], branch, file.DestinationPath, _token!, ct);
-                if (target.Exists && MessageBox.Show(this, $"Replace the current GitHub file at {file.DestinationPath}?", "Review destination", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                if (target.Exists && OctoShipDialog.Show(this, $"Replace the current GitHub file at {file.DestinationPath}?", "Review destination", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                     throw new OperationCanceledException("Destination replacement declined.", ct);
                 var destinationSha = target.Sha;
                 LogTransfer($"Uploading {Path.GetFileName(file.SourcePath)} to {repository}/{file.DestinationPath} · {FormatSize(bytes.Length)}.");
@@ -1501,13 +1563,13 @@ public partial class MainWindow : Window
                 foreach (var file in files)
                 {
                     ct.ThrowIfCancellationRequested();
-                    if ((LooksSensitive(file.SourcePath) || LooksSensitive(file.DestinationPath)) && MessageBox.Show(this,
+                    if ((LooksSensitive(file.SourcePath) || LooksSensitive(file.DestinationPath)) && OctoShipDialog.Show(this,
                         $"{Path.GetFileName(file.SourcePath)} matches a sensitive-file rule. Include it in this commit?", "Sensitive file warning", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                         throw new OperationCanceledException("Sensitive file declined.", ct);
                     var target = await _repositoryService.GetTargetFileAsync(parts[0], parts[1], branch, file.DestinationPath, _token!, ct);
                     if (target.Exists) replacements.Add(file.DestinationPath);
                 }
-                if (replacements.Count > 0 && MessageBox.Show(this,
+                if (replacements.Count > 0 && OctoShipDialog.Show(this,
                     $"This commit replaces {replacements.Count} current file(s):\n\n{string.Join("\n", replacements.Take(12))}\n\nContinue?",
                     "Review batch replacements", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                     throw new OperationCanceledException("Batch replacement declined.", ct);
@@ -1637,6 +1699,7 @@ public partial class MainWindow : Window
     private static string FormatSize(long bytes) => bytes < 1024 * 1024 ? $"{bytes / 1024d:0.#} KB" : $"{bytes / (1024d * 1024):0.##} MB";
     private void SetStatus(string message, bool error = false)
     {
+        UpdateNavigationContext();
         StatusLabel.Text = message;
         StatusLabel.Foreground = new SolidColorBrush(error ? Color.FromRgb(255, 137, 155) : Color.FromRgb(192, 203, 224));
     }

@@ -1,5 +1,8 @@
 #define MyAppName "OctoShip for GitHub"
-#define MyAppVersion "1.5.0"
+#define MyAppVersion "1.6.0-preview.1"
+#ifndef PayloadDir
+#define PayloadDir "payload"
+#endif
 #define MyAppPublisher "OctoShip"
 #define MyAppExeName "OctoShip.exe"
 
@@ -17,20 +20,21 @@ ArchitecturesInstallIn64BitMode=x64compatible
 AppMutex=Local\OctoCat.SingleInstance
 UninstallDisplayIcon={app}\{#MyAppExeName}
 OutputDir=..\installers
-OutputBaseFilename=OctoShip-Setup-v1.5.0-win-x64
+OutputBaseFilename=OctoShip-Setup-v{#MyAppVersion}-win-x64
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
-CloseApplications=yes
+CloseApplications=no
 RestartApplications=no
 Uninstallable=yes
 AppComments=Windows desktop uploader for GitHub
 AppSupportURL=https://github.com/ghostventure/OctoCat
-VersionInfoVersion=1.5.0.0
+VersionInfoVersion=1.6.0.0
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription=OctoShip for GitHub installer
 VersionInfoProductName={#MyAppName}
-VersionInfoProductVersion={#MyAppVersion}
+VersionInfoProductVersion=1.6.0.0
+MinVersion=10.0.19041
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -42,7 +46,7 @@ WelcomeLabel2=Installs OctoShip for GitHub for your Windows user. Git for Window
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
 [Files]
-Source: "payload\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"

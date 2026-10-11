@@ -22,6 +22,7 @@ public sealed class RepositoryWorkflowWindow : Window
 
     public RepositoryWorkflowWindow(HttpClient http, Func<string?> tokenProvider, string repository, string branch, string remoteFolder)
     {
+        UniformUi.Prepare(this);
         _service = new(http); _tokenProvider = tokenProvider;
         Title = "Compare folders, branches and pull requests"; Width = 820; Height = 800; MinWidth = 650; MinHeight = 500;
         Background = new SolidColorBrush(Color.FromRgb(16, 21, 30)); Foreground = Brushes.WhiteSmoke; WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -29,6 +30,8 @@ public sealed class RepositoryWorkflowWindow : Window
         root.Children.Add(new TextBlock { Text = "Repository workflow", FontSize = 22, Margin = new Thickness(0, 0, 0, 12) });
         AddField(root, "Repository (owner/name)", _repository, repository);
         AddField(root, "Comparison branch / source for a new branch", _branch, branch);
+        UniformUi.SetDestination(this, () => _repository.Text + "  /  " + _branch.Text);
+        root.SetResourceReference(MarginProperty, "PagePadding");
         var tabs = new TabControl { Margin = new Thickness(0, 10, 0, 0) }; root.Children.Add(tabs);
         var compare = Panel(); tabs.Items.Add(new TabItem { Header = "Folder comparison", Content = compare });
         compare.Children.Add(Note("Read-only comparison of raw file bytes at a fixed commit. Excludes .git; other ignore rules are not applied. Line endings and LFS pointers can differ from checked-out files. File modes are not compared. Links/junctions stop the scan."));
@@ -53,7 +56,7 @@ public sealed class RepositoryWorkflowWindow : Window
         AddButton(branchPanel, "Create branch on GitHub", async (_, _) =>
         {
             var repo = _repository.Text.Trim(); var source = _branch.Text.Trim(); var target = _newBranch.Text.Trim();
-            if (_busy || MessageBox.Show(this, $"Create {target} in {repo} from {source}?", "Create branch", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+            if (_busy || OctoShipDialog.Show(this, $"Create {target} in {repo} from {source}?", "Create branch", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
             await RunAsync(async token => "Created " + await _service.CreateBranchAsync(repo, source, target, token, _lifetime.Token) + " in " + repo + ". Select it as the upload branch when ready.", true);
         });
         var pr = Panel(); tabs.Items.Add(new TabItem { Header = "Create pull request", Content = pr });
@@ -64,7 +67,7 @@ public sealed class RepositoryWorkflowWindow : Window
         AddButton(pr, "Create pull request on GitHub", async (_, _) =>
         {
             var repo = _repository.Text.Trim(); var head = _head.Text.Trim(); var target = _base.Text.Trim(); var title = _title.Text; var body = _body.Text; var draft = _draft.IsChecked == true;
-            if (_busy || MessageBox.Show(this, $"Create {(draft ? "draft " : "")}pull request in {repo}: {head} into {target}?\n\n{title}", "Create pull request", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
+            if (_busy || OctoShipDialog.Show(this, $"Create {(draft ? "draft " : "")}pull request in {repo}: {head} into {target}?\n\n{title}", "Create pull request", MessageBoxButton.OKCancel) != MessageBoxResult.OK) return;
             await RunAsync(async token => "Pull request created: " + await _service.CreatePullRequestAsync(repo, head, target, title, body, draft, token, _lifetime.Token), true);
         });
         root.Children.Add(_status);

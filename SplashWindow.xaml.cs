@@ -4,5 +4,5 @@ namespace FileToGitHub;
 
 public partial class SplashWindow : Window
 {
-    public SplashWindow() => InitializeComponent();
+    public SplashWindow() { UniformUi.Prepare(this); InitializeComponent(); }
 }

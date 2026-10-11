@@ -22,6 +22,7 @@ public partial class FileReviewWindow : Window
         Func<string, CancellationToken, Task<string?>>? remoteContentLoader = null,
         FileSafetyRules? safetyRules = null)
     {
+        UniformUi.Prepare(this);
         InitializeComponent();
         _localPath = Path.GetFullPath(localPath);
         DestinationRepositoryPath = (destinationRepositoryPath ?? Path.GetFileName(_localPath)).Replace('\\', '/').TrimStart('/');
@@ -125,7 +126,7 @@ public partial class FileReviewWindow : Window
     private void OpenPdf_Click(object sender, RoutedEventArgs e)
     {
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_localPath) { UseShellExecute = true }); }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Could not open PDF", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        catch (Exception ex) { OctoShipDialog.Show(this, ex.Message, "Could not open PDF", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
 
     private void Continue_Click(object sender, RoutedEventArgs e) { ContinueUpload = true; DialogResult = true; }

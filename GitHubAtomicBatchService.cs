@@ -106,7 +106,23 @@ public sealed class GitHubAtomicBatchService
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException)
         {
-            throw new InvalidOperationException($"Publication was not confirmed. Check GitHub commit {commitSha} before retrying; the branch update may have completed.", ex);
+            // The PATCH may have succeeded even when its response was lost. Reconcile with a
+            // fresh, bounded read, independent of the cancelled upload token; never retry PATCH.
+            bool confirmed = false;
+            try
+            {
+                using var reconciliation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                var actual = await GetHeadAsync(owner, repository, branch, token, reconciliation.Token);
+                confirmed = string.Equals(actual, commitSha, StringComparison.OrdinalIgnoreCase);
+                if (!confirmed)
+                {
+                    using var ancestry = await SendAsync(HttpMethod.Get, root + "/compare/" + commitSha + "..." + actual, token, null, reconciliation.Token);
+                    var status = ancestry.RootElement.GetProperty("status").GetString();
+                    confirmed = status is "ahead" or "identical";
+                }
+            }
+            catch (Exception checkError) when (checkError is HttpRequestException or OperationCanceledException or JsonException or KeyNotFoundException) { }
+            if (!confirmed) throw new InvalidOperationException($"Publication remains unconfirmed after checking the branch. Do not retry blindly: inspect GitHub commit {commitSha}; the branch update may have completed.", ex);
         }
         foreach (var file in files) progress?.Report(new BatchUploadProgress(file.SourcePath, 100));
         return files.Select(file => new BatchUploadResult(file.SourcePath, true,

@@ -1,0 +1,109 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Media;
+using FileToGitHub;
+
+internal static class Program
+{
+    [STAThread] static int Main()
+    {
+        try
+        {
+            Checks().GetAwaiter().GetResult();
+            var app = new Application();
+            using var client = new HttpClient(new Fake(_ => Json("{}")));
+            var window = new ShippingWorkbenchWindow(client, () => "", "example/project", "main", "") { Width = 450, Height = 500, ShowInTaskbar = false };
+            window.Show(); window.UpdateLayout();
+            var controls = Descendants(window).OfType<Control>().ToArray();
+            Require(controls.OfType<TabControl>().Single().Items.Count == 4, "four rendered workflow tabs");
+            Require(controls.OfType<TextBox>().Where(x => x.IsVisible).All(x => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(x))), "visible text inputs have accessible names");
+            Require(window.ActualWidth == 450, "small-display window renders");
+            window.Close(); app.Shutdown();
+            Console.WriteLine("PASS: shipping review, unchanged detection, immutable verification, diagnostics, draft recovery, recipe boundaries and WPF small-window smoke."); return 0;
+        }
+        catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
+    }
+    static System.Collections.Generic.IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++) { var child = VisualTreeHelper.GetChild(root, i); yield return child; foreach (var nested in Descendants(child)) yield return nested; }
+    }
+    static async Task Checks()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "octoship-workbench-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(folder);
+        try
+        {
+            var same = Path.Combine(folder, "same.txt"); var changed = Path.Combine(folder, "changed.txt");
+            await File.WriteAllTextAsync(same, "same"); await File.WriteAllTextAsync(changed, "new content");
+            var sameHash = ShippingWorkbenchService.BlobHash(Encoding.UTF8.GetBytes("same"));
+            var newHash = ShippingWorkbenchService.BlobHash(Encoding.UTF8.GetBytes("new content"));
+            var tree = "{\"truncated\":false,\"tree\":[{\"path\":\"same.txt\",\"type\":\"blob\",\"mode\":\"100644\",\"sha\":\"" + sameHash + "\"},{\"path\":\"changed.txt\",\"type\":\"blob\",\"mode\":\"100644\",\"sha\":\"old\"}]}";
+            using var client = new HttpClient(new Fake(r => r.RequestUri!.AbsolutePath.Contains("/commits/") ? Json("{\"sha\":\"abc\",\"commit\":{\"tree\":{\"sha\":\"tree\"}}}") : Json(tree)));
+            var service = new ShippingWorkbenchService(client);
+            var review = await service.ReviewAsync("example/project", "main", folder, "", Array.Empty<string>(), "test", default);
+            Require(review.Files.Single(x => x.Destination == "same.txt").Status == "Same content", "unchanged determined by Git blob hash");
+            Require(review.Files.Single(x => x.Destination == "changed.txt").Status == "Changed content", "changed content retained");
+            Require((await service.VerifyAsync(review, "abc", "test", default)).StartsWith("Mismatch:"), "mismatch reported");
+            using var verifiedClient = new HttpClient(new Fake(_ => Json(tree.Replace("\"old\"", "\"" + newHash + "\""))));
+            Require((await new ShippingWorkbenchService(verifiedClient).VerifyAsync(review, "abc", "test", default)).StartsWith("Verified:"), "all exact hashes verified");
+            using var unavailable = new HttpClient(new Fake(_ => new HttpResponseMessage(HttpStatusCode.Forbidden)));
+            Require((await new ShippingWorkbenchService(unavailable).VerifyAsync(review, "abc", "test", default)).StartsWith("Could not verify:"), "HTTP failures never reported as verified");
+            using var truncated = new HttpClient(new Fake(_ => Json("{\"truncated\":true,\"tree\":[]}")));
+            Require((await new ShippingWorkbenchService(truncated).VerifyAsync(review, "abc", "test", default)).StartsWith("Could not verify:"), "truncated tree never accepted");
+            var head = new string('a', 40); var published = new string('b', 40); int blobs = 0, pulls = 0, branches = 0;
+            using var shippingClient = new HttpClient(new Fake(r =>
+            {
+                var path = r.RequestUri!.AbsolutePath;
+                if (r.Method == HttpMethod.Post && path.EndsWith("/git/refs")) { branches++; return Json("{\"ref\":\"refs/heads/ship/test\"}"); }
+                if (path.Contains("/git/ref/heads/")) return Json("{\"object\":{\"sha\":\"" + head + "\"}}");
+                if (path.EndsWith("/example/project")) return Json("{\"archived\":false,\"disabled\":false,\"permissions\":{\"push\":true}}");
+                if (path.Contains("/git/commits/") && r.Method == HttpMethod.Get) return Json("{\"tree\":{\"sha\":\"tree\"}}");
+                if (path.Contains("/git/trees/") && r.Method == HttpMethod.Get) return Json(path.EndsWith(published) ? tree.Replace("\"old\"", "\"" + newHash + "\"") : tree);
+                if (path.EndsWith("/git/blobs")) { blobs++; return Json("{\"sha\":\"" + newHash + "\"}"); }
+                if (path.EndsWith("/git/trees")) return Json("{\"sha\":\"newtree\"}");
+                if (path.EndsWith("/git/commits")) return Json("{\"sha\":\"" + published + "\"}");
+                if (path.Contains("/git/refs/heads/") && r.Method == HttpMethod.Patch) return Json("{}");
+                if (path.EndsWith("/pulls")) { pulls++; return Json("{\"html_url\":\"https://github.com/example/project/pull/1\"}"); }
+                throw new Exception("Unexpected shipment request: " + r.Method + " " + path);
+            }));
+            var shipped = await new ShippingWorkbenchService(shippingClient).ShipAsync(review with { Commit = head }, "ship/test", "Ship changes", "test", default);
+            Require(branches == 1 && blobs == 1 && pulls == 1 && shipped.Contains("Verified:"), "guided shipment creates one branch, skips unchanged blob, verifies commit, creates draft PR");
+            await File.WriteAllTextAsync(same, "edited after review");
+            await RejectAsync(() => service.ShipAsync(review, "ship/test", "Title", "test", default), "modified reviewed bytes block before branch creation");
+            var recipe = new ProjectRecipe(1, "example/project", "main", "src", new[] { "*.zip" }, "v{version}"); ShippingWorkbenchService.ValidateRecipe(recipe);
+            Reject(() => ShippingWorkbenchService.ValidateRecipe(recipe with { DestinationFolder = "../outside" }), "recipe traversal");
+            Reject(() => ShippingWorkbenchService.ValidateRecipe(recipe with { Exclusions = new[] { "C:/Users/name" } }), "machine-specific recipe path");
+            Require(ShippingWorkbenchService.ExplainStatus(403, true).Contains("SSO"), "SSO evidence");
+            Require(ShippingWorkbenchService.ExplainStatus(403, false, true).Contains("rate limit"), "rate limit evidence");
+            int posts = 0;
+            using var recoveryClient = new HttpClient(new Fake(r =>
+            {
+                if (r.Method == HttpMethod.Post) { posts++; return Json("{}"); }
+                return Json("{\"draft\":true,\"assets\":[]}");
+            }));
+            var recovered = await new ShippingWorkbenchService(recoveryClient).RecoverAsync("example/project", 42, new[] { changed }, "test", default);
+            Require(posts == 1 && recovered.Contains("No new draft"), "recovery uploads to existing draft only");
+            using var publishedClient = new HttpClient(new Fake(_ => Json("{\"draft\":false,\"assets\":[]}")));
+            await RejectAsync(() => new ShippingWorkbenchService(publishedClient).RecoverAsync("example/project", 42, new[] { changed }, "test", default), "published release cannot be recovered");
+        }
+        finally { Directory.Delete(folder, true); }
+    }
+    static HttpResponseMessage Json(string value) => new(HttpStatusCode.OK) { Content = new StringContent(value, Encoding.UTF8, "application/json") };
+    static void Require(bool condition, string name) { if (!condition) throw new Exception("FAIL: " + name); }
+    static void Reject(Action action, string name) { try { action(); } catch (ArgumentException) { return; } throw new Exception("FAIL: " + name); }
+    static async Task RejectAsync(Func<Task> action, string name) { try { await action(); } catch (InvalidOperationException) { return; } throw new Exception("FAIL: " + name); }
+    sealed class Fake : HttpMessageHandler
+    {
+        readonly Func<HttpRequestMessage,HttpResponseMessage> _response;
+        public Fake(Func<HttpRequestMessage,HttpResponseMessage> response) => _response = response;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) => Task.FromResult(_response(request));
+    }
+}

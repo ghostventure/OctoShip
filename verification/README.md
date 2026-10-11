@@ -1,5 +1,9 @@
 # Component preview verification
 
+The 2026-10-11 local preview results and installed-app checks are recorded in [RELEASE-1.6.0-preview.1.md](../RELEASE-1.6.0-preview.1.md). The older results below remain historical.
+
+For the current development build, also run `dotnet run --project verification/session-lock/SessionLockChecks.csproj -c Release`, `dotnet run --project verification/preparation/PreparationChecks.csproj -c Release`, `dotnet run --project verification/shipping-workbench/ShippingWorkbenchChecks.csproj -c Release`, and `dotnet run --project verification/uniform-ui/UniformUiChecks.csproj -c Release`. Current executable: `bin/Release/net6.0-windows10.0.19041.0/OctoShip.exe`. Account-lock boundaries are in [ACCOUNT-SESSION.md](../ACCOUNT-SESSION.md).
+
 Run from the repository root on Windows with the .NET 6 SDK and Windows Desktop Runtime:
 
 ```powershell

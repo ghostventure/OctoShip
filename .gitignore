@@ -4,6 +4,7 @@ dist/
 dist-*/
 installers/
 installer/payload/
+installer/payload-*/
 *.zip
 *.msi
 *.exe

@@ -25,6 +25,7 @@ public partial class OctoCatSettingsWindow : Window
     public OctoCatSettingsWindow(OctoCatPreferences? preferences = null, IEnumerable<string>? sensitivePatterns = null,
         IEnumerable<DestinationPreset>? destinationPresets = null)
     {
+        UniformUi.Prepare(this);
         InitializeComponent();
         _preferences = OctoCatPreferencesService.Normalize(preferences ?? new OctoCatPreferences());
         Preferences = _preferences;

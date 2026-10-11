@@ -55,7 +55,8 @@ public static class OctoCatPreferencesService
         if (!File.Exists(executablePath)) return new(false, "File was not found.", null);
         try
         {
-            var trustResult = WinVerifyTrust(IntPtr.Zero, ref GenericVerifyV2, new WinTrustData(executablePath));
+            using var trustData = new WinTrustData(executablePath);
+            var trustResult = WinVerifyTrust(IntPtr.Zero, ref GenericVerifyV2, trustData);
             if (trustResult != 0) return new(false, $"Windows Authenticode verification failed (0x{trustResult:X8}).", null);
             using var cert = new System.Security.Cryptography.X509Certificates.X509Certificate2(System.Security.Cryptography.X509Certificates.X509Certificate.CreateFromSignedFile(executablePath));
             var signer = cert.Thumbprint?.Replace(" ", "", StringComparison.Ordinal).ToUpperInvariant();
@@ -103,7 +104,6 @@ public static class OctoCatPreferencesService
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     private sealed class WinTrustData : IDisposable
     {
-        private readonly IntPtr _fileInfo;
         public uint Size;
         public IntPtr PolicyCallbackData;
         public IntPtr SIPClientData;
@@ -119,12 +119,17 @@ public static class OctoCatPreferencesService
         public WinTrustData(string file)
         {
             var info = new WinTrustFileInfo(file);
-            _fileInfo = System.Runtime.InteropServices.Marshal.AllocHGlobal(System.Runtime.InteropServices.Marshal.SizeOf<WinTrustFileInfo>());
-            System.Runtime.InteropServices.Marshal.StructureToPtr(info, _fileInfo, false);
-            FileInfo = _fileInfo;
+            FileInfo = System.Runtime.InteropServices.Marshal.AllocHGlobal(System.Runtime.InteropServices.Marshal.SizeOf<WinTrustFileInfo>());
+            System.Runtime.InteropServices.Marshal.StructureToPtr(info, FileInfo, false);
             Size = (uint)System.Runtime.InteropServices.Marshal.SizeOf<WinTrustData>();
         }
-        public void Dispose() => System.Runtime.InteropServices.Marshal.FreeHGlobal(_fileInfo);
+        public void Dispose()
+        {
+            if (FileInfo == IntPtr.Zero) return;
+            System.Runtime.InteropServices.Marshal.DestroyStructure<WinTrustFileInfo>(FileInfo);
+            System.Runtime.InteropServices.Marshal.FreeHGlobal(FileInfo);
+            FileInfo = IntPtr.Zero;
+        }
     }
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]

@@ -11,7 +11,8 @@ static void Smoke() {
  var window=new RepositoryWorkflowWindow(http,()=>"fake-token","owner/repo","main","");
  try {
   window.Show(); window.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle); window.UpdateLayout();
-  var root=(System.Windows.Controls.StackPanel)((System.Windows.Controls.ScrollViewer)window.Content).Content;
+  var frame=(System.Windows.Controls.DockPanel)window.Content;
+  var root=(System.Windows.Controls.StackPanel)frame.Children.OfType<System.Windows.Controls.ScrollViewer>().Single().Content;
   var tabs=root.Children.OfType<System.Windows.Controls.TabControl>().Single();
   Assert(tabs.Items.Count==3,"three workflow tabs exist");
   for(int i=0;i<tabs.Items.Count;i++) {
@@ -35,11 +36,13 @@ static async Task Run() {
  await File.WriteAllTextAsync(Path.Combine(folder,"local.txt"),"local");
  var hash=await RepositoryWorkflowService.HashBlobAsync(Path.Combine(folder,"same.txt"));
  Assert(hash=="ce013625030ba8dba906f756967f9e9ca394464a","Git blob known vector");
+ var localHash=await RepositoryWorkflowService.HashBlobAsync(Path.Combine(folder,"local.txt"));
  var handler=new Fake(); using var http=new HttpClient(handler); var svc=new RepositoryWorkflowService(http);
  handler.Responses.Enqueue("{\"sha\":\"commit123\",\"commit\":{\"tree\":{\"sha\":\"tree123\"}}}");
- handler.Responses.Enqueue(JsonSerializer.Serialize(new {truncated=false,tree=new[]{new{path="docs/same.txt",type="blob",mode="100644",sha=hash},new{path="docs/changed.txt",type="blob",mode="100644",sha=hash},new{path="docs/remote.txt",type="blob",mode="100644",sha=hash},new{path="elsewhere.txt",type="blob",mode="100644",sha=hash}}}));
+ handler.Responses.Enqueue(JsonSerializer.Serialize(new {truncated=false,tree=new[]{new{path="docs/same.txt",type="blob",mode="100644",sha=hash},new{path="docs/changed.txt",type="blob",mode="100644",sha=hash},new{path="docs/remote.txt",type="blob",mode="100644",sha=localHash},new{path="elsewhere.txt",type="blob",mode="100644",sha=hash}}}));
  var result=await svc.CompareAsync("owner/repo","feature/test","docs",folder,"test-token");
  Assert(result.Files.Count==4 && result.Files.Any(x=>x.Status=="Same content") && result.Files.Any(x=>x.Status=="Changed content") && result.Files.Any(x=>x.Status=="Local only") && result.Files.Any(x=>x.Status=="Remote only"),"comparison classifications and folder scoping");
+ Assert(result.Files.Single(x=>x.Path=="local.txt").PossibleMoveFrom=="remote.txt","unique exact-content move is annotated without deleting remote");
  Assert(handler.Requests.All(x=>x.Method=="GET"),"comparison never writes");
  handler.Responses.Enqueue("{\"sha\":\"commit123\",\"commit\":{\"tree\":{\"sha\":\"tree123\"}}}"); handler.Responses.Enqueue("{\"truncated\":true,\"tree\":[]}");
  try {await svc.CompareAsync("owner/repo","main","",folder,"test-token"); throw new Exception("truncation accepted");} catch(InvalidOperationException) {Console.WriteLine("PASS truncated tree rejected");}

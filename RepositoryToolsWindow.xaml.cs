@@ -31,6 +31,7 @@ public partial class RepositoryToolsWindow : Window
     public RepositoryToolsWindow(HttpClient httpClient, Func<string?> tokenProvider, IEnumerable<string>? recentRepositories = null,
         string? repository = null, string? branch = null, string? defaultFolder = null)
     {
+        UniformUi.Prepare(this);
         InitializeComponent();
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _tokenProvider = tokenProvider ?? throw new ArgumentNullException(nameof(tokenProvider));

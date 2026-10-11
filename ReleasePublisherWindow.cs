@@ -28,6 +28,8 @@ public sealed class ReleasePublisherWindow : Window
 
     public ReleasePublisherWindow(HttpClient http, string owner, string repository, string branch, string token)
     {
+        UniformUi.Prepare(this);
+        UniformUi.SetDestination(this, () => owner + "/" + repository + "  /  " + branch);
         _service = new GitHubReleaseService(http);
         _owner = owner; _repository = repository; _branch = branch; _token = token;
         Title = "Release publisher — OctoShip"; Width = 730; Height = 750; MinWidth = 600; MinHeight = 620;
@@ -97,8 +99,8 @@ public sealed class ReleasePublisherWindow : Window
                 if (!info.Exists || info.Length == 0 || info.Length >= 2L * 1024 * 1024 * 1024) throw new InvalidOperationException("Each asset must exist, be nonempty, and be smaller than 2 GiB.");
             }
             var notesScan = ContentSecretScanner.ScanText(_notes.Text);
-            if (notesScan.HasFindings && MessageBox.Show(this, notesScan.Summary + "\nInclude these release notes?", "Review release notes", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
-            if (MessageBox.Show(this, $"Create draft {_tag.Text.Trim()} in {_owner}/{_repository} from {_branch} and upload {_paths.Count} asset(s)?\nAssets are uploaded as selected; archives and binaries are not secret-scanned.", "Create GitHub draft", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+            if (notesScan.HasFindings && OctoShipDialog.Show(this, notesScan.Summary + "\nInclude these release notes?", "Review release notes", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+            if (OctoShipDialog.Show(this, $"Create draft {_tag.Text.Trim()} in {_owner}/{_repository} from {_branch} and upload {_paths.Count} asset(s)?\nAssets are uploaded as selected; archives and binaries are not secret-scanned.", "Create GitHub draft", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
             _busy = true; _create.IsEnabled = false; _editor.IsEnabled = false;
             _status.Text = "Creating draft...";
             _release = await _service.CreateDraftAsync(_owner, _repository, _token, _tag.Text, _branch, _title.Text, _notes.Text, _prerelease.IsChecked == true, _lifetime.Token);
@@ -119,7 +121,7 @@ public sealed class ReleasePublisherWindow : Window
     private async void Publish_Click(object sender, RoutedEventArgs e)
     {
         if (_busy || _release == null) return;
-        if (MessageBox.Show(this, $"Publish {_tag.Text.Trim()} in {_owner}/{_repository} now? The release will become visible to repository readers.", "Publish release", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        if (OctoShipDialog.Show(this, $"Publish {_tag.Text.Trim()} in {_owner}/{_repository} now? The release will become visible to repository readers.", "Publish release", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         _busy = true; _publish.IsEnabled = false;
         try
         {

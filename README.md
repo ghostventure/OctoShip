@@ -1,5 +1,7 @@
 # OctoShip for GitHub
 
+The Windows development build now retains account/workspace preferences and locks after 30 minutes of inactivity, with Windows Hello or Windows account password unlocking. See [account retention and session protection](ACCOUNT-SESSION.md) for behavior and verification boundaries.
+
 OctoShip for GitHub finds local files and sends them to GitHub. The original Windows desktop client is in the repository root. A native Linux client is now available in [linux/](linux/README.md), with a desktop launcher, Debian package builder, and tested GitHub upload backend.
 
 ## Linux 1.6.1
@@ -49,10 +51,13 @@ Settings are stored under `%LOCALAPPDATA%\OctoShipForGitHub`. On first launch, t
 Build with `dotnet build FileToGitHub.csproj -c Release`. Publish the framework-dependent Windows app with:
 
 ```powershell
-dotnet publish FileToGitHub.csproj -c Release --no-restore -o dist-OctoShip-v15
-Compress-Archive -Path dist-OctoShip-v15\* -DestinationPath OctoShip-for-GitHub-v1.5.0-win-x64.zip -Force
-dotnet publish FileToGitHub.csproj -c Release --no-restore -p:DebugType=None -o installer\payload
-ISCC.exe installer\OctoShip.iss
+dotnet publish FileToGitHub.csproj -c Release --no-restore -p:DebugType=None -o installer\payload-1.6.0-preview.1
+Compress-Archive -Path installer\payload-1.6.0-preview.1\* -DestinationPath installers\OctoShip-v1.6.0-preview.1-win-x64.zip
+ISCC.exe /DPayloadDir=payload-1.6.0-preview.1 installer\OctoShip.iss
 ```
 
-Build the per-user Windows installer with Inno Setup 6 using the commands above. The setup executable is written to `installers\OctoShip-Setup-v1.5.0-win-x64.exe`. Setup installs under the current user's LocalAppData, creates Start Menu shortcuts, offers an optional desktop shortcut, and registers an uninstaller. User settings and Git credentials are preserved on uninstall. The installer contains the framework-dependent build; Git for Windows and a compatible .NET Windows Desktop Runtime (6 or later) remain runtime requirements. Publisher verification will report unsigned builds until an Authenticode certificate is configured.
+Build the per-user Windows installer with Inno Setup 6 using the commands above. The setup executable is written to `installers\OctoShip-Setup-v1.6.0-preview.1-win-x64.exe`. Setup installs under the current user's LocalAppData, creates Start Menu shortcuts, offers an optional desktop shortcut, and registers an uninstaller. It does not automatically close running applications. User settings and Git credentials are preserved on uninstall. Windows 10 build 19041 or later, Git for Windows and a compatible .NET Windows Desktop Runtime (6 or later) are required. Publisher verification will report unsigned builds until an Authenticode certificate is configured.
+
+## Additional development workflows
+
+Use **Prepare & inspect** for offline mapping, selective changes, account/visibility bindings and project/release inspection. See [SHIPPING-PREPARATION.md](SHIPPING-PREPARATION.md) for features 13–28 and boundaries. **Ship project & delivery checks** covers the first twelve additions; see [SHIPPING-WORKBENCH.md](SHIPPING-WORKBENCH.md). These are development-source additions, not a statement that an updated public installer has been released.

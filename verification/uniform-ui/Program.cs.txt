@@ -1,0 +1,107 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using FileToGitHub;
+
+internal static class Program
+{
+    private static int checks;
+    private static readonly string Screens = Path.Combine(Path.GetTempPath(), "OctoShip-uniform-ui-preview2");
+    [STAThread] static int Main()
+    {
+        var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        try
+        {
+            UniformUi.Initialize(app, loadPreferences: false);
+            Directory.CreateDirectory(Screens);
+            using var http = new HttpClient(new Fake());
+            var main = new MainWindow { ShowInTaskbar = false };
+            main.Loaded -= (RoutedEventHandler)typeof(MainWindow).GetMethod("Window_Loaded", BindingFlags.Instance | BindingFlags.NonPublic)!.CreateDelegate(typeof(RoutedEventHandler), main);
+            app.MainWindow = main;
+            main.Show(); Pump(main);
+            Require(main.FindName("AppNavigation") is WrapPanel navigation && navigation.Children.OfType<Button>().Count() == 6, "six persistent navigation sections");
+            Capture(main, "main-normal", 1280, 880);
+            Capture(main, "main-compact", 1000, 680);
+            var tools = (Grid)main.FindName("ToolsView"); var home = (Grid)main.FindName("HomeView");
+            home.Visibility = Visibility.Collapsed; tools.Visibility = Visibility.Visible;
+            var toolsTabs = (TabControl)main.FindName("ToolsTabs"); toolsTabs.SelectedIndex = 2;
+            Pump(main);
+            Require(toolsTabs.Template.FindName("PART_SelectedContentHost", toolsTabs) is ContentPresenter, "accessible selected tab content host");
+            Capture(main, "main-account", 1280, 880);
+            using (var settings = new WindowScope(new OctoCatSettingsWindow())) CheckWindow(settings.Window, "settings");
+            using (var repo = new WindowScope(new RepositoryToolsWindow(http, () => null, Array.Empty<string>(), "sample/project", "main", ""))) CheckWindow(repo.Window, "repositories");
+            using (var flow = new WindowScope(new RepositoryWorkflowWindow(http, () => null, "sample/project", "main", ""))) CheckWindow(flow.Window, "workflow");
+            using (var prepare = new WindowScope(new ShippingPreparationWindow(http, () => null, () => null, "sample/project", "main", ""))) CheckWindow(prepare.Window, "prepare");
+            using (var ship = new WindowScope(new ShippingWorkbenchWindow(http, () => null, "sample/project", "main", "")))
+            {
+                CheckWindow(ship.Window, "ship");
+                Capture(ship.Window, "ship-small", 450, 500);
+            }
+            using (var release = new WindowScope(new ReleasePublisherWindow(http, "sample", "project", "main", "mock"))) CheckWindow(release.Window, "release");
+            using (var batch = new WindowScope(new BatchUploadWindow(Array.Empty<UploadQueueItem>(), "sample/project", "main", "Review",
+                (_, _, _) => throw new Exception("UI checks never upload"), persistQueue: false))) CheckWindow(batch.Window, "batch");
+            var sample = Path.Combine(Screens, "sample.txt"); File.WriteAllText(sample, "Example project content.\n");
+            using (var file = new WindowScope(new FileReviewWindow(sample))) CheckWindow(file.Window, "file-review");
+            using (var dialog = new WindowScope(new OctoShipDialog("Review the destination before continuing.\nNo files will be uploaded in this check.", "Confirm upload", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No)))
+            {
+                CheckWindow(dialog.Window, "confirmation");
+                Require(((OctoShipDialog)dialog.Window).Result == MessageBoxResult.No, "confirmation is safe on dismissal");
+                Require(Descendants(dialog.Window).OfType<Button>().Single(x => x.IsDefault).Content!.ToString() == "No", "confirmation keeps explicit default choice");
+            }
+            UniformUi.ApplyPreferences(new(18, false), save: false); Pump(main);
+            var textbox = (TextBox)main.FindName("FolderBox");
+            Require(textbox.FontSize == 18 && textbox.MinHeight == 42, "global text size and comfortable density update existing controls");
+            home.Visibility = Visibility.Visible; tools.Visibility = Visibility.Collapsed;
+            Capture(main, "main-large-text", 1280, 880);
+            UniformUi.ApplyPreferences(new(14, true), save: false);
+            Require(DisplayPreferences.Normalize(new(double.NaN, false)).TextSize == 14, "invalid font size normalizes");
+            Require(DisplayPreferences.Normalize(new(100, false)).TextSize == 18, "font size is bounded");
+            main.Close();
+            Console.WriteLine("PASS: " + checks + " uniform UI checks. Screenshots: " + Screens);
+            return 0;
+        }
+        catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+        finally { app.Shutdown(); }
+    }
+    private static void CheckWindow(Window window, string name)
+    {
+        Pump(window);
+        Require(((SolidColorBrush)window.Background).Color == Color.FromRgb(11,16,32), name + " shared canvas");
+        var controls = Descendants(window).OfType<Control>().Where(x => x.TemplatedParent is null).ToArray();
+        Require(controls.OfType<TextBox>().All(x => ((SolidColorBrush)x.Background).Color == Color.FromRgb(12,20,34)), name + " consistent input surfaces");
+        var tabs = Descendants(window).OfType<TabControl>().FirstOrDefault();
+        if (tabs is not null) for (int index=0; index<tabs.Items.Count; index++) { tabs.SelectedIndex=index; Pump(window); Capture(window, name + "-tab-" + index, window.Width, window.Height); }
+        else Capture(window, name, window.Width, window.Height);
+    }
+    private static void Capture(Window window, string name, double width, double height)
+    {
+        window.Width=width; window.Height=height; Pump(window);
+        var bitmap=new RenderTargetBitmap((int)window.ActualWidth,(int)window.ActualHeight,96,96,PixelFormats.Pbgra32); bitmap.Render(window);
+        var encoder=new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream=File.Create(Path.Combine(Screens,name+".png")); encoder.Save(stream);
+        Require(stream.Length>1000, name+" rendered");
+    }
+    private static void Pump(Window window) { window.Dispatcher.Invoke(()=>{},DispatcherPriority.ApplicationIdle); window.UpdateLayout(); }
+    private static System.Collections.Generic.IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    { for(int index=0; index<VisualTreeHelper.GetChildrenCount(root);index++) {var child=VisualTreeHelper.GetChild(root,index);yield return child;foreach(var next in Descendants(child)) yield return next;} }
+    private static void Require(bool condition,string message) {if(!condition)throw new Exception("FAIL: "+message);checks++;}
+    private sealed class WindowScope:IDisposable
+    {
+        public Window Window {get;}
+        public WindowScope(Window window) {Window=window;window.ShowInTaskbar=false;window.Show();}
+        public void Dispose()=>Window.Close();
+    }
+    private sealed class Fake:HttpMessageHandler
+    {protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken cancellationToken)=>Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent("[]")});}
+}

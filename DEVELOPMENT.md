@@ -1,5 +1,7 @@
 # OctoShip developer notes
 
+Account retention, the 30-minute inactivity lock, Windows authentication, and its verification boundaries are documented in [ACCOUNT-SESSION.md](ACCOUNT-SESSION.md). The development target is now `net6.0-windows10.0.19041.0`; older target-path references below describe the original packaged release.
+
 This document describes the source snapshot in this repository and the work needed to combine it with a Linux version.
 
 ## Platform status
@@ -56,3 +58,7 @@ The source repository is `ghostventure/OctoShip` and its default branch is `main
 ## Repository hygiene
 
 `.gitignore` excludes build output, installers, archives, and compiled files. Do not commit local settings, tokens, Credential Manager output, signing keys, or generated packages. The GitHub repository is private. No license file is included in this snapshot; do not assume public redistribution terms until a license is chosen.
+
+## Shipping workflow extensions
+
+[SHIPPING-PREPARATION.md](SHIPPING-PREPARATION.md) records architecture, storage, safety limits and verification for feature additions 13–28. [SHIPPING-WORKBENCH.md](SHIPPING-WORKBENCH.md) covers features 1–12. The preparation module uses ShippingPreparationWindow, ShippingInspectionService and SelectiveTextChanges; shared atomic timeout reconciliation lives in GitHubAtomicBatchService and move annotations in RepositoryWorkflowService.

@@ -1,0 +1,114 @@
+using System;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using FileToGitHub;
+
+internal static class Program
+{
+    private const string Head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    private const string Commit = "cccccccccccccccccccccccccccccccccccccccc";
+    private static int checks;
+    private static void Check(bool value, string name) { if (!value) throw new Exception(name); Console.WriteLine("PASS " + name); checks++; }
+    [STAThread] private static void Main()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "OctoShip-preparation-checks-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        try { Local(root); Network(root).GetAwaiter().GetResult(); Smoke(); Console.WriteLine($"{checks} preparation checks passed; fake HTTP only."); }
+        finally { Directory.Delete(root, true); }
+    }
+    private static void Local(string root)
+    {
+        var before = "keep\r\nold\r\nmiddle\r\ntail"; var after = "keep\r\nnew\r\nmiddle\r\nend\n";
+        var changes = SelectiveTextChanges.Compare(before, after);
+        Check(changes.Count == 2, "separate edit blocks detected");
+        Check(SelectiveTextChanges.Apply(before, changes) == after, "all selected reconstructs exact local text");
+        foreach (var change in changes) change.Include = false;
+        Check(SelectiveTextChanges.Apply(before, changes) == before, "none selected preserves exact remote line endings");
+        changes[0].Include = true;
+        Check(SelectiveTextChanges.Apply(before, changes) == "keep\r\nnew\r\nmiddle\r\ntail", "partial selection retains unselected remote text");
+        Check(SelectiveTextChanges.Apply("", SelectiveTextChanges.Compare("", "new")) == "new", "new-file selection");
+        Check(SelectiveTextChanges.Apply("delete\n", SelectiveTextChanges.Compare("delete\n", "")) == "", "full deletion selection");
+        var random = new Random(17);
+        for (var i = 0; i < 100; i++)
+        {
+            string Text() => string.Concat(Enumerable.Range(0, random.Next(15)).Select(_ => random.Next(4) + "\n"));
+            var a = Text(); var b = Text(); var edits = SelectiveTextChanges.Compare(a, b);
+            if (SelectiveTextChanges.Apply(a, edits) != b) throw new Exception("Random all-selected reconstruction");
+            foreach (var edit in edits) edit.Include = false;
+            if (SelectiveTextChanges.Apply(a, edits) != a) throw new Exception("Random unselected reconstruction");
+        }
+        Check(true, "100 repeated-line randomized selection round trips");
+        File.WriteAllText(Path.Combine(root, "Image.png"), "fixture");
+        var md = Path.Combine(root, "README.md"); File.WriteAllText(md, "![case](image.png) [missing](missing.txt) [ok](Image.png) [web](https://example.com) [anchor](#ok)");
+        var links = ShippingInspectionService.CheckMarkdown(root, md);
+        Check(links.Count == 2 && links.Any(x => x.Detail.Contains("capitalization")) && links.Any(x => x.Detail.Contains("missing")), "Markdown case and missing links without web false positives");
+        File.WriteAllText(Path.Combine(root, "project.csproj"), "<Project><Version>2.0.0</Version></Project>");
+        File.WriteAllText(Path.Combine(root, "setup.iss"), "#define AppVersion \"1.0.0\"");
+        File.WriteAllText(Path.Combine(root, ".gitattributes"), "*.bin filter=lfs diff=lfs merge=lfs -text");
+        var findings = ShippingInspectionService.Inspect(root, "2.0.0");
+        Check(findings.Any(x => x.File == "setup.iss" && x.Detail.Contains("differs")) && findings.Any(x => x.File == "project.csproj" && x.Detail.Contains("matches")), "version mismatch and match identified");
+        Check(findings.Any(x => x.Check == "Git LFS"), "LFS tracking recognized");
+        var zip = Path.Combine(root, "fixture.zip");
+        using (var archive = ZipFile.Open(zip, ZipArchiveMode.Create)) { archive.CreateEntry("normal.txt"); archive.CreateEntry("../escape.txt"); archive.CreateEntry("project/.env"); archive.CreateEntry("id_rsa"); using var writer = new StreamWriter(archive.CreateEntry("config.txt").Open()); writer.Write("ghp_12345678901234567890123456789"); }
+        var entries = ShippingInspectionService.InspectZip(zip);
+        Check(entries.Count == 5 && entries.Count(x => x.Check == "Review archive entry") == 4, "ZIP traversal, sensitive names and token contents flagged without extraction");
+        Check(!File.Exists(Path.Combine(root, "escape.txt")), "archive inspection never extracts");
+        var secret = "password=super-sensitive\nBearer abcdefghijk\nghp_123456789012345678901234\na@example.com\n-----BEGIN PRIVATE KEY-----\nPRIVATE_MATERIAL\n-----END PRIVATE KEY-----";
+        var redacted = ShippingInspectionService.Redact(secret);
+        Check(!redacted.Contains("super-sensitive") && !redacted.Contains("abcdefghijk") && !redacted.Contains("123456789") && !redacted.Contains("a@example.com") && !redacted.Contains("PRIVATE_MATERIAL"), "support redaction covers assignments tokens email and private keys");
+        Check(ShippingInspectionService.InspectInstaller(typeof(ShippingPreparationWindow).Assembly.Location).Contains("Architecture:"), "installer inspection reads PE without execution");
+        Check(!OctoCatPreferencesService.VerifyPublisher(typeof(ShippingPreparationWindow).Assembly.Location).Trusted, "unsigned managed artifact reports untrusted without native crash");
+    }
+    private static async Task Network(string root)
+    {
+        var file = Path.Combine(root, "test.txt"); File.WriteAllText(file, "fixture");
+        var item = new BatchUploadFile(file, "test.txt", "test", new FileInfo(file).Length, File.GetLastWriteTimeUtc(file));
+        foreach (var mode in new[] { "same", "descendant", "unconfirmed" })
+        {
+            using var handler = new Fake(mode); using var http = new HttpClient(handler); var service = new GitHubAtomicBatchService(http);
+            try { var result = await service.UploadAsync("owner", "repo", "main", "fake-token", new[] { item }, "test", Head); Check(mode != "unconfirmed" && result[0].Succeeded, "timeout reconciles " + mode); }
+            catch (InvalidOperationException ex) { Check(mode == "unconfirmed" && ex.Message.Contains("unconfirmed"), "unknown result remains unconfirmed"); }
+            Check(handler.Patches == 1, "no duplicate PATCH after " + mode);
+        }
+    }
+    private static void Smoke()
+    {
+        var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        using var http = new HttpClient(new Fake("same")); var window = new ShippingPreparationWindow(http, () => null, () => null, "owner/repo", "main", "");
+        try
+        {
+            window.Show(); window.Dispatcher.Invoke(() => {}, System.Windows.Threading.DispatcherPriority.ApplicationIdle); window.UpdateLayout();
+            var frame = (DockPanel)window.Content;
+            var root = (StackPanel)frame.Children.OfType<ScrollViewer>().Single().Content; var tabs = root.Children.OfType<TabControl>().Single();
+            Check(tabs.Items.Count == 5, "five preparation tabs render");
+            for (var i = 0; i < tabs.Items.Count; i++) { tabs.SelectedIndex = i; window.UpdateLayout(); Check(((StackPanel)((TabItem)tabs.Items[i]).Content).ActualWidth > 0, "tab " + i + " has visible layout"); }
+            Check(window.IsVisible && window.ActualWidth >= 700, "preparation window GUI smoke");
+        }
+        finally { window.Close(); app.Shutdown(); }
+    }
+    private sealed class Fake : HttpMessageHandler
+    {
+        private readonly string mode; public int Patches;
+        public Fake(string mode) { this.mode = mode; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var path = request.RequestUri!.AbsolutePath; string json;
+            if (request.Method == HttpMethod.Patch) { Patches++; throw new HttpRequestException("simulated lost response"); }
+            if (path.Contains("/git/ref/heads/")) json = JsonSerializer.Serialize(new { @object = new { sha = Patches == 0 ? Head : mode == "same" ? Commit : Head } });
+            else if (path.Contains("/compare/")) json = JsonSerializer.Serialize(new { status = mode == "descendant" ? "ahead" : "diverged" });
+            else if (request.Method == HttpMethod.Get && path.Contains("/git/commits/")) json = "{\"tree\":{\"sha\":\"base\"}}";
+            else if (request.Method == HttpMethod.Get && path.Contains("/git/trees/")) json = "{\"truncated\":false,\"tree\":[]}";
+            else if (request.Method == HttpMethod.Get) json = "{\"archived\":false,\"disabled\":false,\"permissions\":{\"push\":true}}";
+            else json = JsonSerializer.Serialize(new { sha = Commit });
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") });
+        }
+    }
+}

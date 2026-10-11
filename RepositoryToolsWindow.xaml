@@ -3,12 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Repository tools" Height="590" Width="760" MinHeight="480" MinWidth="620"
         WindowStartupLocation="CenterOwner" Background="#10151E" Foreground="#EEF2F8">
-    <Window.Resources>
-        <Style TargetType="TextBox"><Setter Property="Background" Value="#1A2230"/><Setter Property="Foreground" Value="#EEF2F8"/><Setter Property="BorderBrush" Value="#344256"/><Setter Property="Padding" Value="8"/><Setter Property="Margin" Value="0,4,8,8"/></Style>
-        <Style TargetType="Button"><Setter Property="Background" Value="#253348"/><Setter Property="Foreground" Value="#F4F7FB"/><Setter Property="BorderBrush" Value="#3B4D66"/><Setter Property="Padding" Value="12,8"/><Setter Property="Margin" Value="0,4,8,8"/></Style>
-        <Style TargetType="ListBox"><Setter Property="Background" Value="#141C28"/><Setter Property="Foreground" Value="#EEF2F8"/><Setter Property="BorderBrush" Value="#344256"/></Style>
-    </Window.Resources>
-    <Grid Margin="20">
+<Grid Margin="20">
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <DockPanel><Button DockPanel.Dock="Right" Content="Compare / Branch / PR" Click="Workflow_Click" HorizontalAlignment="Right"/><TextBlock Text="Repository tools" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,14"/></DockPanel>
         <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="150"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
