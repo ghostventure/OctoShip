@@ -16,6 +16,7 @@ from .queue_store import QueueStore
 from . import workflows as flow
 from .tools_ui import ToolsPanel
 from .theme import apply_dark_theme
+from . import theme
 from .workbench_ui import WorkbenchPanel
 
 class App:
@@ -25,7 +26,7 @@ class App:
         self.persist_workspace = False
         self.pending_reconnect = False
         root.title(f'OctoShip for GitHub — Linux {__version__}')
-        root.geometry('1180x860')
+        root.geometry('1320x900')
         root.minsize(1000, 760)
         self.events = queue.Queue()
         self.cancel = threading.Event()
@@ -53,55 +54,92 @@ class App:
         self.account = tk.StringVar(value='Connect using your GitHub account')
         self.status = tk.StringVar(value='Ready. Choose Sign in… to connect your GitHub account.')
         apply_dark_theme(root)
-        body = ttk.Frame(root, padding=16)
-        body.pack(fill='both', expand=True)
-        header = ttk.Frame(body); header.pack(fill='x')
-        ttk.Label(header, text='OctoShip', style='Header.TLabel').pack(side='left')
-        ttk.Label(header, text=f'  for GitHub · Linux {__version__}', font=('Sans', 12)).pack(side='left', pady=9)
-        ttk.Button(header, text='Connect / Refresh', command=self.connect).pack(side='right')
-        ttk.Button(header, text='Sign in…', command=lambda: messagebox.showinfo('GitHub sign-in', login_instructions(), parent=root)).pack(side='right', padx=8)
-        ttk.Label(body, textvariable=self.account).pack(anchor='w', pady=(4, 12))
-        target = ttk.LabelFrame(body, text='GitHub destination', padding=10); target.pack(fill='x')
+        shell = ttk.Frame(root); shell.pack(fill='both', expand=True)
+        self.sidebar = ttk.Frame(shell, style='Sidebar.TFrame', width=192, padding=(14,24))
+        self.sidebar.pack(side='left', fill='y'); self.sidebar.pack_propagate(False)
+        self.brand = ttk.Label(self.sidebar, text='OctoShip', style='Brand.TLabel')
+        self.brand.pack(anchor='w', padx=8, pady=(0,5))
+        self.brand_hint = ttk.Label(self.sidebar, text='YOUR GITHUB WORKSPACE', style='Sidebar.TLabel', font=(theme.FONT,8))
+        self.brand_hint.pack(anchor='w', padx=8)
+        ttk.Frame(self.sidebar, height=36, style='Sidebar.TFrame').pack()
+        self.nav_buttons=[]
+        for index, name in enumerate(('Files & upload', 'Repository tools', 'Ship & inspect')):
+            button=ttk.Button(self.sidebar, text=name, style='Nav.TButton', command=lambda i=index: self.notebook.select(i))
+            button.pack(fill='x', pady=4); self.nav_buttons.append(button)
+        self.sidebar_version=ttk.Label(self.sidebar,text='LINUX  '+__version__,style='Sidebar.TLabel',font=(theme.FONT,9))
+        self.sidebar_version.pack(side='bottom',anchor='w',padx=8)
+        self.sidebar_note=ttk.Label(self.sidebar,text='Local files.\nThoughtful delivery.',style='Sidebar.TLabel',font=(theme.FONT,10))
+        self.sidebar_note.pack(side='bottom',anchor='w',padx=8,pady=(0,18))
+        body = ttk.Frame(shell, padding=(24,22,24,14)); body.pack(fill='both', expand=True)
+        header = ttk.Frame(body); header.pack(fill='x', pady=(0,10))
+        heading=ttk.Frame(header); heading.pack(side='left',fill='x',expand=True)
+        self.page_title=tk.StringVar(value='Files & upload')
+        self.page_subtitle=tk.StringVar(value='Find the right files. Review every change. Ship with confidence.')
+        ttk.Label(heading,textvariable=self.page_title,style='Title.TLabel').pack(anchor='w')
+        self.subtitle=ttk.Label(heading,textvariable=self.page_subtitle,style='Muted.TLabel',wraplength=570)
+        self.subtitle.pack(anchor='w',pady=(5,0))
+        account_controls=ttk.Frame(header); account_controls.pack(side='right',anchor='n',padx=(12,0))
+        ttk.Button(account_controls,text='Connect / Refresh',command=self.connect).pack(side='right')
+        ttk.Button(account_controls,text='Sign in…',style='Ghost.TButton',command=lambda: messagebox.showinfo('GitHub sign-in',login_instructions(),parent=root)).pack(side='right',padx=(0,6))
+        self.account_label=ttk.Label(body,textvariable=self.account,style='Muted.TLabel')
+        self.account_label.pack(anchor='w',pady=(0,10))
+        target = ttk.LabelFrame(body, text='DESTINATION', padding=10); target.pack(fill='x')
         ttk.Label(target, text='Repository').grid(row=0, column=0, sticky='w')
-        self.repos = ttk.Combobox(target, textvariable=self.repo, width=48)
+        self.repos = ttk.Combobox(target, textvariable=self.repo, width=24)
         self.repos.grid(row=0, column=1, sticky='ew', padx=8)
         self.repos.bind('<<ComboboxSelected>>', lambda e: self.load_branches())
         ttk.Button(target, text='Load branches', command=self.load_branches).grid(row=0, column=2)
         ttk.Label(target, text='Branch').grid(row=0, column=3, padx=(12, 4))
-        self.branches = ttk.Combobox(target, textvariable=self.branch, width=22, state='readonly')
+        self.branches = ttk.Combobox(target, textvariable=self.branch, width=15, state='readonly')
         self.branches.grid(row=0, column=4, sticky='ew')
         target.columnconfigure(1, weight=1)
         footer = ttk.Frame(body); footer.pack(side='bottom', fill='x')
-        notebook = ttk.Notebook(body); notebook.pack(fill='both', expand=True, pady=10)
-        upload_page = ttk.Frame(notebook, padding=8); tools_page = ttk.Frame(notebook, padding=8)
+        notebook = ttk.Notebook(body,style='Workspace.TNotebook'); notebook.pack(fill='both', expand=True, pady=(10,0))
+        upload_page = ttk.Frame(notebook, padding=0); tools_page = ttk.Frame(notebook, padding=0)
         notebook.add(upload_page, text='Find & upload'); notebook.add(tools_page, text='Repository tools')
         self.tools = ToolsPanel(self, tools_page)
-        workbench_page = ttk.Frame(notebook, padding=8)
+        workbench_page = ttk.Frame(notebook, padding=0)
         notebook.add(workbench_page, text="Shipping workbench")
         self.workbench = WorkbenchPanel(self, workbench_page)
         self.notebook = notebook
+        notebook.bind('<<NotebookTabChanged>>', self.update_navigation)
+        root.bind('<Configure>', self.responsive_sidebar, add='+')
+        for index in range(3): root.bind(f'<Control-Key-{index+1}>', lambda e,i=index: notebook.select(i), add='+')
+        self.update_navigation()
         upload_page.columnconfigure(0, weight=1); upload_page.rowconfigure(2, weight=1)
-        search = ttk.LabelFrame(upload_page, text='Find local files', padding=10); search.grid(row=0, column=0, sticky='ew', pady=(0, 8))
+        search = ttk.LabelFrame(upload_page, text='FIND LOCAL FILES', padding=10); search.grid(row=0, column=0, sticky='ew', pady=(0, 8))
         ttk.Entry(search, textvariable=self.folder).grid(row=0, column=0, columnspan=3, sticky='ew')
         ttk.Button(search, text='Choose folder', command=self.choose_folder).grid(row=0, column=3, padx=(8, 0))
         ttk.Entry(search, textvariable=self.query).grid(row=1, column=0, sticky='ew', pady=(8, 0))
         ttk.Checkbutton(search, text='Search contents', variable=self.contents).grid(row=1, column=1, padx=8, pady=(8, 0))
         ttk.Checkbutton(search, text='Hidden files', variable=self.hidden).grid(row=1, column=2, pady=(8, 0))
-        ttk.Button(search, text='Search', command=self.search).grid(row=1, column=3, sticky='ew', padx=(8, 0), pady=(8, 0))
+        ttk.Button(search, text='Search', style='Primary.TButton', command=self.search).grid(row=1, column=3, sticky='ew', padx=(8, 0), pady=(8, 0))
         search.columnconfigure(0, weight=1)
-        row = ttk.Frame(upload_page); row.grid(row=1, column=0, sticky='ew', pady=(0, 7))
+        row = ttk.Frame(upload_page); row.grid(row=1, column=0, sticky='ew', pady=(2,8))
         ttk.Button(row, text='Add files…', command=self.add_files).pack(side='left')
         ttk.Button(row, text='Select all', command=lambda: self.tree.selection_set(self.tree.get_children())).pack(side='left', padx=6)
         ttk.Button(row, text='Preview selected', command=self.preview).pack(side='left')
-        ttk.Button(row, text='Clear', command=self.clear).pack(side='right')
+        ttk.Button(row, text='Clear', style='Ghost.TButton', command=self.clear).pack(side='right')
+        self.file_count=tk.StringVar(value='0 files')
+        ttk.Label(row,textvariable=self.file_count,style='Muted.TLabel').pack(side='right',padx=12)
         table = ttk.Frame(upload_page); table.grid(row=2, column=0, sticky='nsew')
         self.tree = ttk.Treeview(table, columns=('file', 'size', 'safety'), show='headings', selectmode='extended', height=5)
-        for key, title, width in [('file','Local file',650),('size','Size',90),('safety','Status',130)]:
-            self.tree.heading(key, text=title); self.tree.column(key, width=width)
+        for key, title, width in [('file','LOCAL FILE',480),('size','SIZE',90),('safety','STATUS',110)]:
+            self.tree.heading(key, text=title); self.tree.column(key, width=width, minwidth=60, stretch=(key=='file'))
         scrollbar = ttk.Scrollbar(table, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
         self.tree.pack(side='left', fill='both', expand=True); scrollbar.pack(side='right', fill='y')
         self.tree.bind('<Double-1>', lambda e: self.preview())
+        self.tree.tag_configure('even',background=theme.SURFACE)
+        self.tree.tag_configure('odd',background='#1d212b')
+        self.empty_state=ttk.Frame(table,style='Empty.TFrame',padding=4)
+        style=ttk.Style(root); style.configure('Empty.TFrame',background=theme.SURFACE)
+        style.configure('Empty.TLabel',background=theme.SURFACE,foreground=theme.TEXT,font=(theme.FONT,12,'bold'))
+        style.configure('EmptyHint.TLabel',background=theme.SURFACE,foreground=theme.MUTED,font=(theme.FONT,10))
+        ttk.Label(self.empty_state,text='Your next shipment starts here',style='Empty.TLabel').pack()
+        ttk.Label(self.empty_state,text='Search a folder or add files to begin your review.',style='EmptyHint.TLabel').pack(pady=(4,0))
+        self.empty_state.place(relx=.5,rely=.5,y=18,anchor='center')
+
         options = ttk.Frame(upload_page); options.grid(row=3, column=0, sticky='ew', pady=8)
         ttk.Label(options, text='Destination folder').grid(row=0, column=0, sticky='w')
         ttk.Entry(options, textvariable=self.prefix).grid(row=0, column=1, sticky='ew', padx=8)
@@ -111,25 +149,57 @@ class App:
         ttk.Label(options, text='Commit message').grid(row=1, column=0, sticky='w', pady=(8,0))
         ttk.Entry(options, textvariable=self.message).grid(row=1, column=1, columnspan=4, sticky='ew', padx=8, pady=(8,0))
         options.columnconfigure(1, weight=1)
-        batch = ttk.Frame(upload_page); batch.grid(row=4, column=0, sticky='ew', pady=(0, 8))
+        batch = ttk.Frame(upload_page); batch.grid(row=4, column=0, sticky='ew', pady=(0,8))
+        self.batch_options=batch; self.settings_open=False
         ttk.Label(batch, text='Commit mode').pack(side='left')
         ttk.Combobox(batch, textvariable=self.mode, values=('atomic', 'per-file'), state='readonly', width=12).pack(side='left', padx=8)
         ttk.Checkbutton(batch, text='Remember queue on this device', variable=self.remember).pack(side='left')
         ttk.Button(batch, text='Resume saved batch', command=self.resume_queue).pack(side='left', padx=8)
         ttk.Button(batch, text='Forget saved batch', command=self.forget_queue).pack(side='left')
+        batch.grid_remove()
         actions = ttk.Frame(upload_page); actions.grid(row=5, column=0, sticky='ew')
-        ttk.Button(actions, text='Review upload…', command=self.review).pack(side='left')
-        ttk.Button(actions, text='Cancel operation', command=self.cancel.set).pack(side='left', padx=8)
+        ttk.Button(actions, text='Review upload…', style='Primary.TButton', command=self.review).pack(side='right')
+        ttk.Button(actions,text='Upload settings',style='Ghost.TButton',command=self.toggle_upload_settings).pack(side='left')
+        ttk.Button(actions, text='Cancel operation', style='Ghost.TButton', command=self.cancel.set).pack(side='left', padx=8)
         self.pause_button = ttk.Checkbutton(actions, text='Pause between files', variable=self.paused, command=self.toggle_pause, state='disabled')
         self.pause_button.pack(side='left')
-        ttk.Button(actions, text='Open last result', command=self.open_last).pack(side='right')
-        self.progress = ttk.Progressbar(footer, mode='determinate'); self.progress.pack(fill='x', pady=(10,5))
-        ttk.Label(footer, textvariable=self.status, wraplength=1000).pack(anchor='w')
+        ttk.Button(actions, text='Open last result', style='Ghost.TButton', command=self.open_last).pack(side='right',padx=8)
+        progress_track = ttk.Frame(footer, height=3)
+        progress_track.pack(fill='x', pady=(12,8)); progress_track.pack_propagate(False)
+        self.progress = ttk.Progressbar(progress_track, mode='determinate')
+        self.progress.place(relwidth=1, relheight=1)
+        ttk.Label(footer, textvariable=self.status, style='Muted.TLabel', wraplength=1000).pack(anchor='w')
         self.log = tk.Text(footer, height=3, relief='flat', font=('Monospace', 9), state='disabled')
         self.activity = tk.BooleanVar(value=False)
         ttk.Checkbutton(footer, text='Show transfer activity', variable=self.activity, command=self.toggle_activity).pack(anchor='w')
         self.drain_timer = self.root.after(80, self.drain)
         root.protocol('WM_DELETE_WINDOW', self.close)
+
+    def update_navigation(self, event=None):
+        index=self.notebook.index(self.notebook.select())
+        names=('Files & upload','Repository tools','Shipping workbench')
+        subtitles=('Find the right files. Review every change. Ship with confidence.',
+                   'Compare your project, manage branches, and prepare releases.',
+                   'Prepare, inspect, and deliver your next project update.')
+        self.page_title.set(names[index]); self.page_subtitle.set(subtitles[index])
+        for i,button in enumerate(self.nav_buttons): button.configure(style='Active.Nav.TButton' if i==index else 'Nav.TButton')
+
+    def responsive_sidebar(self, event):
+        if event.widget is not self.root: return
+        compact=event.width<1200
+        self.sidebar.configure(width=88 if compact else 192,padding=(8 if compact else 14,24))
+        self.brand.configure(text='OS' if compact else 'OctoShip')
+        self.brand_hint.configure(text='' if compact else 'YOUR GITHUB WORKSPACE')
+        self.sidebar_note.configure(text='' if compact else 'Local files.\nThoughtful delivery.')
+        self.sidebar_version.configure(text=__version__ if compact else 'LINUX  '+__version__)
+        for button,name in zip(self.nav_buttons,('Files','Repos','Ship') if compact else ('Files & upload','Repository tools','Ship & inspect')):
+            button.configure(text=name)
+        self.subtitle.configure(wraplength=max(240,event.width-(88 if compact else 192)-360))
+
+    def toggle_upload_settings(self):
+        self.settings_open=not self.settings_open
+        if self.settings_open: self.batch_options.grid()
+        else: self.batch_options.grid_remove()
 
     def toggle_activity(self):
         if self.activity.get():
@@ -216,7 +286,10 @@ class App:
         for i, path in enumerate(self.files):
             try: size = f'{path.stat().st_size / 1024:.1f} KiB'
             except OSError: size = 'Unavailable'
-            self.tree.insert('', 'end', iid=str(i), values=(str(path), size, 'Blocked' if sensitive(path) else 'Ready'))
+            self.tree.insert('', 'end', iid=str(i), values=(str(path), size, 'Blocked' if sensitive(path) else 'Ready'),tags=('odd' if i%2 else 'even',))
+        self.file_count.set(f'{len(self.files)} files')
+        if self.files: self.empty_state.place_forget()
+        else: self.empty_state.place(relx=.5,rely=.5,y=18,anchor='center')
         self.record(f'{len(files)} files listed (maximum 5,000 search results). Select files to upload.')
 
     def search(self):

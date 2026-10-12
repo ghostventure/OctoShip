@@ -1,4 +1,4 @@
-# OctoShip for Linux 1.7.0
+# OctoShip for Linux 1.8.0 (source preview)
 
 [Download the published release](https://github.com/ghostventure/OctoShip/releases/tag/linux-v1.7.0)
 · [Release, installation and maintainer handoff](../docs/linux-1.7.0-handoff.md)
@@ -8,6 +8,16 @@ ports the October 11 Windows shipping workbench, preparation and inspection tool
 workspace retention, inactivity locking, and display settings. It retains atomic
 uploads, saved queues, folder comparison, and release publishing. The
 original Windows WPF client remains in the repository root.
+
+## Modern desktop preview
+
+Version 1.8.0 adds a charcoal/violet theme, rounded buttons, scalable typography,
+a responsive sidebar (Ctrl+1/2/3 switches pages), file counts and empty states,
+and expandable upload settings. Existing upload and shipping tools remain available.
+The launcher prefers distro Python/Tk for smooth desktop fonts and retains its
+complete bundled runtime as an offline fallback.
+See the [GUI refresh handoff](../docs/linux-1.8.0-gui-refresh.md).
+The download link below remains the published 1.7.0 release until 1.8.0 is released.
 
 ## Install or run
 

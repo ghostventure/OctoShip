@@ -17,6 +17,7 @@ if sys.argv[1:2] == ['--diagnostics']:
     from octoship import __version__
     print(json.dumps({
         'octoship': __version__, 'python': sys.version.split()[0],
+        'ui_runtime': os.environ.get('OCTOSHIP_UI_RUNTIME_ACTIVE', 'bundled'),
         'python_executable': sys.executable, 'isolated': bool(sys.flags.isolated),
         'tk': tkinter.TkVersion, 'tcl': tkinter.TclVersion,
         'github_cli': subprocess.check_output([str(ROOT / 'bin/gh'), '--version'], text=True).splitlines()[0],

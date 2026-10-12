@@ -93,6 +93,7 @@ class WorkbenchPanel:
                 if used and used + needed > width: line += 1; used = column = 0
                 button.grid(row=line, column=column, sticky='w', padx=(0,6), pady=2)
                 used += needed; column += 1
+            parent.event_generate('<Configure>', when='tail')
         row.bind('<Configure>', layout)
         row.after_idle(layout)
 
@@ -374,20 +375,21 @@ class WorkbenchPanel:
 
     def apply_display(self):
         from tkinter import font
+        from . import theme
         try: size = max(12,min(18,int(self.size.get())))
         except (ValueError, tk.TclError): raise OctoShipError('Text size must be a number from 12 to 18.') from None
         self.size.set(size)
         style = ttk.Style(self.app.root)
         font.nametofont('TkDefaultFont').configure(size=size)
         font.nametofont('TkTextFont').configure(size=size)
-        style.configure('.',font=('Sans',size)); style.configure('Treeview',rowheight=size*2+4)
-        style.configure('TButton',padding=4 if self.compact.get() else 8)
+        style.configure('.',font=(theme.FONT,size)); style.configure('Treeview',rowheight=size*2+4)
+        style.configure('TButton',padding=(8,3) if self.compact.get() else (12,6))
         def walk(widget):
             for child in widget.winfo_children():
-                if isinstance(child,tk.Text): child.configure(font=('Sans',size))
+                if isinstance(child,tk.Text): child.configure(font=(theme.FONT,size))
                 walk(child)
         walk(self.app.root)
-        self.app.root.option_add('*Text.font', ('Sans',size))
+        self.app.root.option_add('*Text.font', (theme.FONT,size))
 
     def save_preferences(self):
         self.apply_display()

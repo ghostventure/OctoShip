@@ -4,6 +4,15 @@ The Windows 1.6.0-preview.2 build now retains account/workspace preferences and 
 
 OctoShip for GitHub finds local files and sends them to GitHub. The original Windows desktop client is in the repository root. A native Linux client is now available in [linux/](linux/README.md), with a desktop launcher, Debian package builder, and tested GitHub upload backend.
 
+## Linux 1.8.0 GUI preview
+
+The current Linux source includes a modern charcoal/violet interface, responsive
+sidebar navigation, rounded controls, smoother system fonts, and expandable upload
+settings. The installed preview passed 86 backend and 15 GUI workflow tests, plus
+offline installer verification. See the [GUI refresh documentation](docs/linux-1.8.0-gui-refresh.md)
+for build instructions, runtime selection, checksums, and rollback details.
+The packaged stable download remains Linux 1.7.0 below.
+
 ## Linux 1.7.0
 
 **Published:** [Download Linux 1.7.0](https://github.com/ghostventure/OctoShip/releases/tag/linux-v1.7.0)

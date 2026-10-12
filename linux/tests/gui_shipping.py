@@ -30,7 +30,12 @@ class ShippingGUI(unittest.TestCase):
             mock=patch('tkinter.messagebox.'+name,side_effect=lambda *a,**kw:self.errors.append(a)); mock.start(); self.addCleanup(mock.stop)
         yes=patch('tkinter.messagebox.askyesno',return_value=True); yes.start(); self.addCleanup(yes.stop)
         self.root.update()
-    def tearDown(self): self.app.close()
+    def tearDown(self):
+        # Reclaim destroyed Tk variables on the UI thread before the next worker.
+        import gc
+        self.app.close()
+        del self.panel, self.app, self.root
+        gc.collect()
     def wait(self,predicate=None):
         deadline=time.monotonic()+6
         while (predicate() if predicate else self.app.busy) and time.monotonic()<deadline:

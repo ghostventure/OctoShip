@@ -9,6 +9,10 @@ It does not use the build host's Python runtime or copy host credentials/setting
 All upstream downloads are pinned by URL/version and SHA-256 in `bundle-lock.json`;
 verified downloads are cached under ignored `dist/linux/bundle-cache`.
 
+Current source builds version **1.8.0**, a source preview. The published release
+linked above is still 1.7.0. Substitute 1.8.0 in the example filenames below for
+current builds.
+
 Outputs under `dist/linux`:
 
 - `OctoShip-1.7.0-linux-x86_64.run`: offline graphical/per-user installer.
@@ -24,8 +28,12 @@ or **.run** installer when the destination does not already have these dependenc
 
 Python 3.12.15 from Astral python-build-standalone, Tcl/Tk 9.0.4, GitHub CLI 2.102.0,
 and certifi's 2026.7.22 Mozilla CA data. Third-party notices accompany the bundle.
-The Python executable runs in isolated mode and uses the bundle's Tcl/Tk scripts,
-GitHub CLI, and default CA file. Explicit user `SSL_CERT_FILE` overrides are
+The launcher runs Python in isolated mode. By default it prefers installed Python
+3.10+ with Tk 8.6+ for antialiased system fonts. If unavailable, it uses the included
+Python and Tcl/Tk scripts. GitHub CLI and the default CA file come from the bundle.
+Set `OCTOSHIP_UI_RUNTIME=system` or `bundled` to select a renderer explicitly;
+`auto` is the default. `--diagnostics` reports `ui_runtime`. The bundled Tk renderer
+can have less smooth fonts; its offline functionality is unchanged. Explicit user `SSL_CERT_FILE` overrides are
 preserved for managed/custom certificate authorities.
 
 The installer is approximately 47 MiB; installed payload is about 135 MiB, with
