@@ -1214,6 +1214,10 @@ public partial class MainWindow : Window
             throw new InvalidOperationException("Update downloaded. Finish active work and check again to install.");
         SaveSettings();
         StartUpdateHelper(script);
+        // Manual installation owns this shutdown. Do not start a second helper
+        // from Closed for an earlier automatically staged package.
+        _pendingUpdateScript = null;
+        _pendingUpdateVersion = null;
         SetStatus($"Update verified. Restarting into OctoShip for GitHub {version}…");
         Application.Current.Shutdown();
     }

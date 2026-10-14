@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - FileToGitHub.csproj
+      - '*.cs'
+      - '*.xaml'
       - .github/workflows/windows-release.yml
       - scripts/Publish-WindowsRelease.ps1
   workflow_dispatch:
