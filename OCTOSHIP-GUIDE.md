@@ -4,7 +4,7 @@
 
 Windows source: **1.6.0**, .NET 6 WPF, Windows 10 build 19041 or newer, x64 package. Linux source is maintained independently under `linux/`; see [Linux guide](linux/README.md) and [packaging](linux/packaging/README.md). This Windows verification does not establish Linux package behavior.
 
-For installation evidence and remaining checks, see [this release](RELEASE-1.6.0-preview.2.md). Building a package does not publish it to GitHub.
+For current update verification and delivery evidence, see [Windows 1.6.0](RELEASE-1.6.0.md). Historical local installation evidence is in [preview.2](RELEASE-1.6.0-preview.2.md). Building a package locally does not publish it to GitHub.
 
 ## Install and first use
 
@@ -98,7 +98,7 @@ The trusted release source is `ghostventure/OctoShip`. Automatic updates default
 
 The release must attach **`OctoShip-win-x64.zip`**, with a GitHub `sha256:` digest, containing published app files at ZIP root. The public feed and asset downloads are anonymous, so a missing, expired or restricted user token cannot block updates. This updater requires a public release repository. Source commits/source ZIPs alone are not installable updates. Updates download a complete package, not binary delta patches.
 
-The `Windows update release` GitHub Actions workflow runs when the Windows project version or release workflow changes on `main`, and can be dispatched manually from `main`. Increment `<Version>` in `FileToGitHub.csproj` for each release. The workflow builds, runs focused checks, publishes a Windows x64 payload, verifies the packaged version, uploads a draft ZIP and SHA256SUMS, checks GitHub's asset digest, then publishes the release. Hyphenated versions are prereleases; other versions are stable. Published versions are never overwritten. A failed upload remains a draft, invisible to installed clients. Run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Publish-WindowsRelease.ps1 -PackageOnly` for local verification and packaging without publishing.
+The `Windows update release` GitHub Actions workflow runs when Windows source, project version or release workflow changes on `main`, and can be dispatched manually from `main`. Increment `<Version>` in `FileToGitHub.csproj` for each release. The workflow builds, runs focused checks, publishes a Windows x64 payload, verifies the packaged version, uploads a draft ZIP and SHA256SUMS, checks GitHub's asset digest, then publishes the release. Hyphenated versions are prereleases; other versions are stable. Published versions are never overwritten; source changes without a version bump skip publication. A failed upload remains a draft, invisible to installed clients. Run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Publish-WindowsRelease.ps1 -PackageOnly` for local verification and packaging without publishing.
 
 Computers running the older `1.6.0-preview.2` updater still check hourly until upgraded. If their channel is Preview, select Stable once to receive `1.6.0`; that older updater does not select stable releases from Preview. After upgrading, Preview automatically follows newer stable releases too. Automatic updates must be enabled and the app must be running, unlocked and online to detect a release.
 
