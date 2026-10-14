@@ -1,5 +1,5 @@
 #define MyAppName "OctoShip for GitHub"
-#define MyAppVersion "1.6.0-preview.2"
+#define MyAppVersion "1.6.0"
 #ifndef PayloadDir
 #define PayloadDir "payload"
 #endif
@@ -28,7 +28,7 @@ CloseApplications=no
 RestartApplications=no
 Uninstallable=yes
 AppComments=Windows desktop uploader for GitHub
-AppSupportURL=https://github.com/ghostventure/OctoCat
+AppSupportURL=https://github.com/ghostventure/OctoShip
 VersionInfoVersion=1.6.0.0
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription=OctoShip for GitHub installer

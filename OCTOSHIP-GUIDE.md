@@ -2,7 +2,7 @@
 
 ## Versions and scope
 
-Windows source: **1.6.0-preview.2**, .NET 6 WPF, Windows 10 build 19041 or newer, x64 package. Linux source: **1.7.0**, Python/Tk; see [Linux guide](linux/README.md) and [packaging](linux/packaging/README.md). Windows and Linux versions are independent. This Windows verification does not establish Linux package behavior.
+Windows source: **1.6.0**, .NET 6 WPF, Windows 10 build 19041 or newer, x64 package. Linux source is maintained independently under `linux/`; see [Linux guide](linux/README.md) and [packaging](linux/packaging/README.md). This Windows verification does not establish Linux package behavior.
 
 For installation evidence and remaining checks, see [this release](RELEASE-1.6.0-preview.2.md). Building a package does not publish it to GitHub.
 
@@ -94,9 +94,13 @@ Shared styles cover buttons, inputs, tabs, grids, groups, scrollbars, menus, too
 
 ## GitHub automatic updates
 
-The trusted release source is `ghostventure/OctoShip`. Automatic updates default on and can be disabled in Settings. Checks run after startup connection and hourly while unlocked. The latest 100 releases are filtered for the Windows ZIP asset and selected channel; the greatest compatible version is chosen. Linux-only releases and drafts are skipped. Semantic version comparison handles tags such as `v1.6.0-preview.2` and never intentionally downgrades.
+The trusted release source is `ghostventure/OctoShip`. Automatic updates default on and can be disabled in Settings. Checks run after startup connection and every two minutes while unlocked and not busy. Failures back off for at least 15 minutes; GitHub rate-limit reset and Retry-After headers can extend that delay. Availability is polling-based, not an instantaneous push notification. Shared public IP addresses share GitHub's anonymous quota. The latest 100 releases are filtered for the Windows ZIP asset; Stable accepts stable releases and Preview accepts both stable and preview releases. The greatest compatible version is chosen. Linux-only releases and drafts are skipped. Semantic version comparison handles tags such as `v1.6.0-preview.2` and never intentionally downgrades.
 
-The release must attach **`OctoShip-win-x64.zip`**, with a GitHub `sha256:` digest, containing published app files at ZIP root. Source commits/source ZIPs alone are not installable updates. Private releases require the connected account to have repository access. The app uses authenticated API asset downloads; tokens are not placed in URLs or update scripts.
+The release must attach **`OctoShip-win-x64.zip`**, with a GitHub `sha256:` digest, containing published app files at ZIP root. The public feed and asset downloads are anonymous, so a missing, expired or restricted user token cannot block updates. This updater requires a public release repository. Source commits/source ZIPs alone are not installable updates. Updates download a complete package, not binary delta patches.
+
+The `Windows update release` GitHub Actions workflow runs when the Windows project version or release workflow changes on `main`, and can be dispatched manually from `main`. Increment `<Version>` in `FileToGitHub.csproj` for each release. The workflow builds, runs focused checks, publishes a Windows x64 payload, verifies the packaged version, uploads a draft ZIP and SHA256SUMS, checks GitHub's asset digest, then publishes the release. Hyphenated versions are prereleases; other versions are stable. Published versions are never overwritten. A failed upload remains a draft, invisible to installed clients. Run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Publish-WindowsRelease.ps1 -PackageOnly` for local verification and packaging without publishing.
+
+Computers running the older `1.6.0-preview.2` updater still check hourly until upgraded. If their channel is Preview, select Stable once to receive `1.6.0`; that older updater does not select stable releases from Preview. After upgrading, Preview automatically follows newer stable releases too. Automatic updates must be enabled and the app must be running, unlocked and online to detect a release.
 
 Downloads are bounded to 250 MiB, checked against the release digest, and extracted only after path/expanded-size checks. The packaged DLL product version must match the tag. Automatic downloads stage while the app remains open and install when the main window closes normally, without forcing a restart; the next launch uses the update. Disabling automatic updates suppresses pending installation. Manual Check for updates asks before installing and restarting, and refuses while active work/tool windows remain.
 

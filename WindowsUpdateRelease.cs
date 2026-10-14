@@ -12,7 +12,7 @@ public static class WindowsUpdateRelease
         ReleaseVersion? newest = null;
         foreach (var release in releases.EnumerateArray())
         {
-            if (release.GetProperty("draft").GetBoolean() || release.GetProperty("prerelease").GetBoolean() != preview) continue;
+            if (release.GetProperty("draft").GetBoolean() || (!preview && release.GetProperty("prerelease").GetBoolean())) continue;
             if (!release.TryGetProperty("assets", out var assets) || !assets.EnumerateArray().Any(asset =>
                 asset.TryGetProperty("name", out var name) && string.Equals(name.GetString(), "OctoShip-win-x64.zip", StringComparison.OrdinalIgnoreCase))) continue;
             ReleaseVersion version;

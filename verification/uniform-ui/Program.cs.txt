@@ -67,6 +67,7 @@ internal static class Program
             UniformUi.ApplyPreferences(new(14, true), save: false);
             Require(DisplayPreferences.Normalize(new(double.NaN, false)).TextSize == 14, "invalid font size normalizes");
             Require(DisplayPreferences.Normalize(new(100, false)).TextSize == 18, "font size is bounded");
+            CheckAutomaticUpdates(main);
             main.Close();
             Console.WriteLine("PASS: " + checks + " uniform UI checks. Screenshots: " + Screens);
             return 0;
@@ -83,6 +84,45 @@ internal static class Program
         var tabs = Descendants(window).OfType<TabControl>().FirstOrDefault();
         if (tabs is not null) for (int index=0; index<tabs.Items.Count; index++) { tabs.SelectedIndex=index; Pump(window); Capture(window, name + "-tab-" + index, window.Width, window.Height); }
         else Capture(window, name, window.Width, window.Height);
+    }
+    private static void CheckAutomaticUpdates(MainWindow main)
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        void Set(string field, object value) => typeof(MainWindow).GetField(field, flags)!.SetValue(main, value);
+        void Poll() => ((Task)typeof(MainWindow).GetMethod("CheckForUpdatesAsync", flags)!.Invoke(main, new object[] { true })!).GetAwaiter().GetResult();
+        ((HttpClient)typeof(MainWindow).GetField("_updateHttp", flags)!.GetValue(main)!).Dispose();
+        var feed = new UpdateFeed();
+        Set("_updateHttp", new HttpClient(feed));
+        Set("_token", "invalid-test-account-token");
+        Poll();
+        Require(feed.Requests == 1 && !feed.SentAuthorization, "public update feed works independently of account token");
+        Set("_appPreferences", new OctoCatPreferences { AutomaticUpdates = false });
+        Poll(); Require(feed.Requests == 1, "automatic update opt out prevents network checks");
+        Set("_appPreferences", new OctoCatPreferences());
+        Set("_busy", true); Poll(); Require(feed.Requests == 1, "active work postpones update checks");
+        Set("_busy", false);
+        feed.RateLimited = true; Poll();
+        Require(feed.Requests == 2, "rate limit response is handled without interrupting user");
+        Poll(); Require(feed.Requests == 2, "rate limit backoff suppresses subsequent automatic requests");
+    }
+
+    private sealed class UpdateFeed : HttpMessageHandler
+    {
+        public int Requests;
+        public bool SentAuthorization;
+        public bool RateLimited;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests++;
+            SentAuthorization |= request.Headers.Authorization is not null;
+            if (RateLimited)
+            {
+                var response = new HttpResponseMessage((HttpStatusCode)429);
+                response.Headers.TryAddWithoutValidation("X-RateLimit-Reset", DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds().ToString());
+                return Task.FromResult(response);
+            }
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[{\"tag_name\":\"v1.6.0\",\"draft\":false,\"prerelease\":false,\"assets\":[{\"name\":\"OctoShip-win-x64.zip\"}]}]") });
+        }
     }
     private static void Capture(Window window, string name, double width, double height)
     {

@@ -48,7 +48,9 @@ public partial class MainWindow : Window
     private string _updateRepository = DefaultUpdateRepository;
     private bool _checkingForUpdates;
     private string? _pendingUpdateScript;
-    private readonly System.Windows.Threading.DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromHours(1) };
+    private ReleaseVersion? _pendingUpdateVersion;
+    private DateTimeOffset _nextAutomaticUpdateCheck;
+    private readonly System.Windows.Threading.DispatcherTimer _updateTimer = new() { Interval = TimeSpan.FromMinutes(2) };
     private readonly List<string> _searchHistory = new();
     private readonly List<string> _destinationHistory = new();
     private OctoCatPreferences _appPreferences = new();
@@ -1046,7 +1048,10 @@ public partial class MainWindow : Window
         var settings = new OctoCatSettingsWindow(_appPreferences, _sensitivePatterns, _namedPresets) { Owner = this };
         if (settings.ShowDialog() != true) return;
         if (!settings.Preferences.AutomaticUpdates || settings.Preferences.UpdateChannel != _appPreferences.UpdateChannel)
+        {
             _pendingUpdateScript = null;
+            _pendingUpdateVersion = null;
+        }
         _appPreferences = settings.Preferences; _sensitivePatterns = settings.SensitivePatterns.ToArray(); _namedPresets = settings.DestinationPresets.ToList();
         _destinationHistory.Clear(); _destinationHistory.AddRange(_namedPresets.Select(x => x.Value).Distinct(StringComparer.OrdinalIgnoreCase).Take(12));
         DestinationPicker.ItemsSource = _namedPresets.Select(x => x.Label + "  ·  " + x.Value).ToList();
@@ -1055,6 +1060,8 @@ public partial class MainWindow : Window
         SearchBox.ItemsSource = null; SearchBox.ItemsSource = _searchHistory;
         UpdateReadOnlyProfile();
         SaveSettings(); SetStatus("Settings saved. Privacy mode and update channel apply immediately.");
+        _nextAutomaticUpdateCheck = DateTimeOffset.MinValue;
+        _ = CheckForUpdatesAsync(silent: true);
     }
 
     private async void Update_Click(object sender, RoutedEventArgs e) => await CheckForUpdatesAsync(silent: false);
@@ -1062,10 +1069,11 @@ public partial class MainWindow : Window
     private async Task CheckForUpdatesAsync(bool silent)
     {
         if (_checkingForUpdates || AccountSessionLock.Current?.IsLocked == true) return;
-        if (silent && (!_appPreferences.AutomaticUpdates || _busy || _uploadQueue?.IsRunning == true || _pendingUpdateScript is not null)) return;
+        if (silent && (!_appPreferences.AutomaticUpdates || _busy || _uploadQueue?.IsRunning == true || DateTimeOffset.UtcNow < _nextAutomaticUpdateCheck)) return;
         if (!silent && (_busy || _uploadQueue?.IsRunning == true || Application.Current.Windows.OfType<Window>().Any(w => w != this)))
         { SetStatus("Finish active work and close tool windows before installing an update.", true); return; }
         _checkingForUpdates = true;
+        var requestedChannel = _appPreferences.UpdateChannel;
         UpdateButton.IsEnabled = false;
         var oldStatus = StatusLabel.Text;
         if (!silent) SetStatus("Checking OctoShip releases…");
@@ -1073,20 +1081,22 @@ public partial class MainWindow : Window
         {
             var url = $"https://api.github.com/repos/{_updateRepository}/releases?per_page=100";
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.UserAgent.ParseAdd("OctoShip-for-GitHub/1.4");
+            request.Headers.UserAgent.ParseAdd("OctoShip-for-GitHub/" + CurrentReleaseVersion());
             request.Headers.Accept.ParseAdd("application/vnd.github+json");
-            if (!string.IsNullOrWhiteSpace(_token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+            // The public release feed must work independently of the user's GitHub account.
             using var response = await _updateHttp.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            RespectUpdateRateLimit(response);
             if (response.StatusCode == HttpStatusCode.NotFound)
-                throw new InvalidOperationException("No accessible release was found in ghostventure/OctoShip. Private releases require an account with repository access.");
+                throw new InvalidOperationException("The public OctoShip release feed is unavailable. Try again later.");
             response.EnsureSuccessStatusCode();
             using var release = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            var selectedRelease = WindowsUpdateRelease.Select(release.RootElement, _appPreferences.UpdateChannel == OctoCatUpdateChannel.Preview);
+            var selectedRelease = WindowsUpdateRelease.Select(release.RootElement, requestedChannel == OctoCatUpdateChannel.Preview);
             if (selectedRelease.ValueKind != JsonValueKind.Object)
                 throw new InvalidOperationException("No published Windows update package is available for this channel among the latest 100 releases.");
             var tag = selectedRelease.GetProperty("tag_name").GetString() ?? string.Empty;
             var latest = ReleaseVersion.Parse(tag);
             var current = ReleaseVersion.Parse(CurrentReleaseVersion());
+            if (silent && _pendingUpdateVersion is not null && latest.CompareTo(_pendingUpdateVersion) <= 0) return;
             if (latest.CompareTo(current) <= 0)
             {
                 if (!silent) OctoShipDialog.Show(this, $"OctoShip for GitHub {current} is up to date.", "No updates available", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1112,10 +1122,12 @@ public partial class MainWindow : Window
             if (install != MessageBoxResult.Yes) return;
             var packageSize = asset.TryGetProperty("size", out var sizeElement) && sizeElement.ValueKind == JsonValueKind.Number && sizeElement.TryGetInt64(out var parsedSize) && parsedSize > 0
                 ? parsedSize : (long?)null;
-            await DownloadAndApplyUpdateAsync(assetUri, latest, digest.Substring("sha256:".Length), packageSize, silent);
+            await DownloadAndApplyUpdateAsync(assetUri, latest, digest.Substring("sha256:".Length), packageSize, silent, requestedChannel);
         }
         catch (Exception ex)
         {
+            if (_nextAutomaticUpdateCheck < DateTimeOffset.UtcNow.AddMinutes(15))
+                _nextAutomaticUpdateCheck = DateTimeOffset.UtcNow.AddMinutes(15);
             UpdateDownloadProgress.Visibility = Visibility.Collapsed;
             UpdateDownloadStatus.Text = "Update download failed: " + SafeMessage(ex);
             LogTransfer("Update download failed: " + SafeMessage(ex));
@@ -1130,7 +1142,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task DownloadAndApplyUpdateAsync(Uri assetUri, ReleaseVersion version, string expectedHash, long? expectedPackageSize = null, bool installOnExit = false)
+    private async Task DownloadAndApplyUpdateAsync(Uri assetUri, ReleaseVersion version, string expectedHash, long? expectedPackageSize = null, bool installOnExit = false, OctoCatUpdateChannel requestedChannel = OctoCatUpdateChannel.Stable)
     {
         if (!installOnExit) ShowToolsPage();
         var networkNotice = GetNetworkNotice();
@@ -1143,8 +1155,8 @@ public partial class MainWindow : Window
         using var download = new HttpRequestMessage(HttpMethod.Get, assetUri);
         download.Headers.UserAgent.ParseAdd("OctoShip-for-GitHub/1.6");
         download.Headers.Accept.ParseAdd("application/octet-stream");
-        if (!string.IsNullOrWhiteSpace(_token)) download.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _token);
         using var response = await _updateHttp.SendAsync(download, HttpCompletionOption.ResponseHeadersRead);
+        RespectUpdateRateLimit(response);
         response.EnsureSuccessStatusCode();
         var totalLength = response.Content.Headers.ContentLength ?? expectedPackageSize;
         if (totalLength is long length && length > 250L * 1024 * 1024)
@@ -1183,21 +1195,18 @@ public partial class MainWindow : Window
         var appDirectory = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
         var staging = UpdatePackage.Stage(archiveBytes, expectedHash, version, Path.Combine(ProductDataDirectory, "updates"));
         var failureMarker = Path.Combine(ProductDataDirectory, "update-failed.txt");
-        var script = "$ErrorActionPreference='Stop';"
-            + "$parent=" + Environment.ProcessId + ";"
-            + "$src=" + PowerShellLiteral(staging) + ";"
-            + "$dst=" + PowerShellLiteral(appDirectory) + ";"
-            + "$marker=" + PowerShellLiteral(failureMarker) + ";"
-            + "while(Get-Process -Id $parent -ErrorAction SilentlyContinue){Start-Sleep -Milliseconds 300};"
-            + "$backup=Join-Path (Split-Path $src) 'backup';New-Item -ItemType Directory -Path $backup -Force|Out-Null;"
-            + "try{Copy-Item -Path (Join-Path $dst '*') -Destination $backup -Recurse -Force;Copy-Item -Path (Join-Path $src '*') -Destination $dst -Recurse -Force;"
-            + "if(Test-Path -LiteralPath $marker){Remove-Item -LiteralPath $marker -Force}}"
-            + "catch{$reason=$_.Exception.Message;try{Copy-Item -Path (Join-Path $backup '*') -Destination $dst -Recurse -Force}catch{};[IO.File]::WriteAllText($marker,$reason)}"
-            + (installOnExit ? "" : ";Start-Process (Join-Path $dst 'OctoShip.exe') -WindowStyle Hidden");
+        var script = UpdateInstaller.BuildScript(staging, appDirectory, failureMarker, Environment.ProcessId, restart: !installOnExit);
         if (installOnExit)
         {
+            if (!_appPreferences.AutomaticUpdates || requestedChannel != _appPreferences.UpdateChannel)
+            {
+                UpdateDownloadStatus.Text = "Update preferences changed. Download will not be installed.";
+                return;
+            }
             _pendingUpdateScript = script;
+            _pendingUpdateVersion = version;
             UpdateDownloadStatus.Text = $"Version {version} verified. It will install when you close OctoShip; your next launch will use the update.";
+            SetStatus($"OctoShip {version} is ready. Close OctoShip to install the update.");
             return;
         }
         AccountSessionLock.ThrowIfLocked();
@@ -1207,6 +1216,20 @@ public partial class MainWindow : Window
         StartUpdateHelper(script);
         SetStatus($"Update verified. Restarting into OctoShip for GitHub {version}…");
         Application.Current.Shutdown();
+    }
+
+    private void RespectUpdateRateLimit(HttpResponseMessage response)
+    {
+        if (response.StatusCode != HttpStatusCode.Forbidden && (int)response.StatusCode != 429) return;
+        var retryAt = response.Headers.RetryAfter?.Date
+            ?? DateTimeOffset.UtcNow.Add(response.Headers.RetryAfter?.Delta ?? TimeSpan.FromMinutes(15));
+        if (response.Headers.TryGetValues("X-RateLimit-Reset", out var resets)
+            && long.TryParse(resets.FirstOrDefault(), out var seconds) && seconds is > 0 and < 253402300799)
+        {
+            var reset = DateTimeOffset.FromUnixTimeSeconds(seconds).AddSeconds(5);
+            if (reset > retryAt) retryAt = reset;
+        }
+        if (retryAt > _nextAutomaticUpdateCheck) _nextAutomaticUpdateCheck = retryAt;
     }
 
     private static void StartUpdateHelper(string script)
@@ -1223,8 +1246,6 @@ public partial class MainWindow : Window
 
     private static string CurrentReleaseVersion() => typeof(MainWindow).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
         .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion.Split('+')[0] ?? "1.0.0";
-
-    private static string PowerShellLiteral(string value) => "'" + value.Replace("'", "''") + "'";
 
     private static Version GetCurrentVersion() =>
         System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version ?? new Version(1, 0, 0);

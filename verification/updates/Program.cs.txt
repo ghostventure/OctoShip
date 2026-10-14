@@ -50,5 +50,27 @@ using var releases = System.Text.Json.JsonDocument.Parse("[{\"tag_name\":\"linux
 Check(WindowsUpdateRelease.Select(releases.RootElement, false).GetProperty("tag_name").GetString() == "v1.7.0", "stable skips Linux, drafts and prereleases and chooses greatest Windows version");
 Check(WindowsUpdateRelease.Select(releases.RootElement, true).GetProperty("tag_name").GetString() == "v1.8.0-preview.1", "preview selects Windows prerelease");
 using var empty = System.Text.Json.JsonDocument.Parse("[]");
+using var promoted = System.Text.Json.JsonDocument.Parse("[{\"tag_name\":\"v1.6.0-preview.2\",\"draft\":false,\"prerelease\":true,\"assets\":[{\"name\":\"OctoShip-win-x64.zip\"}]},{\"tag_name\":\"v1.6.0\",\"draft\":false,\"prerelease\":false,\"assets\":[{\"name\":\"OctoShip-win-x64.zip\"}]}]");
+Check(WindowsUpdateRelease.Select(promoted.RootElement, true).GetProperty("tag_name").GetString() == "v1.6.0", "preview graduates to newer stable release");
+Check(WindowsUpdateRelease.Select(promoted.RootElement, false).GetProperty("tag_name").GetString() == "v1.6.0", "stable clients receive promoted release");
 Check(WindowsUpdateRelease.Select(empty.RootElement, false).ValueKind == System.Text.Json.JsonValueKind.Undefined, "no Windows release is explicit");
-Console.WriteLine($"PASS: {count} update version, package safety and preference checks; no network or app replacement.");
+var destination = Path.Combine(root, "installed copy's folder");
+Directory.CreateDirectory(destination);
+File.WriteAllText(Path.Combine(destination, "OctoShip.dll"), "old DLL");
+File.WriteAllText(Path.Combine(destination, "profile.json"), "retained preferences");
+var marker = Path.Combine(root, "update-failed.txt");
+File.WriteAllText(marker, "old failure");
+var script = UpdateInstaller.BuildScript(stage, destination, marker, int.MaxValue, restart: false);
+var helper = new System.Diagnostics.ProcessStartInfo("powershell.exe") { UseShellExecute = false, CreateNoWindow = true };
+helper.ArgumentList.Add("-NoProfile"); helper.ArgumentList.Add("-EncodedCommand");
+helper.ArgumentList.Add(Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(script)));
+using (var process = System.Diagnostics.Process.Start(helper)!)
+{
+    Check(process.WaitForExit(30000), "replacement helper completes");
+    Check(process.ExitCode == 0, "replacement helper succeeds");
+}
+Check(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(destination, "OctoShip.dll")))) == Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(MainWindow).Assembly.Location))), "helper installs verified DLL bytes");
+Check(File.ReadAllText(Path.Combine(Directory.GetParent(stage)!.FullName, "backup", "OctoShip.dll")) == "old DLL", "helper retains previous DLL backup");
+Check(File.ReadAllText(Path.Combine(destination, "profile.json")) == "retained preferences", "helper preserves unrelated user data");
+Check(!File.Exists(marker), "successful replacement clears old failure marker");
+Console.WriteLine($"PASS: {count} update version, package safety, preference and real helper checks; replacement confined to temporary test installation.");

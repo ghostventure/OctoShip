@@ -1,0 +1,33 @@
+name: Windows update release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - FileToGitHub.csproj
+      - .github/workflows/windows-release.yml
+      - scripts/Publish-WindowsRelease.ps1
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-update-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 6.0.x
+      - name: Test, package and publish the version in FileToGitHub.csproj
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/Publish-WindowsRelease.ps1
