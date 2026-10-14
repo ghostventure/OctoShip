@@ -7,6 +7,11 @@ function Run-Native([string]$Command, [string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "$Command failed with exit code $LASTEXITCODE" }
 }
 
+function Read-Releases([string[]]$JsonLines) {
+    $pages = ConvertFrom-Json -InputObject ($JsonLines -join "`n")
+    foreach ($page in $pages) { foreach ($release in $page) { $release } }
+}
+
 [xml]$project = Get-Content -LiteralPath FileToGitHub.csproj
 $version = [string]$project.Project.PropertyGroup.Version
 if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw 'Invalid Windows release version.' }
@@ -20,7 +25,7 @@ if (!$PackageOnly) {
     # A failed API request must stop publication, not be mistaken for a missing release.
     $json = & gh api --paginate --slurp "repos/$repository/releases?per_page=100"
     if ($LASTEXITCODE -ne 0) { throw 'Could not inspect existing releases.' }
-    $existing = @($json | ConvertFrom-Json | ForEach-Object { $_ }) | Where-Object tag_name -EQ $tag | Select-Object -First 1
+    $existing = Read-Releases $json | Where-Object tag_name -EQ $tag | Select-Object -First 1
     if ($existing -and !$existing.draft) { Write-Host "$tag is already published; bump the project version for another update."; exit 0 }
     if ($existing -and $existing.target_commitish -ne $env:GITHUB_SHA -and $existing.author.login -ne 'github-actions[bot]') {
         throw 'An existing draft belongs to another publisher; review it before retrying.'
@@ -53,7 +58,7 @@ Run-Native gh @('release', 'upload', $tag, $archive, (Join-Path $output 'SHA256S
 # through the authenticated release list, as gh release upload itself does.
 $releaseJson = & gh api --paginate --slurp "repos/$repository/releases?per_page=100"
 if ($LASTEXITCODE -ne 0) { throw 'Could not verify uploaded release.' }
-$release = @($releaseJson | ConvertFrom-Json | ForEach-Object { $_ }) | Where-Object tag_name -EQ $tag | Select-Object -First 1
+$release = Read-Releases $releaseJson | Where-Object tag_name -EQ $tag | Select-Object -First 1
 if (!$release -or !$release.draft) { throw 'Expected a draft release before publishing.' }
 $asset = $release.assets | Where-Object name -EQ 'OctoShip-win-x64.zip'
 if ($asset.digest -ne "sha256:$hash") { throw 'GitHub asset digest does not match the local package. Draft left unpublished.' }
