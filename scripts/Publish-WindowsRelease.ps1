@@ -22,7 +22,9 @@ if (!$PackageOnly) {
     if ($LASTEXITCODE -ne 0) { throw 'Could not inspect existing releases.' }
     $existing = @($json | ConvertFrom-Json | ForEach-Object { $_ }) | Where-Object tag_name -EQ $tag | Select-Object -First 1
     if ($existing -and !$existing.draft) { Write-Host "$tag is already published; bump the project version for another update."; exit 0 }
-    if ($existing -and $existing.target_commitish -ne $env:GITHUB_SHA) { throw 'An existing draft belongs to another commit; review it before retrying.' }
+    if ($existing -and $existing.target_commitish -ne $env:GITHUB_SHA -and $existing.author.login -ne 'github-actions[bot]') {
+        throw 'An existing draft belongs to another publisher; review it before retrying.'
+    }
 }
 
 Run-Native dotnet @('build', 'FileToGitHub.csproj', '-c', 'Release')
@@ -43,11 +45,16 @@ if ($PackageOnly) { exit 0 }
 
 if (!$existing) {
     Run-Native gh @('release', 'create', $tag, '--repo', $repository, '--target', $env:GITHUB_SHA, '--draft', '--title', "OctoShip for Windows $version", '--generate-notes')
+} else {
+    Run-Native gh @('api', '--method', 'PATCH', "repos/$repository/releases/$($existing.id)", '-f', "target_commitish=$env:GITHUB_SHA", '--silent')
 }
 Run-Native gh @('release', 'upload', $tag, $archive, (Join-Path $output 'SHA256SUMS.txt'), '--repo', $repository, '--clobber')
-$releaseJson = & gh api "repos/$repository/releases/tags/$tag"
+# The by-tag REST endpoint does not return unpublished drafts. Resolve the draft
+# through the authenticated release list, as gh release upload itself does.
+$releaseJson = & gh api --paginate --slurp "repos/$repository/releases?per_page=100"
 if ($LASTEXITCODE -ne 0) { throw 'Could not verify uploaded release.' }
-$release = $releaseJson | ConvertFrom-Json
+$release = @($releaseJson | ConvertFrom-Json | ForEach-Object { $_ }) | Where-Object tag_name -EQ $tag | Select-Object -First 1
+if (!$release -or !$release.draft) { throw 'Expected a draft release before publishing.' }
 $asset = $release.assets | Where-Object name -EQ 'OctoShip-win-x64.zip'
 if ($asset.digest -ne "sha256:$hash") { throw 'GitHub asset digest does not match the local package. Draft left unpublished.' }
 $preview = $version.Contains('-')
