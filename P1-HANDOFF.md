@@ -1,8 +1,8 @@
 # P1 implementation and installation handoff
 
 Date: 2026-10-15
-Current installed Windows package: **1.6.1-preview.13**; latest GitHub-published package: **1.6.1-preview.12**
-Scope: installed/released history below plus current local sprint changes. The working tree adds P1 improvements installed locally as preview.13. These sprint changes have not been pushed or published.
+Current installed Windows package: **1.6.1-preview.13**; latest GitHub-published package: **1.6.1-preview.13**
+Scope: installed and released P1 work. Preview.13 was published as GitHub release [v1.6.1-preview.13](https://github.com/ghostventure/OctoShip/releases/tag/v1.6.1-preview.13) after the Windows update release workflow passed for commit `942e019ad25bf32271670bcbf31f0a3c583e9e2f`.
 
 ## Installed changes
 
@@ -119,4 +119,4 @@ Preview.13 package verification was run separately from the historical preview.9
 
 ## Remaining work and limits
 
-Preview.13 is installed locally; preview.12 is the latest published release. The current working tree marks 17 P1 tasks complete and 135 open by backlog checkbox. This local sprint fully completes P1-211, P1-212, and P1-262. P1-021, P1-040, P1-242, and P1-245 have bounded partial improvements recorded in `IMPROVEMENT-BACKLOG.md` and remain open. Preview.13 has not been pushed or published. Many remaining items need substantial workflow implementation, dedicated failure-injection coverage, accessibility review, or real-user qualification. Publisher signing and signed update manifests are optional distribution assurances outside OctoShip's core GitHub transport scope. Live GCM authentication success and the displayed readiness result remain unqualified.
+Preview.13 is installed locally and is the latest published release. The Windows update release workflow succeeded for commit `942e019ad25bf32271670bcbf31f0a3c583e9e2f` and published [v1.6.1-preview.13](https://github.com/ghostventure/OctoShip/releases/tag/v1.6.1-preview.13) with the Windows ZIP, SBOM, dependency-audit report, and SHA256SUMS file. The current working tree marks 17 P1 tasks complete and 135 open by backlog checkbox. This local sprint fully completes P1-211, P1-212, and P1-262. P1-021, P1-040, P1-242, and P1-245 have bounded partial improvements recorded in `IMPROVEMENT-BACKLOG.md` and remain open. Many remaining items need substantial workflow implementation, dedicated failure-injection coverage, accessibility review, or real-user qualification. Publisher signing and signed update manifests are optional distribution assurances outside OctoShip's core GitHub transport scope. Live GCM authentication success and the displayed readiness result remain unqualified.
