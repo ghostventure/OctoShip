@@ -1,0 +1,49 @@
+using System;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using FileToGitHub;
+
+internal static class Program
+{
+    [STAThread]
+    private static int Main()
+    {
+        var failed = 0;
+        void Check(bool condition, string name)
+        {
+            Console.WriteLine($"{(condition ? "PASS" : "FAIL")}: {name}");
+            if (!condition) failed++;
+        }
+
+        var presetDetails = DestructiveActionConfirmation.DescribePreset("Release target",
+            "ghostventure/OctoShip|main|releases/preview");
+        Check(presetDetails.Contains("Repository: ghostventure/OctoShip") &&
+              presetDetails.Contains("Branch: main") &&
+              presetDetails.Contains("Upload folder: releases/preview"), "preset confirmation names exact destination");
+        Check(presetDetails.Contains("does not delete the GitHub repository or any files") &&
+              presetDetails.Contains("only when you select Save"), "preset confirmation states local-only consequence and save timing");
+
+        var rootDetails = DestructiveActionConfirmation.DescribePreset("Root", "owner/repo|main|");
+        Check(rootDetails.Contains("Upload folder: (repository root)"), "repository-root preset is identified explicitly");
+
+        var historyDetails = DestructiveActionConfirmation.DescribeHistory(4, 2, 3, true, false, true);
+        Check(historyDetails.Contains("Search history: 4 entries") &&
+              historyDetails.Contains("Destination presets: 3 entries") &&
+              !historyDetails.Contains("Recent repositories:"), "history confirmation lists only selected categories and their counts");
+        Check(historyDetails.Contains("does not change anything on GitHub") &&
+              historyDetails.Contains("only when you select Save"), "history confirmation states local-only consequence and save timing");
+
+        var dialog = DestructiveActionConfirmation.Create("Delete destination preset?", presetDetails, "Delete preset", "Keep preset");
+        var panel = (StackPanel)dialog.Content;
+        var details = panel.Children.OfType<TextBlock>().Single().Text;
+        var buttons = panel.Children.OfType<StackPanel>().Single().Children.OfType<Button>().ToArray();
+        Check(details == presetDetails, "dialog displays supplied target and consequence");
+        Check(buttons.Length == 2 && Equals(buttons[0].Content, "Keep preset") && buttons[0].IsCancel && buttons[0].IsDefault,
+            "safe choice is first, Escape choice, and Enter default");
+        Check(Equals(buttons[1].Content, "Delete preset") && !buttons[1].IsDefault,
+            "destructive action uses an explicit button and is not default");
+        Console.WriteLine(failed == 0 ? "All 8 destructive-action checks passed." : $"{failed} destructive-action checks failed.");
+        return failed == 0 ? 0 : 1;
+    }
+}

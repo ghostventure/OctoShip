@@ -1,0 +1,41 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using FileToGitHub;
+
+internal static class Program
+{
+    private static int checks;
+    static int Main()
+    {
+        var protectedNames = new[] { "GH_TOKEN", "GITHUB_TOKEN", "GIT_CONFIG_COUNT", "GIT_ASKPASS", "OCTOSHIP_TEST_SECRET" };
+        var proxyNames = new[] { "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY" };
+        var old = protectedNames.Concat(proxyNames).ToDictionary(name => name, Environment.GetEnvironmentVariable);
+        try
+        {
+            foreach (var name in protectedNames) Environment.SetEnvironmentVariable(name, "must-not-leak");
+            foreach (var name in proxyNames) Environment.SetEnvironmentVariable(name, "https://proxy.invalid:8080");
+            var child = TrustedProcess.Create("git");
+            foreach (var name in protectedNames) Require(!child.Environment.ContainsKey(name), name + " is not inherited");
+            foreach (var name in proxyNames) Require(child.Environment.ContainsKey(name), name + " is retained for configured network routing");
+            Require(child.Environment.ContainsKey("SystemRoot"), "Windows system root is retained");
+            Require(child.Environment.ContainsKey("USERPROFILE"), "user profile is retained for account-scoped config");
+            Require(child.Environment["GIT_TERMINAL_PROMPT"] == "0", "Git prompts remain disabled");
+            Require(child.Environment["GCM_INTERACTIVE"] == "never", "credential manager prompts remain disabled");
+            Require(child.Environment["GH_PROMPT_DISABLED"] == "1", "GitHub CLI prompts remain disabled");
+            Require(child.Environment.ContainsKey("PATH"), "PATH remains available for Git and credential-helper dependencies");
+            child.ArgumentList.Add("--version"); child.RedirectStandardOutput = child.RedirectStandardError = true;
+            using var process = TrustedProcess.Start(child);
+            var output = process.StandardOutput.ReadToEnd(); var error = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+            Require(process.ExitCode == 0 && (output + error).Contains("git version", StringComparison.OrdinalIgnoreCase), "Git executable works with narrowed environment");
+            Console.WriteLine("PASS: " + checks + " child-process environment checks.");
+            return 0;
+        }
+        finally
+        {
+            foreach (var (name, value) in old) Environment.SetEnvironmentVariable(name, value);
+        }
+    }
+    private static void Require(bool condition, string name) { if (!condition) throw new InvalidOperationException("FAIL: " + name); checks++; }
+}

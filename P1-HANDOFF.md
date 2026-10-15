@@ -1,8 +1,8 @@
 # P1 implementation and installation handoff
 
 Date: 2026-10-15
-Current Windows build/package: **1.6.1-preview.10**
-Scope: locally implemented Windows P1 work plus the requested GitHub and Windows auto-login controls. Preview.9 was the previously installed and verified package; preview.10 is the current local package and has not been published as a GitHub release.
+Current installed Windows package: **1.6.1-preview.13**; latest GitHub-published package: **1.6.1-preview.12**
+Scope: installed/released history below plus current local sprint changes. The working tree adds P1 improvements installed locally as preview.13. These sprint changes have not been pushed or published.
 
 ## Installed changes
 
@@ -90,6 +90,16 @@ These five P1 tasks are checked in `IMPROVEMENT-BACKLOG.md`; wave 1 is installed
 - The package contains the .NET 10 runtime. Git for Windows with Git Credential Manager remains an external dependency for GitHub account sign-in.
 - The installer is unsigned. Preview.9 predates the current updater behavior; see the preview.10 section above.
 
+## Local P1 follow-up - installed as preview.13
+
+- P1-211 adds synthetic percent-encoded credential fixtures and verifies redaction in diagnostic handling, local Git inspection reports, and support-report previews.
+- P1-212 narrows environment inheritance for `TrustedProcess.Create` children while preserving Windows/profile state, PATH, proxy settings, and noninteractive prompt flags; arbitrary token and Git override variables are excluded.
+- P1-262 restores keyboard focus to the initiating control after a modal dialog, with a fallback when that control disappears.
+- Partial progress remains explicitly open for P1-021 (header-based wait guidance; safe-read retry policy remains open), P1-040 (recycling virtualization and bounded viewports; paging/history coverage remains open), P1-242 (sensitive-pattern input validation only), and P1-245 (settings history/preset confirmations only).
+- Release build completed with 0 warnings/errors. `scripts/Publish-WindowsRelease.ps1 -PackageOnly` passed the integrated release checks, including the added environment and destructive-action harnesses; NuGet audit found no vulnerable packages in its configured sources.
+- Locally built installer: `installers/OctoShip-Setup-v1.6.1-preview.13-win-x64.exe`; size 56,321,716 bytes; SHA-256 `769E3062C1B08D5521E275264A9626C3F397CDB62A370A88FED24B4ABEEB1C30`. It exited 0, installed product version `1.6.1-preview.13+208915b16af552cd60660be9745d75df1d90eeab`, and all 474 payload files matched the installed copies by SHA-256. The installed app launched with bundled `coreclr.dll` loaded. Installer and app are unsigned.
+- Profile backup retained at `%LOCALAPPDATA%\OctoShipBackups\profile-before-preview13-20261015-063712`. Preview.13 changes are local; no commit, push, or public release occurred.
+
 ## Verification
 
 - Release build: 0 warnings, 0 errors.
@@ -101,6 +111,12 @@ These five P1 tasks are checked in `IMPROVEMENT-BACKLOG.md`; wave 1 is installed
 - Installer payload: 474/474 file hashes matched; installer exit code 0; installed process remained running from the per-user app folder.
 - No GitHub write or release publication was exercised in the preview.9 installation verification. Live Git Credential Manager authentication and the readiness report were not qualified there.
 
+Preview.13 package verification was run separately from the historical preview.9 checks above:
+
+- The integrated `scripts/Publish-WindowsRelease.ps1 -PackageOnly` run passed the updater (33), session (30), upload (26), uniform UI (99), P0 security (37), preparation (41), environment (16), and destructive-action (8) checks, plus shipping-workbench, repository-workflow, and SBOM fixture checks.
+- The configured NuGet vulnerability audit reported no vulnerable packages from its configured sources. This result is time- and source-dependent.
+- The installed preview.13 package was verified locally as described above. These checks do not qualify live GitHub authentication, test a GitHub write, or constitute publication of a GitHub release.
+
 ## Remaining work and limits
 
-The current preview.10 source includes fourteen implemented P1 tasks, with 138 still open. Many remaining items need substantial workflow implementation, dedicated failure-injection coverage, accessibility review, or real-user qualification. Publisher signing and signed update manifests are optional distribution assurances outside OctoShip's core GitHub transport scope. The security reporting route in `SECURITY-OPERATIONS.md` must be verified by the repository owner before it is a formal support commitment. Live GCM authentication success and the displayed readiness result were not independently qualified as part of these work waves.
+Preview.13 is installed locally; preview.12 is the latest published release. The current working tree marks 17 P1 tasks complete and 135 open by backlog checkbox. This local sprint fully completes P1-211, P1-212, and P1-262. P1-021, P1-040, P1-242, and P1-245 have bounded partial improvements recorded in `IMPROVEMENT-BACKLOG.md` and remain open. Preview.13 has not been pushed or published. Many remaining items need substantial workflow implementation, dedicated failure-injection coverage, accessibility review, or real-user qualification. Publisher signing and signed update manifests are optional distribution assurances outside OctoShip's core GitHub transport scope. Live GCM authentication success and the displayed readiness result remain unqualified.

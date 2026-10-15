@@ -89,6 +89,14 @@ public static class PublicationBindings
 
 public static class TrustedProcess
 {
+    private static readonly string[] ChildEnvironmentAllowList =
+    {
+        "SystemRoot", "WINDIR", "SYSTEMDRIVE", "ProgramData", "ALLUSERSPROFILE", "PATH",
+        "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+        "TEMP", "TMP", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "APPDATA",
+        "LOCALAPPDATA", "USERNAME", "USERDOMAIN"
+    };
+
     public static string Resolve(string tool)
     {
         var program = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
@@ -110,6 +118,15 @@ public static class TrustedProcess
         AccountSessionLock.ThrowIfLocked();
         var start = new ProcessStartInfo(Resolve(tool)) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden };
         start.WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System);
+        // Git, credential helpers, and tool runtimes may need PATH for dependencies;
+        // configured proxies may be essential for GitHub connectivity. Keep those
+        // plus standard Windows/user-profile state, but exclude arbitrary caller
+        // variables such as GH_TOKEN, GIT_CONFIG_* and shell overrides.
+        var inherited = ChildEnvironmentAllowList
+            .Select(name => new KeyValuePair<string, string?>(name, Environment.GetEnvironmentVariable(name)))
+            .Where(pair => !string.IsNullOrEmpty(pair.Value));
+        start.Environment.Clear();
+        foreach (var (name, value) in inherited) start.Environment[name] = value;
         start.Environment["GIT_TERMINAL_PROMPT"] = "0";
         start.Environment["GCM_INTERACTIVE"] = "never";
         start.Environment["GH_PROMPT_DISABLED"] = "1";

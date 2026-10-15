@@ -33,7 +33,7 @@ if (!$PackageOnly) {
 }
 
 Run-Native dotnet @('build', 'FileToGitHub.csproj', '-c', 'Release')
-foreach ($checks in @('updates/UpdateChecks', 'session-lock/SessionLockChecks', 'uploads/AtomicUploadChecks', 'repository-workflows/WorkflowTests', 'uniform-ui/UniformUiChecks')) {
+foreach ($checks in @('updates/UpdateChecks', 'session-lock/SessionLockChecks', 'uploads/AtomicUploadChecks', 'repository-workflows/WorkflowTests', 'uniform-ui/UniformUiChecks', 'p0-security/P0SecurityChecks', 'preparation/PreparationChecks', 'shipping-workbench/ShippingWorkbenchChecks', 'environment/EnvironmentChecks', 'destructive-actions/DestructiveActionChecks')) {
     Run-Native dotnet @('run', '--project', "verification/$checks.csproj", '-c', 'Release')
 }
 & (Join-Path (Get-Location) 'verification/sbom/Test-ReleaseSbom.ps1')

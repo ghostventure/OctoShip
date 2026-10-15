@@ -1882,11 +1882,12 @@ public partial class MainWindow : Window
     private static Task EnsureSuccess(HttpResponseMessage response)
     {
         if (response.IsSuccessStatusCode) return Task.CompletedTask;
+        var rateLimitWait = GitHubRateLimitGuidance.GetWaitMessage(response);
         var reason = response.StatusCode switch
         {
             HttpStatusCode.Unauthorized => "GitHub rejected the saved login. Sign in again with Git Credential Manager.",
-            HttpStatusCode.Forbidden when response.Headers.TryGetValues("X-RateLimit-Remaining", out var remaining) && remaining.FirstOrDefault() == "0"
-                => "GitHub API rate limit reached. Wait for the reset time and retry.",
+            HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests when rateLimitWait is not null
+                => "GitHub API rate limit reached. " + rateLimitWait + " No request was automatically replayed; check GitHub before retrying if a write may have completed.",
             HttpStatusCode.Forbidden => "GitHub denied this action. Check repository write access and organization approval.",
             HttpStatusCode.NotFound => "GitHub could not find that repository, branch, or file, or the account cannot access it.",
             (HttpStatusCode)422 => "GitHub rejected this commit. Check branch protection, path, or repository rules.",

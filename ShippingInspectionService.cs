@@ -139,6 +139,9 @@ public static class ShippingInspectionService
     public static string Redact(string text)
     {
         text = Regex.Replace(text, @"-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)", "[PRIVATE KEY REDACTED]", RegexOptions.None, TimeSpan.FromSeconds(1));
+        // Redact secrets in both ordinary and percent-encoded URL query strings. Some
+        // diagnostics contain URLs that have already been escaped for logs or reports.
+        text = Regex.Replace(text, @"((?:[?&]|%3f|%26)(?:access(?:_|%5f)token|client(?:_|%5f)secret|refresh(?:_|%5f)token|id(?:_|%5f)token|token|key|sig|signature|password)(?:=|%3d))(?:(?!&|%26|\s).)+", "$1[REDACTED]", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
         text = Regex.Replace(text, @"(?i)([?&](?:access_token|token|key|sig|signature|password)=)[^&\s]+", "$1[REDACTED]", RegexOptions.None, TimeSpan.FromSeconds(1));
         text = Regex.Replace(text, @"(?i)\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|Bearer\s+\S+)", "[REDACTED]", RegexOptions.None, TimeSpan.FromSeconds(1));
         text = Regex.Replace(text, @"(?im)(token|password|secret|authorization|api[_-]?key)\s*[:=]\s*[^\r\n]+", "$1=[REDACTED]", RegexOptions.None, TimeSpan.FromSeconds(1));

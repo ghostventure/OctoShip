@@ -38,6 +38,22 @@ internal static class Program
     }
     static async Task Checks()
     {
+        var fixedNow = DateTimeOffset.FromUnixTimeSeconds(1_800_000_000);
+        using (var retryAfter = new HttpResponseMessage(HttpStatusCode.TooManyRequests))
+        {
+            retryAfter.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromMinutes(2));
+            Require(GitHubRateLimitGuidance.GetWaitMessage(retryAfter, fixedNow) == "Retry in about 2 minutes.", "429 Retry-After delta is translated to a wait estimate");
+        }
+        using (var reset = new HttpResponseMessage(HttpStatusCode.Forbidden))
+        {
+            reset.Headers.TryAddWithoutValidation("X-RateLimit-Remaining", "0");
+            reset.Headers.TryAddWithoutValidation("X-RateLimit-Reset", fixedNow.AddMinutes(3).ToUnixTimeSeconds().ToString());
+            Require(GitHubRateLimitGuidance.GetWaitMessage(reset, fixedNow) == "Retry in about 4 minutes.", "403 rate-limit reset includes safety buffer and readable estimate");
+        }
+        using (var noGuidance = new HttpResponseMessage(HttpStatusCode.TooManyRequests))
+            Require(GitHubRateLimitGuidance.GetWaitMessage(noGuidance, fixedNow)!.Contains("wait", StringComparison.OrdinalIgnoreCase), "missing retry headers produce safe generic guidance");
+        using (var unrelated = new HttpResponseMessage(HttpStatusCode.Forbidden))
+            Require(GitHubRateLimitGuidance.GetWaitMessage(unrelated, fixedNow) is null, "ordinary 403 is not mislabeled as a rate limit");
         var folder = Path.Combine(Path.GetTempPath(), "octoship-workbench-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(folder);
         try
         {

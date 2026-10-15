@@ -47,6 +47,10 @@ public partial class OctoCatSettingsWindow : Window
         var recent = ClearRecentCheck.IsChecked == true;
         var destinations = ClearDestinationsCheck.IsChecked == true;
         if (!search && !recent && !destinations) { SetStatus("Select at least one history type to clear.", true); return; }
+        var details = DestructiveActionConfirmation.DescribeHistory(_preferences.SearchHistory.Count,
+            _preferences.RecentRepositories.Count, _presets.Count, search, recent, destinations);
+        if (!DestructiveActionConfirmation.Confirm(this, "Clear selected history?", details,
+                "Clear selected history", "Keep history")) return;
         if (search && recent && destinations)
             _preferences = OctoCatPreferencesService.ClearHistory(_preferences, clearDestinations: true);
         else
@@ -63,12 +67,30 @@ public partial class OctoCatSettingsWindow : Window
     private void AddPattern_Click(object sender, RoutedEventArgs e)
     {
         var pattern = PatternInput.Text.Trim();
-        if (!IsSafeGlob(pattern)) { SetStatus("Enter a safe glob (for example, *.pem or **/.env).", true); return; }
-        if (_patterns.Contains(pattern, StringComparer.OrdinalIgnoreCase)) { SetStatus("That pattern is already listed."); return; }
+        if (!IsSafeGlob(pattern)) { ShowPatternError("Enter a safe glob (for example, *.pem or **/.env). Avoid absolute paths, backslashes, and . or .. path segments."); return; }
+        if (_patterns.Contains(pattern, StringComparer.OrdinalIgnoreCase)) { ShowPatternError("That pattern is already listed. Edit it or choose a different glob."); return; }
         _patterns.Add(pattern);
         PatternInput.Clear();
+        PatternValidationText.Text = string.Empty;
+        PatternValidationText.Visibility = Visibility.Collapsed;
         PatternList.ItemsSource = _patterns.ToArray();
         SetStatus("Pattern added. It will warn on matching names; it will not block uploads.");
+    }
+
+    private void ShowPatternError(string message)
+    {
+        PatternValidationText.Text = message;
+        PatternValidationText.Visibility = Visibility.Visible;
+        SetStatus(message, true);
+        PatternInput.Focus();
+        PatternInput.SelectAll();
+    }
+
+    private void PatternInput_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (PatternValidationText is null || PatternValidationText.Visibility != Visibility.Visible) return;
+        PatternValidationText.Text = string.Empty;
+        PatternValidationText.Visibility = Visibility.Collapsed;
     }
 
     private void RemovePattern_Click(object sender, RoutedEventArgs e)
@@ -100,6 +122,8 @@ public partial class OctoCatSettingsWindow : Window
     private void DeletePreset_Click(object sender, RoutedEventArgs e)
     {
         if (PresetList.SelectedItem is not DestinationPreset selected) { SetStatus("Select a destination preset first.", true); return; }
+        var details = DestructiveActionConfirmation.DescribePreset(selected.Label, selected.Value);
+        if (!DestructiveActionConfirmation.Confirm(this, "Delete destination preset?", details, "Delete preset", "Keep preset")) return;
         _presets.Remove(selected);
         RefreshPresets();
         SetStatus("Preset will be deleted when you save.");

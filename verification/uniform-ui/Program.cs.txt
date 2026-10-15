@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -70,6 +71,7 @@ internal static class Program
                 CheckWindow(settings.Window, "settings");
                 var clipboardPicker = (ComboBox)settings.Window.FindName("ClipboardClearPicker");
                 Require(clipboardPicker.Items.Count == 4 && clipboardPicker.SelectedIndex == 2, "clipboard auto-clear choices and saved interval render");
+                CheckSensitivePatternValidation(settings.Window);
             }
             using (var repo = new WindowScope(new RepositoryToolsWindow(http, () => null, Array.Empty<string>(), "sample/project", "main", ""))) CheckWindow(repo.Window, "repositories");
             using (var flow = new WindowScope(new RepositoryWorkflowWindow(http, () => null, "sample/project", "main", ""))) CheckWindow(flow.Window, "workflow");
@@ -90,6 +92,7 @@ internal static class Program
                 Require(((OctoShipDialog)dialog.Window).Result == MessageBoxResult.No, "confirmation is safe on dismissal");
                 Require(Descendants(dialog.Window).OfType<Button>().Single(x => x.IsDefault).Content!.ToString() == "No", "confirmation keeps explicit default choice");
             }
+            CheckDialogFocusRestoration();
             UniformUi.ApplyPreferences(new(18, false), save: false); Pump(main);
             var textbox = (TextBox)main.FindName("FolderBox");
             Require(textbox.FontSize == 18 && textbox.MinHeight == 42, "global text size and comfortable density update existing controls");
@@ -135,6 +138,77 @@ internal static class Program
         feed.RateLimited = true; Poll();
         Require(feed.Requests == 2, "rate limit response is handled without interrupting user");
         Poll(); Require(feed.Requests == 2, "rate limit backoff suppresses subsequent automatic requests");
+    }
+
+    private static void CheckSensitivePatternValidation(Window window)
+    {
+        var input = (TextBox)window.FindName("PatternInput");
+        var message = (TextBlock)window.FindName("PatternValidationText");
+        var list = (ListBox)window.FindName("PatternList");
+        var scroll = Descendants(window).OfType<ScrollViewer>().First();
+        scroll.ScrollToEnd(); input.BringIntoView(); Pump(window);
+        input.Text = "../secrets.pem";
+        typeof(OctoCatSettingsWindow).GetMethod("AddPattern_Click", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(window, new object[] { input, new RoutedEventArgs() });
+        Pump(window);
+        Require(input.Text == "../secrets.pem", "invalid sensitive pattern remains in the input for correction");
+        Require(message.Visibility == Visibility.Visible && message.Text.Contains("safe glob", StringComparison.OrdinalIgnoreCase),
+            "invalid sensitive pattern shows actionable inline validation");
+        Require(ReferenceEquals(Keyboard.FocusedElement, input), "invalid sensitive pattern focuses the blocking input");
+
+        input.Text = "*.pem"; Pump(window);
+        Require(message.Visibility == Visibility.Collapsed, "editing the sensitive pattern clears the stale validation message");
+        typeof(OctoCatSettingsWindow).GetMethod("AddPattern_Click", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(window, new object[] { input, new RoutedEventArgs() });
+        Pump(window);
+        Require(input.Text.Length == 0 && list.Items.Cast<object>().Any(item => item.ToString() == "*.pem"),
+            "corrected sensitive pattern is added and the field clears");
+    }
+
+    private static void CheckDialogFocusRestoration()
+    {
+        var trigger = new Button { Content = "Open confirmation" };
+        var owner = new Window { Title = "Focus restoration check", Width = 320, Height = 180, Content = trigger, ShowInTaskbar = false };
+        owner.Show(); Pump(owner); trigger.Focus();
+        Require(ReferenceEquals(Keyboard.FocusedElement, trigger), "focus test starts on initiating control");
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            var dialog = Application.Current.Windows.OfType<OctoShipDialog>().Single();
+            Descendants(dialog).OfType<Button>().Single(x => x.Content?.ToString() == "OK")
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        };
+        timer.Start();
+        var result = OctoShipDialog.Show(owner, "Focus returns to the control that opened this notice.", "Focus test");
+        Pump(owner);
+        Require(result == MessageBoxResult.OK, "focus test dialog completes normally");
+        Require(ReferenceEquals(Keyboard.FocusedElement, trigger), "dialog restores keyboard focus to initiating control");
+        owner.Close();
+
+        var panel = new StackPanel();
+        var removedTrigger = new Button { Content = "Removed trigger" };
+        panel.Children.Add(removedTrigger);
+        panel.Children.Add(new Button { Content = "Surviving control" });
+        var fallbackOwner = new Window { Title = "Focus fallback check", Width = 320, Height = 180, Content = panel, ShowInTaskbar = false };
+        fallbackOwner.Show(); Pump(fallbackOwner); removedTrigger.Focus();
+        Require(ReferenceEquals(Keyboard.FocusedElement, removedTrigger), "fallback test starts on initiating control");
+        var fallbackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        fallbackTimer.Tick += (_, _) =>
+        {
+            fallbackTimer.Stop();
+            panel.Children.Remove(removedTrigger);
+            var dialog = Application.Current.Windows.OfType<OctoShipDialog>().Single();
+            Descendants(dialog).OfType<Button>().Single(x => x.Content?.ToString() == "OK")
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        };
+        fallbackTimer.Start();
+        OctoShipDialog.Show(fallbackOwner, "The initiating row may disappear while this notice is open.", "Focus fallback test");
+        Pump(fallbackOwner);
+        Require(fallbackOwner.IsActive, "focus fallback returns to the surviving owner window");
+        Require(Keyboard.FocusedElement is not null && !ReferenceEquals(Keyboard.FocusedElement, removedTrigger),
+            "focus fallback avoids the removed control and leaves a valid focus target");
+        fallbackOwner.Close();
     }
 
     private sealed class UpdateFeed : HttpMessageHandler

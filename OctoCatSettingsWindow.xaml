@@ -43,7 +43,8 @@
                 <GroupBox Header="Sensitive filename patterns" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
                     <StackPanel>
                         <TextBlock Text="Add glob patterns such as *.pem or **/.env. These add warnings; they do not block uploads." Foreground="#A9B9CE" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                        <DockPanel><TextBox x:Name="PatternInput" DockPanel.Dock="Left" ToolTip="Glob pattern"/><Button Content="Add pattern" Click="AddPattern_Click"/></DockPanel>
+                        <DockPanel><TextBox x:Name="PatternInput" DockPanel.Dock="Left" ToolTip="Glob pattern" TextChanged="PatternInput_TextChanged"/><Button Content="Add pattern" Click="AddPattern_Click"/></DockPanel>
+                        <TextBlock x:Name="PatternValidationText" TextWrapping="Wrap" Foreground="OrangeRed" Visibility="Collapsed" Margin="0,4,0,0"/>
                         <ListBox x:Name="PatternList" Height="105"/>
                         <Button Content="Remove selected pattern" HorizontalAlignment="Left" Click="RemovePattern_Click"/>
                     </StackPanel>

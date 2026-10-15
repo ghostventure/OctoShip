@@ -50,6 +50,19 @@ internal static class Program
         transport.Error=false;
         Check(!SecurityBoundaries.Redact("password=fixture-secret").Contains("fixture-secret"),"diagnostic assignment redacted");
         Check(!SecurityBoundaries.Redact("unusual opaque text", "opaque").Contains("opaque"),"active credential exact redaction");
+        var redactionFixtures = new[]
+        {
+            ("https://uploads.example/item?token=plain-fixture-secret&keep=visible", "plain-fixture-secret"),
+            ("https://uploads.example/item?access%5ftoken=encoded-key-fixture&keep=visible", "encoded-key-fixture"),
+            ("https%3A%2F%2Fuploads.example%2Fitem%3Fclient_secret%3Dencoded-value-fixture%26keep%3Dvisible", "encoded-value-fixture"),
+            ("https://uploads.example/item?refresh_token=refresh-fixture-secret&keep=visible", "refresh-fixture-secret"),
+            ("https://uploads.example/item?id%5Ftoken%3Did-fixture-secret&keep=visible", "id-fixture-secret")
+        };
+        foreach (var (diagnostic, fixtureSecret) in redactionFixtures)
+        {
+            var safeDiagnostic = SecurityBoundaries.Redact(diagnostic);
+            Check(!safeDiagnostic.Contains(fixtureSecret, StringComparison.Ordinal), "synthetic URL credential is redacted: " + fixtureSecret[..Math.Min(3, fixtureSecret.Length)]);
+        }
         var regular=Path.Combine(root,"regular.txt"); File.WriteAllText(regular,"reviewed"); using(var input=SecurityBoundaries.OpenRead(regular)) Check(input.Length==8,"handle-resolved regular source readable");
         await Reject(()=>Run(()=>SecurityBoundaries.ReadBoundedJson(regular,2)),"bounded saved document");
         var oldPath=Environment.GetEnvironmentVariable("PATH");

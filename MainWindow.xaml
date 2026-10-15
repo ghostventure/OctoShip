@@ -205,7 +205,7 @@
                                     <TextBlock Text="  Search results" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
                                 </StackPanel>
                             </DockPanel>
-                            <ListBox x:Name="ResultsList" Grid.Row="1" SelectionChanged="Results_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox x:Name="ResultsList" Grid.Row="1" Height="400" SelectionChanged="Results_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel>
@@ -371,7 +371,7 @@
                                         <Button x:Name="OpenGithubProjectButton" Grid.Column="2" Content="Open on GitHub" Padding="10,6" Margin="7,0,0,0" IsEnabled="False" Click="OpenGithubProject_Click" />
                                     </Grid>
                                     <TextBlock x:Name="GithubProjectStatus" Grid.Row="2" Text="Connect an account, then refresh to list its existing repositories." Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,0,0,7" />
-                                    <ListBox x:Name="GithubProjectsList" Grid.Row="3" SelectionChanged="GithubProjectsList_SelectionChanged" ToolTip="Select an existing repository to use as the upload destination">
+                                    <ListBox x:Name="GithubProjectsList" Grid.Row="3" Height="220" SelectionChanged="GithubProjectsList_SelectionChanged" ToolTip="Select an existing repository to use as the upload destination">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
                                                 <Grid>

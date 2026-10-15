@@ -2,6 +2,8 @@ using System;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace FileToGitHub;
 
@@ -48,10 +50,21 @@ public sealed class OctoShipDialog : Window
     public static MessageBoxResult Show(Window? owner, string message, string caption = "OctoShip", MessageBoxButton buttons = MessageBoxButton.OK,
         MessageBoxImage image = MessageBoxImage.None, MessageBoxResult defaultResult = MessageBoxResult.None)
     {
+        var initiatingFocus = owner is { IsVisible: true } ? Keyboard.FocusedElement : null;
         var dialog = new OctoShipDialog(message, caption, buttons, image, defaultResult);
         if (owner is { IsVisible: true }) dialog.Owner = owner;
         else dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
         dialog.ShowDialog();
+        if (owner is { IsVisible: true })
+        {
+            owner.Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+            {
+                if (initiatingFocus is UIElement element && element.IsVisible && element.IsEnabled && element.Focusable)
+                    Keyboard.Focus(element);
+                else if (owner.IsVisible)
+                    owner.Focus();
+            }));
+        }
         return dialog.Result;
     }
 }

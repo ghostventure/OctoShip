@@ -22,7 +22,7 @@ internal static class Program
     [STAThread] private static void Main()
     {
         var root = Path.Combine(Path.GetTempPath(), "OctoShip-preparation-checks-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
-        try { Local(root); Network(root).GetAwaiter().GetResult(); HttpErrors().GetAwaiter().GetResult(); Smoke(); Console.WriteLine($"{checks} preparation checks passed; fake HTTP only."); }
+        try { Local(root); LocalGitRedaction(root).GetAwaiter().GetResult(); Network(root).GetAwaiter().GetResult(); HttpErrors().GetAwaiter().GetResult(); Smoke(); Console.WriteLine($"{checks} preparation checks passed; fake HTTP only."); }
         finally { Directory.Delete(root, true); }
     }
     private static void Local(string root)
@@ -107,6 +107,25 @@ internal static class Program
             Check(!error.Message.Contains("fake-secret", StringComparison.Ordinal) && !error.Message.Contains("private-data", StringComparison.Ordinal) && !error.Message.Contains("<script>", StringComparison.Ordinal), "main upload HTTP error omits response body secrets and markup");
         }
     }
+    private static async Task LocalGitRedaction(string root)
+    {
+        var repository = Path.Combine(root, "diagnostic-git"); Directory.CreateDirectory(repository);
+        async Task Git(params string[] arguments)
+        {
+            var start = TrustedProcess.Create("git");
+            start.RedirectStandardOutput = start.RedirectStandardError = true;
+            foreach (var argument in arguments) start.ArgumentList.Add(argument);
+            using var process = TrustedProcess.Start(start);
+            var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            if (process.ExitCode != 0) throw new Exception("Fixture git setup failed: " + await stderr);
+            _ = await stdout;
+        }
+        await Git("-C", repository, "init", "-q");
+        await Git("-C", repository, "remote", "add", "origin", "https://github.com/owner/repo%3Fclient_secret%3Dworkbench-fixture-secret%26visible%3Dok");
+        var report = await ShippingWorkbenchService.LocalGitAsync(repository, CancellationToken.None);
+        Check(!report.Contains("workbench-fixture-secret", StringComparison.Ordinal), "local Git inspection report redacts encoded URL query credentials");
+    }
     private static void Smoke()
     {
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -118,6 +137,12 @@ internal static class Program
             var root = (StackPanel)frame.Children.OfType<ScrollViewer>().Single().Content; var tabs = root.Children.OfType<TabControl>().Single();
             Check(tabs.Items.Count == 5, "five preparation tabs render");
             for (var i = 0; i < tabs.Items.Count; i++) { tabs.SelectedIndex = i; window.UpdateLayout(); Check(((StackPanel)((TabItem)tabs.Items[i]).Content).ActualWidth > 0, "tab " + i + " has visible layout"); }
+            var report = (TextBox)typeof(ShippingPreparationWindow).GetField("_report", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+            report.Text = "https%3A%2F%2Fassets.example%2Ffile%3Faccess%5Ftoken%3Dsupport-fixture-secret%26mode%3Ddownload";
+            var support = (StackPanel)((TabItem)tabs.Items[4]).Content;
+            var preview = support.Children.OfType<Button>().Single(button => Equals(button.Content, "Preview redacted support report"));
+            preview.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check(!report.Text.Contains("support-fixture-secret", StringComparison.Ordinal), "support report preview redacts encoded URL query credentials");
             Check(window.IsVisible && window.ActualWidth >= 700, "preparation window GUI smoke");
         }
         finally { window.Close(); app.Shutdown(); }
