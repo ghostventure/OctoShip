@@ -49,6 +49,8 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Files]
 Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\branding\octoship-primary.svg"; DestDir: "{app}\Branding"; Flags: ignoreversion
+Source: "..\branding\octoship-mark.svg"; DestDir: "{app}\Branding"; Flags: ignoreversion
 Source: "..\SECURITY-OPERATIONS.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\OCTOSHIP-GUIDE.md"; DestDir: "{app}\Docs"; Flags: ignoreversion
 Source: "..\docs\legal\OCTOSHIP-USER-GUIDE.md"; DestDir: "{app}\Docs"; Flags: ignoreversion

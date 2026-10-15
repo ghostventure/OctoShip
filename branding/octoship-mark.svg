@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">OctoShip mark</title>
+  <desc id="desc">A friendly purple octopus holding a colorful cargo ship over teal waves.</desc>
+  <circle cx="256" cy="256" r="242" fill="#F4F7FC" stroke="#D6DFED" stroke-width="8"/>
+
+  <!-- Cargo containers -->
+  <g stroke="#12213A" stroke-width="8" stroke-linejoin="round">
+    <rect x="95" y="183" width="105" height="113" rx="10" fill="#35C9BD"/>
+    <rect x="203" y="153" width="106" height="143" rx="10" fill="#8A6AF4"/>
+    <rect x="312" y="183" width="105" height="113" rx="10" fill="#FFB45E"/>
+  </g>
+  <g fill="none" stroke="#12213A" stroke-width="4" opacity=".34">
+    <path d="M119 194v91m25-91v91m25-91v91M228 164v121m27-121v121m27-121v121M336 194v91m25-91v91m25-91v91"/>
+  </g>
+
+  <!-- Ship hull and wake -->
+  <path d="M64 300h384l-47 70c-17 26-88 50-145 50S128 396 111 370z" fill="#12213A" stroke="#12213A" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M108 332h296l-21 31c-21 24-78 39-127 39s-106-15-127-39z" fill="#247A98"/>
+  <path d="M132 370c36 16 78 23 124 23s88-7 124-23" fill="none" stroke="#F4F7FC" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="171" cy="343" r="6" fill="#F4F7FC"/><circle cx="218" cy="343" r="6" fill="#F4F7FC"/>
+  <circle cx="294" cy="343" r="6" fill="#F4F7FC"/><circle cx="341" cy="343" r="6" fill="#F4F7FC"/>
+
+  <!-- Eight curling arms frame and steady the ship -->
+  <g fill="none" stroke="#7455D7" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M215 211c-38-25-75-31-99-10-20 18-12 43 7 45 16 2 25-10 18-22"/>
+    <path d="M214 224c-38 5-66 28-63 57 2 22 25 31 38 15 9-11 3-24-9-25"/>
+    <path d="M297 211c38-25 75-31 99-10 20 18 12 43-7 45-16 2-25-10-18-22"/>
+    <path d="M298 224c38 5 66 28 63 57-2 22-25 31-38 15-9-11-3-24 9-25"/>
+  </g>
+
+  <!-- Octopus head and face -->
+  <path d="M178 178c0-49 34-88 78-88s78 39 78 88v24c0 25-34 42-78 42s-78-17-78-42z" fill="#8A6AF4" stroke="#12213A" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M203 181c0-31 23-56 53-56s53 25 53 56" fill="none" stroke="#B8A7FF" stroke-width="7" stroke-linecap="round"/>
+  <ellipse cx="229" cy="184" rx="11" ry="15" fill="#FFF"/>
+  <ellipse cx="283" cy="184" rx="11" ry="15" fill="#FFF"/>
+  <circle cx="232" cy="188" r="5" fill="#12213A"/>
+  <circle cx="280" cy="188" r="5" fill="#12213A"/>
+  <path d="M247 207q9 8 18 0" fill="none" stroke="#12213A" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Suction-cup highlights -->
+  <g fill="#B8A7FF">
+    <circle cx="140" cy="208" r="4"/><circle cx="164" cy="231" r="4"/><circle cx="162" cy="263" r="4"/>
+    <circle cx="372" cy="208" r="4"/><circle cx="348" cy="231" r="4"/><circle cx="350" cy="263" r="4"/>
+  </g>
+</svg>

@@ -7,6 +7,53 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Theme.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <DrawingImage x:Key="OctoShipLogoMark">
+                <DrawingImage.Drawing>
+                    <DrawingGroup>
+                        <GeometryDrawing Brush="#F4F7FC" Geometry="M256,14 A242,242 0 1 1 255.9,14 Z">
+                            <GeometryDrawing.Pen><Pen Brush="#D6DFED" Thickness="8" /></GeometryDrawing.Pen>
+                        </GeometryDrawing>
+                        <GeometryDrawing Brush="#35C9BD" Geometry="M105,183 H190 Q200,183 200,193 V286 H95 V193 Q95,183 105,183 Z">
+                            <GeometryDrawing.Pen><Pen Brush="#12213A" Thickness="8" /></GeometryDrawing.Pen>
+                        </GeometryDrawing>
+                        <GeometryDrawing Brush="#8A6AF4" Geometry="M213,153 H299 Q309,153 309,163 V286 H203 V163 Q203,153 213,153 Z">
+                            <GeometryDrawing.Pen><Pen Brush="#12213A" Thickness="8" /></GeometryDrawing.Pen>
+                        </GeometryDrawing>
+                        <GeometryDrawing Brush="#FFB45E" Geometry="M322,183 H407 Q417,183 417,193 V286 H312 V193 Q312,183 322,183 Z">
+                            <GeometryDrawing.Pen><Pen Brush="#12213A" Thickness="8" /></GeometryDrawing.Pen>
+                        </GeometryDrawing>
+                        <GeometryDrawing Geometry="M119,194 V285 M144,194 V285 M169,194 V285 M228,164 V285 M255,164 V285 M282,164 V285 M336,194 V285 M361,194 V285 M386,194 V285">
+                            <GeometryDrawing.Pen><Pen Brush="#12213A" Thickness="4" /></GeometryDrawing.Pen>
+                        </GeometryDrawing>
+                        <GeometryDrawing Brush="#12213A" Geometry="M64,300 H448 L401,370 C384,396 313,420 256,420 C199,420 128,396 111,370 Z">
+                            <GeometryDrawing.Pen><Pen Brush="#12213A" Thickness="8" /></GeometryDrawing.Pen>
+                        </GeometryDrawing>
+                        <GeometryDrawing Brush="#247A98" Geometry="M108,332 H404 L383,363 C362,387 305,402 256,402 C207,402 150,387 129,363 Z" />
+                        <GeometryDrawing Geometry="M132,370 C168,386 210,393 256,393 C302,393 344,386 380,370">
+                            <GeometryDrawing.Pen><Pen Brush="#F4F7FC" Thickness="7" StartLineCap="Round" EndLineCap="Round" /></GeometryDrawing.Pen>
+                        </GeometryDrawing>
+                        <GeometryDrawing Brush="#F4F7FC" Geometry="M165,337 A6,6 0 1 1 177,337 A6,6 0 1 1 165,337 M212,337 A6,6 0 1 1 224,337 A6,6 0 1 1 212,337 M288,337 A6,6 0 1 1 300,337 A6,6 0 1 1 288,337 M335,337 A6,6 0 1 1 347,337 A6,6 0 1 1 335,337 Z" />
+                        <GeometryDrawing Geometry="M215,211 C177,186 140,180 116,201 C96,219 104,244 123,246 C139,248 148,236 141,224 M214,224 C176,229 148,252 151,281 C153,303 176,312 189,296 C198,285 192,272 180,271 M297,211 C335,186 372,180 396,201 C416,219 408,244 389,246 C373,248 364,236 371,224 M298,224 C336,229 364,252 361,281 C359,303 336,312 323,296 C314,285 320,272 332,271">
+                            <GeometryDrawing.Pen><Pen Brush="#7455D7" Thickness="16" StartLineCap="Round" EndLineCap="Round" LineJoin="Round" /></GeometryDrawing.Pen>
+                        </GeometryDrawing>
+                        <GeometryDrawing Brush="#8A6AF4" Geometry="M178,178 C178,129 212,90 256,90 C300,90 334,129 334,178 V202 C334,227 300,244 256,244 C212,244 178,227 178,202 Z">
+                            <GeometryDrawing.Pen><Pen Brush="#12213A" Thickness="8" /></GeometryDrawing.Pen>
+                        </GeometryDrawing>
+                        <GeometryDrawing Geometry="M203,181 C203,150 226,125 256,125 C286,125 309,150 309,181">
+                            <GeometryDrawing.Pen><Pen Brush="#B8A7FF" Thickness="7" StartLineCap="Round" EndLineCap="Round" /></GeometryDrawing.Pen>
+                        </GeometryDrawing>
+                        <GeometryDrawing Brush="#FFFFFF" Geometry="M218,169 A11,15 0 1 1 240,169 A11,15 0 1 1 218,169 Z M272,169 A11,15 0 1 1 294,169 A11,15 0 1 1 272,169 Z" />
+                        <GeometryDrawing Brush="#12213A" Geometry="M227,188 A5,5 0 1 1 237,188 A5,5 0 1 1 227,188 Z M275,188 A5,5 0 1 1 285,188 A5,5 0 1 1 275,188 Z" />
+                        <GeometryDrawing Geometry="M247,207 Q256,215 265,207">
+                            <GeometryDrawing.Pen><Pen Brush="#12213A" Thickness="5" StartLineCap="Round" EndLineCap="Round" /></GeometryDrawing.Pen>
+                        </GeometryDrawing>
+                        <GeometryDrawing Brush="#B8A7FF" Geometry="M136,204 A4,4 0 1 1 144,204 A4,4 0 1 1 136,204 Z M160,231 A4,4 0 1 1 168,231 A4,4 0 1 1 160,231 Z M158,263 A4,4 0 1 1 166,263 A4,4 0 1 1 158,263 Z M368,204 A4,4 0 1 1 376,204 A4,4 0 1 1 368,204 Z M344,231 A4,4 0 1 1 352,231 A4,4 0 1 1 344,231 Z M346,263 A4,4 0 1 1 354,263 A4,4 0 1 1 346,263 Z" />
+                    </DrawingGroup>
+                </DrawingImage.Drawing>
+            </DrawingImage>
+            <Style TargetType="{x:Type Window}">
+                <Setter Property="Icon" Value="{StaticResource OctoShipLogoMark}" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

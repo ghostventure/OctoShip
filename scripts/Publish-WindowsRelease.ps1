@@ -72,6 +72,13 @@ foreach ($relativeDoc in $legalDocs) {
     if (!(Test-Path -LiteralPath $sourceDoc -PathType Leaf)) { throw "Required user or legal document is missing: $relativeDoc" }
     Copy-Item -LiteralPath $sourceDoc -Destination $docsDirectory -Force
 }
+$brandDirectory = Join-Path $payload 'Branding'
+New-Item -ItemType Directory -Path $brandDirectory -Force | Out-Null
+foreach ($logoFile in @('octoship-primary.svg', 'octoship-mark.svg')) {
+    $sourceLogo = Join-Path (Get-Location) "branding/$logoFile"
+    if (!(Test-Path -LiteralPath $sourceLogo -PathType Leaf)) { throw "Required vector logo is missing: $sourceLogo" }
+    Copy-Item -LiteralPath $sourceLogo -Destination $brandDirectory -Force
+}
 $archive = Join-Path $output 'OctoShip-win-x64.zip'
 Compress-Archive -Path (Join-Path $payload '*') -DestinationPath $archive -Force
 $sbom = Join-Path $output 'OctoShip-win-x64-sbom.cdx.json'
