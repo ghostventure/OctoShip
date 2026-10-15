@@ -1,8 +1,8 @@
 # P1 implementation and installation handoff
 
 Date: 2026-10-15
-Current installed Windows package: **1.6.1-preview.13**; latest GitHub-published package: **1.6.1-preview.13**
-Scope: installed and released P1 work. Preview.13 was published as GitHub release [v1.6.1-preview.13](https://github.com/ghostventure/OctoShip/releases/tag/v1.6.1-preview.13) after the Windows update release workflow passed for commit `942e019ad25bf32271670bcbf31f0a3c583e9e2f`.
+Current installed Windows package: **1.6.1-preview.13**; latest GitHub-published package: **1.6.1-preview.14**
+Scope: installed and released P1 work. Preview.13 was published as GitHub release [v1.6.1-preview.13](https://github.com/ghostventure/OctoShip/releases/tag/v1.6.1-preview.13). Preview.14 adds fresh-install account isolation and was published after the Windows update release workflow passed for commit `2c5659b0802a768cb91ba3a1b9ad114c8fa147fb`.
 
 ## Installed changes
 
@@ -119,7 +119,7 @@ Preview.13 package verification was run separately from the historical preview.9
 
 ## Remaining work and limits
 
-Preview.13 is installed locally and is the latest published release. The Windows update release workflow succeeded for commit `942e019ad25bf32271670bcbf31f0a3c583e9e2f` and published [v1.6.1-preview.13](https://github.com/ghostventure/OctoShip/releases/tag/v1.6.1-preview.13) with the Windows ZIP, SBOM, dependency-audit report, and SHA256SUMS file. The current working tree marks 17 P1 tasks complete and 135 open by backlog checkbox. This local sprint fully completes P1-211, P1-212, and P1-262. P1-021, P1-040, P1-242, and P1-245 have bounded partial improvements recorded in `IMPROVEMENT-BACKLOG.md` and remain open. Many remaining items need substantial workflow implementation, dedicated failure-injection coverage, accessibility review, or real-user qualification. Publisher signing and signed update manifests are optional distribution assurances outside OctoShip's core GitHub transport scope. Live GCM authentication success and the displayed readiness result remain unqualified.
+Preview.13 remains installed locally, preserving this user's account profile. Preview.14 is the latest published release. Its Windows update release workflow succeeded for commit `2c5659b0802a768cb91ba3a1b9ad114c8fa147fb` and published [v1.6.1-preview.14](https://github.com/ghostventure/OctoShip/releases/tag/v1.6.1-preview.14). The release includes the Windows ZIP, SBOM, dependency-audit report, and SHA256SUMS file; the ZIP SHA-256 is `ad5e2ed20b0bfb25e5c27f089564f4d739f6197d9127f287b241fa0bd4f67532`. The account-onboarding harness passed all 8 checks, and the workflow's full Release build and verification suite passed. The current working tree marks 17 P1 tasks complete and 135 open by backlog checkbox. Many remaining items need substantial workflow implementation, dedicated failure-injection coverage, accessibility review, or real-user qualification. Publisher signing and signed update manifests are optional distribution assurances outside OctoShip's core GitHub transport scope. Live GCM authentication success and the displayed readiness result remain unqualified.
 
 ## Fresh-install account isolation - preview.14
 
@@ -127,3 +127,4 @@ Preview.13 is installed locally and is the latest published release. The Windows
 - Existing profiles keep their remembered account and auto-connect choice. Credentials remain in Git Credential Manager and are not bundled with OctoShip.
 - The Windows release packaging step now fails if user settings, session, display preferences, account bindings, or saved upload-queue data appear in the publish payload.
 - Added focused account-onboarding checks for clean profiles, existing-profile compatibility, and explicit account selection.
+- Published as [v1.6.1-preview.14](https://github.com/ghostventure/OctoShip/releases/tag/v1.6.1-preview.14); GitHub Actions run [38801494446](https://github.com/ghostventure/OctoShip/actions/runs/38801494446) completed successfully.
