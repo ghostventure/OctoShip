@@ -78,7 +78,9 @@ Explicit saved plans include local paths; prepared files can contain project con
 
 ## Uniform GUI and extension rules
 
-`Theme.xaml` supplies shared control resources. `UniformUi.cs` initializes resources, normalizes legacy controls, applies display preferences, adds child-window context/footer controls, and refreshes account/destination labels. `AppearanceControls.cs` edits global text size (12/14/16/18) and compact/comfortable spacing. `OctoShipDialog.cs` supplies consistent modal confirmations with safe dismissal defaults. Windows authentication and native file pickers remain OS dialogs.
+`Theme.xaml` supplies shared control resources. `UniformUi.cs` initializes resources, normalizes legacy controls, applies display preferences, adds child-window context/footer controls, and refreshes account/destination labels. `AppearanceControls.cs` edits global text size (12/14/16/18), compact/comfortable spacing, and the application color theme. `OctoShipDialog.cs` supplies consistent modal confirmations with safe dismissal defaults. Windows authentication and native file pickers remain OS dialogs.
+
+Choose a theme in **Settings & tools → Preferences → Open settings editor → Display preferences → Theme**. The 15 available themes are **Midnight, Slate, Ocean, Forest, Mint, Plum, Berry, Rose, Ember, Sand, Paper, Arctic, Sky, Indigo,** and **Monochrome**. A selection applies immediately across OctoShip windows and is saved on this computer in `%LOCALAPPDATA%\OctoShipForGitHub\display.json`; it is separate from account settings and credential-free settings transfer. New or invalid theme values fall back to Midnight.
 
 | Token | Color |
 |---|---|

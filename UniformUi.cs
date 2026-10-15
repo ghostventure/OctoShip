@@ -16,6 +16,26 @@ namespace FileToGitHub;
 /// <summary>Shared appearance, accessible controls and window chrome. Never owns credentials.</summary>
 public static class UniformUi
 {
+    private static readonly string[] ThemeNames = { "Midnight", "Slate", "Ocean", "Forest", "Mint", "Plum", "Berry", "Rose", "Ember", "Sand", "Paper", "Arctic", "Sky", "Indigo", "Monochrome" };
+    private sealed record Palette(string Canvas, string Surface, string Input, string Text, string Muted, string Border, string Button, string Primary, string Danger, string Success, string Warning, string Error, string Selection, string Accent);
+    private static readonly Palette[] Palettes = {
+        new("#0B1020","#121B2B","#0C1422","#E9EFF8","#A2B2C9","#34465E","#202D41","#116866","#742F40","#72DEC0","#F4CB83","#FF9CAA","#244E62","#50D6D0"),
+        new("#111318","#1B1F26","#13171D","#F0F2F5","#AEB7C2","#3A424D","#292F38","#42658C","#873D4C","#78C9A6","#E6BD72","#FF9CAA","#2E4055","#8FB8E8"),
+        new("#071522","#0D2233","#091B2A","#E8F4FC","#A4BDCE","#29475B","#173247","#146C85","#793C4A","#76D6BC","#EBC47B","#FFA1AA","#1D4961","#53C8E5"),
+        new("#0D1712","#16251C","#101D16","#EAF4EC","#A8BBAE","#344B3B","#24382B","#316B49","#81424A","#8DD29D","#E4C77B","#FFA1AA","#294B35","#73C991"),
+        new("#101916","#1A2922","#13211A","#ECF6F0","#AEC4B8","#3A5246","#273B30","#347A62","#86454D","#91D5B3","#E9C981","#FFA1AA","#315944","#74D9B0"),
+        new("#171321","#241B31","#1C1628","#F2EBF8","#BFB1CC","#493A58","#342841","#704C91","#824254","#C49AE0","#EBC681","#FFA1AA","#49315C","#C39AE8"),
+        new("#1B1118","#2B1A24","#21141C","#F8EBF1","#C8AEBB","#543646","#3B2632","#8A3F68","#923F53","#D291BA","#EBC47B","#FFA1AA","#542D48","#E28BBF"),
+        new("#1B1413","#2B201F","#211817","#F8EFED","#C9B6B2","#55413D","#3B2E2B","#8B5144","#8A3D47","#D99E91","#E8C17B","#FFA1AA","#55352F","#E6A08F"),
+        new("#1B1510","#2B2118","#21190F","#F8F1E8","#C8B8A4","#554533","#3B3023","#8A5B25","#91434A","#C5B06F","#E9C173","#FFA1AA","#574127","#E6AC5E"),
+        new("#1A1813","#29261D","#201E17","#F6F2E9","#C4BCA9","#514A39","#393429","#74643A","#87444A","#BAC28B","#E2BD73","#FFA1AA","#4C4630","#D8C27D"),
+        new("#F3F4F6","#FFFFFF","#F8FAFC","#20242B","#5B6470","#CBD1D8","#E8EBEF","#376B91","#A43C4B","#287A57","#896316","#A62236","#DDEAF3","#286E9D"),
+        new("#101922","#1A2834","#14212C","#EDF4FA","#B2C2CF","#3B4D5A","#293B48","#3D697D","#854551","#82C4AC","#E3C47C","#FFA1AA","#2D4A5B","#8CC8DD"),
+        new("#0E1720","#172532","#111E2A","#EDF3FA","#ABBACB","#35495B","#253747","#3E648F","#84434E","#79C5B3","#E8C37A","#FFA1AA","#2B465F","#83B9E8"),
+        new("#111321","#1B1F35","#14172A","#EFF0FA","#B1B4CF","#3B3E5D","#292D49","#4F5391","#854454","#8EC6BE","#E6C17B","#FFA1AA","#343A68","#A5A9F2"),
+        new("#151515","#222222","#191919","#F2F2F2","#B8B8B8","#444444","#303030","#666666","#8A4141","#91B39A","#D2B978","#FFA1AA","#3A3A3A","#B7C0C8")
+    };
+    public static IReadOnlyList<string> AvailableThemes => ThemeNames;
     private static bool _registered;
     private static readonly ConditionalWeakTable<FrameworkElement, object> Styled = new();
     private static readonly ConditionalWeakTable<Window, ContextInfo> Contexts = new();
@@ -65,6 +85,7 @@ public static class UniformUi
         if (Application.Current is { } app)
         {
             var resources = app.Resources;
+            ApplyTheme(resources, Preferences.Theme);
             resources["BodySize"] = Preferences.TextSize;
             resources["CaptionSize"] = Math.Max(12, Preferences.TextSize - 1);
             resources["HeadingSize"] = Preferences.TextSize + 10;
@@ -88,6 +109,21 @@ public static class UniformUi
         }
         finally { if (File.Exists(temp)) File.Delete(temp); }
     }
+    private static void ApplyTheme(ResourceDictionary resources, string name)
+    {
+        var index = Array.FindIndex(ThemeNames, n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) index = 0;
+        var p = Palettes[index];
+        SetBrush(resources, "CanvasBrush", p.Canvas); SetBrush(resources, "SurfaceBrush", p.Surface); SetBrush(resources, "InputBrush", p.Input);
+        SetBrush(resources, "TextBrush", p.Text); SetBrush(resources, "MutedBrush", p.Muted); SetBrush(resources, "BorderBrush", p.Border);
+        SetBrush(resources, "ButtonBrush", p.Button); SetBrush(resources, "PrimaryBrush", p.Primary); SetBrush(resources, "DangerBrush", p.Danger);
+        SetBrush(resources, "SuccessBrush", p.Success); SetBrush(resources, "WarningBrush", p.Warning); SetBrush(resources, "ErrorBrush", p.Error);
+        SetBrush(resources, "SelectionBrush", p.Selection); SetBrush(resources, "Accent", p.Accent);
+        SetBrush(resources, "Panel", p.Surface); SetBrush(resources, "PanelSoft", p.Canvas); SetBrush(resources, "Line", p.Border); SetBrush(resources, "Muted", p.Muted);
+        resources["CurrentTheme"] = ThemeNames[index];
+    }
+    private static void SetBrush(ResourceDictionary resources, string key, string color)
+        => resources[key] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
     private static void OnLoaded(object sender, RoutedEventArgs args)
     {
         if (sender is not FrameworkElement element) return;
@@ -236,8 +272,9 @@ public static class UniformUi
     }
 }
 
-public sealed record DisplayPreferences(double TextSize = 14, bool Compact = true)
+public sealed record DisplayPreferences(double TextSize = 14, bool Compact = true, string Theme = "Midnight")
 {
     public static DisplayPreferences Normalize(DisplayPreferences value) => value with
-    { TextSize = double.IsFinite(value.TextSize) ? Math.Clamp(value.TextSize, 12, 18) : 14 };
+    { TextSize = double.IsFinite(value.TextSize) ? Math.Clamp(value.TextSize, 12, 18) : 14,
+      Theme = UniformUi.AvailableThemes.FirstOrDefault(n => string.Equals(n, value.Theme, StringComparison.OrdinalIgnoreCase)) ?? "Midnight" };
 }

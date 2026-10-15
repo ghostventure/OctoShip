@@ -30,6 +30,32 @@ internal static class Program
             main.Loaded -= (RoutedEventHandler)typeof(MainWindow).GetMethod("Window_Loaded", BindingFlags.Instance | BindingFlags.NonPublic)!.CreateDelegate(typeof(RoutedEventHandler), main);
             app.MainWindow = main;
             main.Show(); Pump(main);
+            var seenThemeColors = new System.Collections.Generic.HashSet<Color>();
+            foreach (var theme in UniformUi.AvailableThemes)
+            {
+                UniformUi.ApplyPreferences(UniformUi.Preferences with { Theme = theme }, save: false);
+                Pump(main);
+                var canvas = ((SolidColorBrush)app.Resources["CanvasBrush"]).Color;
+                Require(string.Equals(UniformUi.Preferences.Theme, theme, StringComparison.Ordinal), "theme selection retained: " + theme);
+                Require(((SolidColorBrush)main.Background).Color == canvas, "theme applies immediately to open windows: " + theme);
+                seenThemeColors.Add(canvas);
+            }
+            Require(UniformUi.AvailableThemes.Count == 15 && seenThemeColors.Count == 15, "fifteen distinct theme definitions");
+            Require(DisplayPreferences.Normalize(new(14, true, "not-a-theme")).Theme == "Midnight", "unknown theme safely falls back");
+            UniformUi.ApplyPreferences(UniformUi.Preferences with { Theme = "Midnight" }, save: false);
+            var settingsPath = (string)typeof(UniformUi).GetProperty("SettingsPath", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+            var priorSettings = File.Exists(settingsPath) ? File.ReadAllBytes(settingsPath) : null;
+            try
+            {
+                UniformUi.ApplyPreferences(UniformUi.Preferences with { Theme = "Ocean" }, save: true);
+                using var saved = System.Text.Json.JsonDocument.Parse(File.ReadAllText(settingsPath));
+                Require(saved.RootElement.GetProperty("Theme").GetString() == "Ocean", "selected theme persists in display preferences");
+            }
+            finally
+            {
+                if (priorSettings is null) File.Delete(settingsPath); else File.WriteAllBytes(settingsPath, priorSettings);
+                UniformUi.ApplyPreferences(UniformUi.Preferences with { Theme = "Midnight" }, save: false);
+            }
             Require(main.FindName("AppNavigation") is WrapPanel navigation && navigation.Children.OfType<Button>().Count() == 6, "six persistent navigation sections");
             Capture(main, "main-normal", 1280, 880);
             Capture(main, "main-compact", 1000, 680);
@@ -69,7 +95,7 @@ internal static class Program
             Require(textbox.FontSize == 18 && textbox.MinHeight == 42, "global text size and comfortable density update existing controls");
             home.Visibility = Visibility.Visible; tools.Visibility = Visibility.Collapsed;
             Capture(main, "main-large-text", 1280, 880);
-            UniformUi.ApplyPreferences(new(14, true), save: false);
+            UniformUi.ApplyPreferences(new(14, true, "Midnight"), save: false);
             Require(DisplayPreferences.Normalize(new(double.NaN, false)).TextSize == 14, "invalid font size normalizes");
             Require(DisplayPreferences.Normalize(new(100, false)).TextSize == 18, "font size is bounded");
             CheckAutomaticUpdates(main);

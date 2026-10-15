@@ -1,5 +1,5 @@
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="FileToGitHub.MainWindow" Title="OctoShip for GitHub" Height="880" Width="1280" MinHeight="720" MinWidth="1060" Background="#0B1020" Foreground="#E9EFF8" WindowStartupLocation="CenterScreen" Loaded="Window_Loaded" AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver">
-<Grid Background="#0B1020">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="FileToGitHub.MainWindow" Title="OctoShip for GitHub" Height="880" Width="1280" MinHeight="720" MinWidth="1060" Background="{DynamicResource CanvasBrush}" Foreground="{DynamicResource TextBrush}" WindowStartupLocation="CenterScreen" Loaded="Window_Loaded" AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver">
+<Grid Background="{DynamicResource CanvasBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -39,10 +39,10 @@
                     </WrapPanel>
                     <StackPanel>
                         <TextBlock Text="OctoShip" FontSize="25" FontWeight="SemiBold" />
-                        <TextBlock Text="Find local files. Review changes. Ship to GitHub." Foreground="{StaticResource Muted}" FontSize="12" Margin="0,3,0,0" />
+                        <TextBlock Text="Find local files. Review changes. Ship to GitHub." Foreground="{DynamicResource Muted}" FontSize="12" Margin="0,3,0,0" />
                     </StackPanel>
                 </DockPanel>
-                <Border Grid.Row="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Padding="12,8">
+                <Border Grid.Row="1" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="8" Padding="12,8">
                     <DockPanel x:Name="AccountStrip" LastChildFill="True">
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                             <ComboBox x:Name="AccountPicker" Width="132" ToolTip="Choose a saved GitHub account" SelectionChanged="AccountPicker_SelectionChanged" Margin="0,0,8,0" />
@@ -68,7 +68,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="11" Padding="16" Margin="0,0,0,12">
+                    <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="11" Padding="16" Margin="0,0,0,12">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -127,7 +127,7 @@
                                         <ScrollViewer MaxHeight="245" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                             <WrapPanel>
                                                 <StackPanel Margin="0,0,12,12" Width="150">
-                                                    <TextBlock Text="MATCH TYPE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBlock Text="MATCH TYPE" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                                     <ComboBox x:Name="SearchModePicker" SelectionChanged="SearchModePicker_SelectionChanged" ToolTip="Content search reads files up to 2 MiB each">
                                                         <ComboBoxItem Content="File name" />
                                                         <ComboBoxItem Content="Regular expression" />
@@ -135,37 +135,37 @@
                                                     </ComboBox>
                                                 </StackPanel>
                                                 <StackPanel Margin="0,0,12,12" Width="150">
-                                                    <TextBlock Text="NAME MATCH" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBlock Text="NAME MATCH" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                                     <CheckBox x:Name="ExactMatchCheck" Content="Exact name" Margin="0,1,0,4" />
                                                     <CheckBox x:Name="CaseSensitiveCheck" Content="Case sensitive" />
                                                 </StackPanel>
                                                 <StackPanel Margin="0,0,12,12" Width="150">
-                                                    <TextBlock Text="SCOPE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBlock Text="SCOPE" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                                     <CheckBox x:Name="RecursiveCheck" Content="Include subfolders" IsChecked="True" Margin="0,1,0,4" />
                                                     <CheckBox x:Name="IncludeHiddenCheck" Content="Include hidden" />
                                                 </StackPanel>
                                                 <StackPanel Margin="0,0,12,12" Width="150">
-                                                    <TextBlock Text="FILE TYPE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBlock Text="FILE TYPE" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                                     <TextBox x:Name="ExtensionFilterBox" Padding="8,6" ToolTip="Comma-separated, e.g. .pdf,.docx" />
                                                 </StackPanel>
                                                 <StackPanel Margin="0,0,12,12" Width="150">
-                                                    <TextBlock Text="SKIP FOLDERS" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBlock Text="SKIP FOLDERS" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                                     <TextBox x:Name="ExcludedFoldersBox" Padding="8,6" ToolTip="Comma-separated folder names" />
                                                 </StackPanel>
                                                 <StackPanel Margin="0,0,12,12" Width="150">
-                                                    <TextBlock Text="MINIMUM SIZE (MB)" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBlock Text="MINIMUM SIZE (MB)" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                                     <TextBox x:Name="MinSizeBox" Padding="8,6" />
                                                 </StackPanel>
                                                 <StackPanel Margin="0,0,12,12" Width="150">
-                                                    <TextBlock Text="MAXIMUM SIZE (MB)" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBlock Text="MAXIMUM SIZE (MB)" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                                     <TextBox x:Name="MaxSizeBox" Padding="8,6" />
                                                 </StackPanel>
                                                 <StackPanel Margin="0,0,12,12" Width="150">
-                                                    <TextBlock Text="MODIFIED AFTER" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBlock Text="MODIFIED AFTER" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                                     <TextBox x:Name="ModifiedAfterBox" Padding="8,6" ToolTip="YYYY-MM-DD" />
                                                 </StackPanel>
                                                 <StackPanel Margin="0,0,12,12" Width="150">
-                                                    <TextBlock Text="SORT RESULTS" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBlock Text="SORT RESULTS" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                                     <ComboBox x:Name="SortPicker">
                                                         <ComboBoxItem Content="Name A–Z" />
                                                         <ComboBoxItem Content="Largest" />
@@ -174,7 +174,7 @@
                                                     </ComboBox>
                                                 </StackPanel>
                                                 <StackPanel Width="150" Margin="0,0,12,12">
-                                                    <TextBlock Text="RESULT LIMIT" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                    <TextBlock Text="RESULT LIMIT" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                                     <ComboBox x:Name="ResultLimitPicker">
                                                         <ComboBoxItem Content="50" />
                                                         <ComboBoxItem Content="100" />
@@ -189,7 +189,7 @@
                             </Popup>
                         </Grid>
                     </Border>
-                    <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="11" Padding="14" Grid.Row="1">
+                    <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="11" Padding="14" Grid.Row="1">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -241,12 +241,12 @@
                         </Grid>
                     </Border>
                 </Grid>
-                <Border Grid.Column="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="11" Padding="16">
+                <Border Grid.Column="2" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="11" Padding="16">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
                             <StackPanel Margin="0,0,0,14">
                                 <TextBlock Text="3  /  Upload to GitHub" FontSize="16" FontWeight="SemiBold" Foreground="#E9EFF8" />
-                                <TextBlock Text="Choose a destination, then review your upload." Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                <TextBlock Text="Choose a destination, then review your upload." Foreground="{DynamicResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0" />
                             </StackPanel>
                             <Expander Header="Saved destinations" Margin="0,0,0,14" IsExpanded="False">
                                 <Grid Margin="0,10,0,0">
@@ -260,31 +260,31 @@
                             </Expander>
                             <DockPanel Margin="0,0,0,6">
                                 <Button x:Name="RepositoryToolsButton" Content="Browse" HorizontalAlignment="Left" Padding="8,5" Margin="0" FontSize="10" Click="RepositoryTools_Click" DockPanel.Dock="Right" />
-                                <TextBlock Text="REPOSITORY" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
+                                <TextBlock Text="REPOSITORY" Style="{DynamicResource FieldLabel}" VerticalAlignment="Center" />
                             </DockPanel>
                             <ComboBox x:Name="RepoPicker" IsEditable="True" IsTextSearchEnabled="True" StaysOpenOnEdit="True" Margin="0,0,0,12" ToolTip="Choose a repository or type owner/repository" SelectionChanged="RepoPicker_SelectionChanged" />
                             <Grid Margin="0,0,0,12">
                               <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="10"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                             <StackPanel>
-                                <TextBlock Text="BRANCH" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                <TextBlock Text="BRANCH" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                 <TextBox x:Name="BranchBox" Text="main" TextChanged="BranchBox_TextChanged" Margin="0" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="COMMIT MESSAGE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                <TextBlock Text="COMMIT MESSAGE" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                 <TextBox x:Name="CommitMessageBox" Margin="0" Text="Upload via OctoShip" MaxLength="250" />
                             </StackPanel>
                             </Grid>
                             <TabControl x:Name="UploadModeTabs">
                                 <TabItem Header="Selected file">
                                     <StackPanel>
-                                        <Border Background="{StaticResource PanelSoft}" BorderBrush="#202D41" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,11">
+                                        <Border Background="{DynamicResource PanelSoft}" BorderBrush="#202D41" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,11">
                                             <StackPanel>
-                                                <TextBlock Text="SELECTED FILE" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                                <TextBlock Text="SELECTED FILE" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                                 <TextBlock x:Name="SelectedFileLabel" Text="Select a result to review it here." Foreground="#C0CCDD" FontSize="11" TextWrapping="Wrap" />
                                             </StackPanel>
                                         </Border>
                                         <StackPanel Margin="0,0,0,12">
-                                            <TextBlock Text="FILE PATH IN REPOSITORY" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                            <TextBlock Text="FILE PATH IN REPOSITORY" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                             <TextBox x:Name="PathBox" ToolTip="For example: uploads/report.pdf" TextChanged="PathBox_TextChanged" Margin="0" />
                                         </StackPanel>
                                         <Button x:Name="UploadButton" Content="Send selected file" IsEnabled="False" Background="#174550" BorderBrush="#2D7F83" Padding="13,11" HorizontalAlignment="Stretch" Margin="0" Click="Upload_Click" />
@@ -293,7 +293,7 @@
                                 <TabItem Header="Folder batch">
                                     <StackPanel Margin="0">
                                         <TextBlock Text="Upload a folder tree. OctoShip checks every destination before sending." Foreground="#91A0B7" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,8" />
-                                        <TextBlock Text="DESTINATION FOLDER (OPTIONAL)" Style="{StaticResource FieldLabel}" Margin="0,0,0,5" />
+                                        <TextBlock Text="DESTINATION FOLDER (OPTIONAL)" Style="{DynamicResource FieldLabel}" Margin="0,0,0,5" />
                                         <TextBox x:Name="QueuePathBox" Margin="0,0,0,8" ToolTip="GitHub destination folder; local subfolders are preserved" />
                                         <WrapPanel>
                                             <Button x:Name="QueueFolderButton" Content="Choose local folder" Padding="9,6" FontSize="10" Click="QueueFolder_Click" Margin="0,0,6,6" />
@@ -311,7 +311,7 @@
                     </ScrollViewer>
                 </Border>
             </Grid>
-            <Border Grid.Row="2" Background="#111A29" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Padding="11,8" Margin="0,12,0,0">
+            <Border Grid.Row="2" Background="#111A29" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="8" Padding="11,8" Margin="0,12,0,0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -338,14 +338,14 @@
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="SETTINGS &amp; TOOLS" Foreground="#60D7D1" FontSize="10" FontWeight="Bold" />
                     <TextBlock Text="Projects, tools &amp; preferences" FontSize="21" FontWeight="SemiBold" Margin="0,4,0,0" />
-                    <TextBlock Text="Find a project or choose the tool you need." Foreground="{StaticResource Muted}" FontSize="12" Margin="0,4,0,0" />
+                    <TextBlock Text="Find a project or choose the tool you need." Foreground="{DynamicResource Muted}" FontSize="12" Margin="0,4,0,0" />
                 </StackPanel>
             </DockPanel>
             <TabControl Grid.Row="1" x:Name="ToolsTabs">
                 <TabItem Header="Projects">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
-                            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
+                            <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
@@ -356,7 +356,7 @@
                                     <DockPanel>
                                         <Button x:Name="GithubProjectRefreshButton" DockPanel.Dock="Right" Content="Refresh projects" Padding="10,6" Click="LoadGithubProjects_Click" />
                                         <StackPanel>
-                                            <TextBlock Text="EXISTING GITHUB PROJECTS" Style="{StaticResource FieldLabel}" />
+                                            <TextBlock Text="EXISTING GITHUB PROJECTS" Style="{DynamicResource FieldLabel}" />
                                             <TextBlock Text="Find one of your existing repositories and set it as the upload target." FontSize="15" FontWeight="SemiBold" Margin="0,5,0,3" />
                                         </StackPanel>
                                     </DockPanel>
@@ -370,7 +370,7 @@
                                         <Button x:Name="UseGithubProjectButton" Grid.Column="1" Content="Use selected project" Padding="10,6" Margin="7,0,0,0" IsEnabled="False" Click="UseGithubProject_Click" />
                                         <Button x:Name="OpenGithubProjectButton" Grid.Column="2" Content="Open on GitHub" Padding="10,6" Margin="7,0,0,0" IsEnabled="False" Click="OpenGithubProject_Click" />
                                     </Grid>
-                                    <TextBlock x:Name="GithubProjectStatus" Grid.Row="2" Text="Connect an account, then refresh to list its existing repositories." Foreground="{StaticResource Muted}" FontSize="11" Margin="0,0,0,7" />
+                                    <TextBlock x:Name="GithubProjectStatus" Grid.Row="2" Text="Connect an account, then refresh to list its existing repositories." Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,0,0,7" />
                                     <ListBox x:Name="GithubProjectsList" Grid.Row="3" SelectionChanged="GithubProjectsList_SelectionChanged" ToolTip="Select an existing repository to use as the upload destination">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
@@ -397,11 +397,11 @@
                 <TabItem Header="Repository tools">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
-                            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
+                            <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
                                 <StackPanel>
-                                    <TextBlock Text="GITHUB" Style="{StaticResource FieldLabel}" />
+                                    <TextBlock Text="GITHUB" Style="{DynamicResource FieldLabel}" />
                                     <TextBlock Text="Repositories and access" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,6" />
-                                    <TextBlock Text="Browse repositories and folders, check API connectivity and rate limits, then apply a repository and folder to the upload form." Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16" />
+                                    <TextBlock Text="Browse repositories and folders, check API connectivity and rate limits, then apply a repository and folder to the upload form." Foreground="{DynamicResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16" />
                                     <Button Content="Browse repositories and folders" HorizontalAlignment="Left" Click="RepositoryTools_Click" />
                                     <Button Content="Prepare a release" HorizontalAlignment="Left" Margin="0,4,0,0" Click="ReleasePublisher_Click" />
                                     <TextBlock x:Name="ToolsAccountStatus" Text="Account status: checking" Foreground="#AAB8CB" FontSize="11" Margin="0,12,0,0" />
@@ -413,24 +413,24 @@
                 <TabItem Header="Preferences">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
-                            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
+                            <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
                                 <StackPanel>
-                                    <TextBlock Text="PREFERENCES" Style="{StaticResource FieldLabel}" />
+                                    <TextBlock Text="PREFERENCES" Style="{DynamicResource FieldLabel}" />
                                     <TextBlock Text="Privacy and saved choices" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,6" />
-                                    <TextBlock Text="Choose an update channel, manage sensitive-file warnings, rename destination presets, clear selected histories, or import and export credential-free settings." Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16" />
+                                    <TextBlock Text="Choose an update channel, manage sensitive-file warnings, rename destination presets, clear selected histories, or import and export credential-free settings." Foreground="{DynamicResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16" />
                                     <Button Content="Open settings editor" HorizontalAlignment="Left" Click="Settings_Click" />
                                     <Button Content="Open OctoShip data folder" HorizontalAlignment="Left" Margin="0,4,0,0" Click="OpenDataFolder_Click" />
                                     <TextBlock Text="GitHub credentials are not included in settings exports." Foreground="#72839A" TextWrapping="Wrap" FontSize="10" Margin="0,12,0,0" />
                                 </StackPanel>
                             </Border>
-                            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
+                            <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
                                 <StackPanel>
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Right" Text="READ ONLY" Foreground="#60D7D1" FontSize="9" FontWeight="Bold" VerticalAlignment="Center" />
                                         <StackPanel>
-                                            <TextBlock Text="USER PROFILE" Style="{StaticResource FieldLabel}" />
+                                            <TextBlock Text="USER PROFILE" Style="{DynamicResource FieldLabel}" />
                                             <TextBlock Text="Current OctoShip profile" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,3" />
-                                            <TextBlock Text="This profile summarizes the current account and app preferences. Change them using the account controls or settings editor." Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" />
+                                            <TextBlock Text="This profile summarizes the current account and app preferences. Change them using the account controls or settings editor." Foreground="{DynamicResource Muted}" FontSize="11" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </DockPanel>
                                     <Grid Margin="0,14,0,0">
@@ -441,19 +441,19 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                            <TextBlock Text="GITHUB ACCOUNT" Style="{StaticResource FieldLabel}" />
+                                            <TextBlock Text="GITHUB ACCOUNT" Style="{DynamicResource FieldLabel}" />
                                             <TextBlock x:Name="ProfileAccount" Text="Not connected" Foreground="#E4ECF7" Margin="0,5,0,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Margin="0,0,10,0">
-                                            <TextBlock Text="CURRENT REPOSITORY" Style="{StaticResource FieldLabel}" />
+                                            <TextBlock Text="CURRENT REPOSITORY" Style="{DynamicResource FieldLabel}" />
                                             <TextBlock x:Name="ProfileRepository" Text="Not selected" Foreground="#E4ECF7" Margin="0,5,0,0" TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" Margin="0,0,10,0">
-                                            <TextBlock Text="UPDATE CHANNEL" Style="{StaticResource FieldLabel}" />
+                                            <TextBlock Text="UPDATE CHANNEL" Style="{DynamicResource FieldLabel}" />
                                             <TextBlock x:Name="ProfileChannel" Text="Stable" Foreground="#E4ECF7" Margin="0,5,0,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="3">
-                                            <TextBlock Text="PRIVACY MODE" Style="{StaticResource FieldLabel}" />
+                                            <TextBlock Text="PRIVACY MODE" Style="{DynamicResource FieldLabel}" />
                                             <TextBlock x:Name="ProfilePrivacy" Text="Off" Foreground="#E4ECF7" Margin="0,5,0,0" />
                                         </StackPanel>
                                     </Grid>
@@ -469,11 +469,11 @@
                 <TabItem Header="Updates &amp; diagnostics">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
-                            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
+                            <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,0,14">
                                 <StackPanel>
-                                    <TextBlock Text="APP HEALTH" Style="{StaticResource FieldLabel}" />
+                                    <TextBlock Text="APP HEALTH" Style="{DynamicResource FieldLabel}" />
                                     <TextBlock Text="Updates and diagnostics" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,6" />
-                                    <TextBlock Text="Check the configured release channel, verify the current Windows/runtime compatibility, or copy a privacy-safe diagnostic summary." Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16" />
+                                    <TextBlock Text="Check the configured release channel, verify the current Windows/runtime compatibility, or copy a privacy-safe diagnostic summary." Foreground="{DynamicResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16" />
                                     <Button Content="Check for updates" HorizontalAlignment="Left" Click="Update_Click" x:Name="UpdateButton" />
                                     <Button Content="Run compatibility check" HorizontalAlignment="Left" Margin="0,4,0,0" Click="CheckCompatibility_Click" />
                                     <Button x:Name="StartupHealthButton" Content="Run account and startup readiness check" HorizontalAlignment="Left" Margin="0,4,0,0" Click="RunStartupHealthCheck_Click" />
@@ -489,7 +489,7 @@
                     </ScrollViewer>
                 </TabItem>
             </TabControl>
-            <Border Grid.Row="2" Background="#111A29" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Padding="11,8" Margin="0,14,0,0">
+            <Border Grid.Row="2" Background="#111A29" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="8" Padding="11,8" Margin="0,14,0,0">
                 <DockPanel>
                     <TextBlock x:Name="ToolsVersionLabel" DockPanel.Dock="Right" Foreground="#72839A" FontSize="10" VerticalAlignment="Center" />
                     <TextBlock Text="Updates are verified by SHA-256 before installation. Publisher-signature verification requires a signed release." Foreground="#AAB8CB" FontSize="10" TextWrapping="Wrap" />
