@@ -7,6 +7,7 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Theme.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <BitmapImage x:Key="OctoShipWindowIcon" UriSource="pack://application:,,,/branding/octoship.ico" />
             <DrawingImage x:Key="OctoShipLogoMark">
                 <DrawingImage.Drawing>
                     <DrawingGroup>
@@ -52,7 +53,7 @@
                 </DrawingImage.Drawing>
             </DrawingImage>
             <Style TargetType="{x:Type Window}">
-                <Setter Property="Icon" Value="{StaticResource OctoShipLogoMark}" />
+                <Setter Property="Icon" Value="{StaticResource OctoShipWindowIcon}" />
             </Style>
         </ResourceDictionary>
     </Application.Resources>

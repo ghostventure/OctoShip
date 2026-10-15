@@ -9,6 +9,8 @@ This guide describes OctoShip for Windows. It helps you find and review local fi
 - Read the installer agreement and notices. Choose **I accept** to continue or **Cancel** to stop setup.
 - The installer is per-user and does not require administrator privileges. The Windows package includes the .NET runtime it needs.
 
+The Windows installer, app executable, and OctoShip window title bars use the OctoShip icon. The installed application also includes the vector logo and icon files in its `Branding` folder. Existing installations show a new icon only after they are updated or reinstalled with a build that contains it; a source change by itself does not update the installed app.
+
 ## First launch and connect
 
 1. Open **OctoShip for GitHub** from the Start menu.

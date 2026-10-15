@@ -78,7 +78,7 @@ Build the per-user Windows installer with Inno Setup 6 using the commands above;
 
 The preview.15 installer source displays the plain-text agreement on Inno Setup's License page and requires the user to check **I accept the agreement** before continuing; **Cancel** exits setup. It also bundles the User Guide, Privacy Notice, Third-Party Notices, Copyright and DMCA Information, and product/security guides in `Docs`, with Start Menu shortcuts. These local installer changes are not in a published release yet. Several legal notices are drafts with unverified publisher/contact fields; user acceptance cannot guarantee immunity from legal claims. Have counsel review them and complete publisher details before treating them as final terms.
 
-The primary OctoShip identity is the original scalable vector logo in `branding/octoship-primary.svg` (with a standalone mark at `branding/octoship-mark.svg`). The octopus-and-cargo-ship mark is also drawn natively in WPF for the app header, splash screen, and window icons.
+The primary OctoShip identity is the original scalable vector logo in `branding/octoship-primary.svg` (with a standalone mark at `branding/octoship-mark.svg`). The multi-size `branding/octoship.ico` supplies the Windows executable, installer, and window title-bar icons; the WPF-drawn mark appears in the app header and splash screen.
 
 ## Additional development workflows
 

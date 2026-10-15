@@ -24,6 +24,12 @@ The preview.15 Windows installer source shows a plain-text agreement on the Inno
 
 The terms, privacy, copyright/DMCA, and third-party notices are drafts that include review language and publisher/contact details needing verification. They are informational drafts, not legal advice or a guarantee against claims. Do not present them as final legal terms until the publisher details are complete and counsel has reviewed them. The DMCA document does not itself designate an agent or promise statutory protection.
 
+## Windows branding and app icon
+
+The primary brand artwork is the scalable freight-ship-and-octopus wordmark in `branding/octoship-primary.svg`, with the compact mark in `branding/octoship-mark.svg`. The multi-resolution `branding/octoship.ico` is the Windows icon asset: the WPF application embeds it as a resource, assigns it to windows (including the main window title bar), and the project uses it as the executable icon. Inno Setup uses the same ICO for the setup program and copies all three branding assets into the installed `Branding` directory. The Windows release packaging script also copies these assets into `Branding` in the complete update ZIP; the app executable in that payload carries its embedded icon.
+
+To apply an icon change to an existing installation, rebuild and publish the Windows app, rebuild the Inno Setup installer, then install that build (or deliver it through a compatible complete update package). A source change alone does not update an already-installed copy. The documented commands below describe how to build locally; they do not mean a new installer or public release has been produced. Windows may cache shortcut/taskbar icons, so refreshing a shortcut or restarting Explorer can be needed when checking a changed icon.
+
 ## Search, review and upload
 
 Search supports filename/content matching, regular expressions, exact/case-sensitive matching, recursion, hidden files, exclusions, extension, size and modification filters, sorting and result limits. Search runs off the UI thread and supports cooperative cancellation. Content reads are capped at 2 MiB; reparse points are skipped.
@@ -144,6 +150,8 @@ dotnet build FileToGitHub.csproj -c Release
 dotnet publish FileToGitHub.csproj -c Release -r win-x64 --self-contained true -p:DebugType=None -o installer\payload
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" /Q /DPayloadDir=payload installer\OctoShip.iss
 ```
+
+The project embeds `branding/octoship.ico` into `OctoShip.exe`; the installer uses the ICO for its own identity and includes it with the SVG logo assets. The release script packages the same branding files alongside the published app. Rebuild the app before creating an installer or release ZIP after changing the icon, and verify the newly installed executable and window title bar. Running these commands locally does not publish a GitHub release.
 
 Run the focused verification projects under `verification`: uploads/AtomicUploadChecks, repository-workflows/WorkflowTests, session-lock/SessionLockChecks, preparation/PreparationChecks, shipping-workbench/ShippingWorkbenchChecks, uniform-ui/UniformUiChecks and updates/UpdateChecks using `dotnet run --project verification/<folder>/<project>.csproj -c Release`. Scanner/release checks use `powershell -NoProfile -ExecutionPolicy Bypass -File verification/secrets-release/run.ps1`.
 

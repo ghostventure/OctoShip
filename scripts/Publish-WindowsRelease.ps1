@@ -74,7 +74,7 @@ foreach ($relativeDoc in $legalDocs) {
 }
 $brandDirectory = Join-Path $payload 'Branding'
 New-Item -ItemType Directory -Path $brandDirectory -Force | Out-Null
-foreach ($logoFile in @('octoship-primary.svg', 'octoship-mark.svg')) {
+foreach ($logoFile in @('octoship-primary.svg', 'octoship-mark.svg', 'octoship.ico')) {
     $sourceLogo = Join-Path (Get-Location) "branding/$logoFile"
     if (!(Test-Path -LiteralPath $sourceLogo -PathType Leaf)) { throw "Required vector logo is missing: $sourceLogo" }
     Copy-Item -LiteralPath $sourceLogo -Destination $brandDirectory -Force
