@@ -67,6 +67,7 @@ File.WriteAllText(Path.Combine(destination, "profile.json"), "retained preferenc
 var marker = Path.Combine(root, "update-failed.txt");
 File.WriteAllText(marker, "old failure");
 var script = UpdateInstaller.BuildScript(stage, destination, marker, int.MaxValue, restart: false);
+Check(!script.Contains("Get-FileHash", StringComparison.OrdinalIgnoreCase), "updater helper does not depend on optional PowerShell hash cmdlets");
 var helper = new System.Diagnostics.ProcessStartInfo("powershell.exe")
 {
     UseShellExecute = false,
