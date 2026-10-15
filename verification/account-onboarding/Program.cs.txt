@@ -1,0 +1,28 @@
+using System;
+using System.Linq;
+using System.Text.Json;
+using FileToGitHub;
+
+var checks = 0;
+void Check(bool condition, string name)
+{
+    checks++;
+    if (!condition) throw new InvalidOperationException("FAILED: " + name);
+    Console.WriteLine("PASS: " + name);
+}
+
+using var freshSettings = JsonDocument.Parse("{}");
+Check(!GitHubAccountStartupPolicy.ResolveAutoConnect(freshSettings.RootElement, null), "fresh profile does not enable automatic sign-in");
+Check(GitHubAccountStartupPolicy.ChooseAccount(new[] { "ghostventure" }) is null, "fresh profile does not implicitly select a sole Windows credential");
+Check(GitHubAccountStartupPolicy.ChooseAccount(new[] { "other-user", "ghostventure" }) is null, "fresh profile requires explicit account selection with multiple credentials");
+Check(GitHubAccountStartupPolicy.ChooseAccount(new[] { "ghostventure" }, "ghostventure") == "ghostventure", "explicitly remembered account can be restored");
+Check(GitHubAccountStartupPolicy.ChooseAccount(new[] { "other-user" }, "GHOSTVENTURE") is null, "missing remembered account is not replaced with a different credential");
+
+using var priorAccount = JsonDocument.Parse("{\"githubAccount\":\"old-user\"}");
+Check(GitHubAccountStartupPolicy.ResolveAutoConnect(priorAccount.RootElement, "old-user"), "existing account profile without a preference retains prior auto-connect default");
+using var explicitOff = JsonDocument.Parse("{\"autoConnect\":false}");
+Check(!GitHubAccountStartupPolicy.ResolveAutoConnect(explicitOff.RootElement, "old-user"), "saved opt-out is preserved");
+using var explicitOn = JsonDocument.Parse("{\"autoConnect\":true}");
+Check(GitHubAccountStartupPolicy.ResolveAutoConnect(explicitOn.RootElement, null), "saved explicit opt-in is preserved");
+
+Console.WriteLine($"Account onboarding checks passed: {checks}");

@@ -50,7 +50,7 @@ Selective preparation supports one file, up to 2,000 lines/1 MiB. Contiguous edi
 
 ## Accounts, retention and locking
 
-See [ACCOUNT-SESSION.md](ACCOUNT-SESSION.md) for the full security model. Selected account, configurable GitHub auto-connect, destinations and preferences persist locally. Auto-connect reuses Git Credential Manager's selected account; OctoShip does not persist the token or password. A separate preference controls OctoShip's own Windows-authentication inactivity prompt; Windows' own sign-in lock remains in effect. Main-window settings save on deactivation and closing. Privacy mode suppresses search/history/workspace fields as documented; explicit preparation saves have separate rules.
+See [ACCOUNT-SESSION.md](ACCOUNT-SESSION.md) for the full security model. A fresh OctoShip profile starts disconnected, does not select a sole account already present in Windows Git Credential Manager, and has auto-connect off. The user must explicitly choose or add the GitHub account; auto-connect can then be opted into for that account. Existing OctoShip profiles retain their saved account and auto-connect choice. Auto-connect reuses Git Credential Manager's selected account; OctoShip does not persist the token or password. A separate preference controls OctoShip's own Windows-authentication inactivity prompt; Windows' own sign-in lock remains in effect. Main-window settings save on deactivation and closing. Privacy mode suppresses search/history/workspace fields as documented; explicit preparation saves have separate rules.
 
 GitHub tokens are retrieved through Git Credential Manager and retained in memory, never intentionally written into OctoShip settings. This is local retention, not a cloud account service.
 

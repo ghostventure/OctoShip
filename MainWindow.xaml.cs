@@ -44,7 +44,7 @@ public partial class MainWindow : Window
     private bool _loadingAccounts = true;
     private bool _branchManuallyEdited;
     private bool _pathManuallyEdited;
-    private bool _autoConnect = true;
+    private bool _autoConnect;
     private bool _requireWindowsAuthentication = true;
     private string? _preferredAccount;
     private bool _settingsLoaded;
@@ -567,8 +567,7 @@ public partial class MainWindow : Window
             var accounts = await ListGitHubAccountsAsync();
             _loadingAccounts = true;
             AccountPicker.ItemsSource = accounts;
-            var choice = new[] { prefer, _preferredAccount, _account, accounts.Count == 1 ? accounts[0] : null }
-                .FirstOrDefault(candidate => candidate is not null && accounts.Contains(candidate, StringComparer.OrdinalIgnoreCase));
+            var choice = GitHubAccountStartupPolicy.ChooseAccount(accounts, prefer, _preferredAccount, _account);
             AccountPicker.SelectedItem = choice is null ? null : accounts.First(a => string.Equals(a, choice, StringComparison.OrdinalIgnoreCase));
             _loadingAccounts = false;
             AutoConnectCheckBox.IsChecked = _autoConnect;
@@ -813,9 +812,7 @@ public partial class MainWindow : Window
             using var doc = JsonDocument.Parse(File.ReadAllText(PreferencesPath));
             var root = doc.RootElement;
             var account = root.TryGetProperty("githubAccount", out var savedAccount) && savedAccount.ValueKind == JsonValueKind.String ? savedAccount.GetString() : null;
-            var autoConnect = !root.TryGetProperty("autoConnect", out var savedAutoConnect)
-                || savedAutoConnect.ValueKind is not (JsonValueKind.True or JsonValueKind.False)
-                || savedAutoConnect.GetBoolean();
+            var autoConnect = GitHubAccountStartupPolicy.ResolveAutoConnect(root, account);
             var requireWindowsAuthentication = !root.TryGetProperty("requireWindowsAuthentication", out var savedWindowsAuthentication)
                 || savedWindowsAuthentication.ValueKind is not (JsonValueKind.True or JsonValueKind.False)
                 || savedWindowsAuthentication.GetBoolean();
@@ -824,7 +821,7 @@ public partial class MainWindow : Window
             var destinations = ReadStringList(root, "destinations", 12);
             return (account, autoConnect, requireWindowsAuthentication, folder, searches, destinations);
         }
-        catch { return (null, true, true, null, new List<string>(), new List<string>()); }
+        catch { return (null, false, true, null, new List<string>(), new List<string>()); }
     }
 
     private static List<string> ReadStringList(JsonElement root, string property, int max)

@@ -52,7 +52,7 @@
                         </StackPanel>
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock x:Name="AccountLabel" Text="Connect a GitHub account" Foreground="#AAB8CB" FontSize="11" />
-                            <CheckBox x:Name="AutoConnectCheckBox" Content="Automatically connect this account when OctoShip starts" IsChecked="True" IsEnabled="False" FontSize="10" Foreground="#AAB8CB" Margin="0,4,0,0" ToolTip="Uses the GitHub login already saved in Git Credential Manager. OctoShip does not save your password or token." Checked="AutoConnect_Changed" Unchecked="AutoConnect_Changed" />
+                            <CheckBox x:Name="AutoConnectCheckBox" Content="Automatically connect this account when OctoShip starts" IsChecked="False" IsEnabled="False" FontSize="10" Foreground="#AAB8CB" Margin="0,4,0,0" ToolTip="Uses the GitHub login already saved in Git Credential Manager. OctoShip does not save your password or token." Checked="AutoConnect_Changed" Unchecked="AutoConnect_Changed" />
                         </StackPanel>
                     </DockPanel>
                 </Border>

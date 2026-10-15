@@ -33,7 +33,7 @@ if (!$PackageOnly) {
 }
 
 Run-Native dotnet @('build', 'FileToGitHub.csproj', '-c', 'Release')
-foreach ($checks in @('updates/UpdateChecks', 'session-lock/SessionLockChecks', 'uploads/AtomicUploadChecks', 'repository-workflows/WorkflowTests', 'uniform-ui/UniformUiChecks', 'p0-security/P0SecurityChecks', 'preparation/PreparationChecks', 'shipping-workbench/ShippingWorkbenchChecks', 'environment/EnvironmentChecks', 'destructive-actions/DestructiveActionChecks')) {
+foreach ($checks in @('updates/UpdateChecks', 'session-lock/SessionLockChecks', 'uploads/AtomicUploadChecks', 'repository-workflows/WorkflowTests', 'uniform-ui/UniformUiChecks', 'p0-security/P0SecurityChecks', 'preparation/PreparationChecks', 'shipping-workbench/ShippingWorkbenchChecks', 'environment/EnvironmentChecks', 'destructive-actions/DestructiveActionChecks', 'account-onboarding/AccountOnboardingChecks')) {
     Run-Native dotnet @('run', '--project', "verification/$checks.csproj", '-c', 'Release')
 }
 & (Join-Path (Get-Location) 'verification/sbom/Test-ReleaseSbom.ps1')
@@ -49,6 +49,11 @@ Run-Native dotnet @('publish', 'FileToGitHub.csproj', '-c', 'Release', '-r', 'wi
 foreach ($runtimeFile in @('coreclr.dll', 'hostfxr.dll')) {
     if (!(Test-Path -LiteralPath (Join-Path $payload $runtimeFile))) { throw "Self-contained package is missing $runtimeFile." }
 }
+$machineProfileFiles = @('settings.json', 'preferences.json', 'display.json', 'session.json', 'project-bindings.json')
+$includedProfileFiles = Get-ChildItem -LiteralPath $payload -File -Recurse | Where-Object { $machineProfileFiles -contains $_.Name }
+if ($includedProfileFiles) { throw 'Release payload contains machine-specific OctoShip profile data.' }
+$includedQueueData = Get-ChildItem -LiteralPath (Join-Path $payload 'UploadQueues') -File -ErrorAction SilentlyContinue
+if ($includedQueueData) { throw 'Release payload contains machine-specific upload queue data.' }
 $actualVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $payload 'OctoShip.dll')).ProductVersion.Split('+')[0]
 if ($actualVersion -ne $version) { throw 'Packaged DLL does not match release version.' }
 $archive = Join-Path $output 'OctoShip-win-x64.zip'

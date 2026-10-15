@@ -1,5 +1,5 @@
 #define MyAppName "OctoShip for GitHub"
-#define MyAppVersion "1.6.1-preview.13"
+#define MyAppVersion "1.6.1-preview.14"
 #ifndef PayloadDir
 #define PayloadDir "payload"
 #endif
@@ -29,18 +29,18 @@ RestartApplications=no
 Uninstallable=yes
 AppComments=Windows desktop uploader for GitHub
 AppSupportURL=https://github.com/ghostventure/OctoShip
-VersionInfoVersion=1.6.1.13
+VersionInfoVersion=1.6.1.14
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription=OctoShip for GitHub installer
 VersionInfoProductName={#MyAppName}
-VersionInfoProductVersion=1.6.1.13
+VersionInfoProductVersion=1.6.1.14
 MinVersion=10.0.19041
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
-WelcomeLabel2=Installs OctoShip for GitHub for your Windows user. This package includes the .NET 10 desktop runtime. Git for Windows with Git Credential Manager is required for GitHub sign-in.
+WelcomeLabel2=Installs OctoShip for GitHub for your Windows user. No GitHub account or credentials are included; add your own account after launch. This package includes the .NET 10 desktop runtime. Git for Windows with Git Credential Manager is required for GitHub sign-in.
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
