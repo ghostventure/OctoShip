@@ -40,6 +40,8 @@ Install Git for Windows with Git Credential Manager and sign in. The Windows ins
 
 Choose a folder and search by filename or file contents. Search options include regular expressions, exact and case-sensitive matches, file types, size and modified-date filters, hidden files, recursion, excluded folders, sorting, result limits, and cancel. Reparse points are skipped and content searches read at most 2 MiB per file. Review a selected file with image or small-text preview, local SHA-256, and optional text comparison against the remote destination.
 
+VS Code users can open the selected source file or current project folder directly from OctoShip. The Windows source checkout also includes `.vscode` build/debug settings for opening this project in VS Code with the .NET 10 SDK and C# Dev Kit.
+
 Single-file uploads check repository permissions, branches, destination conflicts, and sensitive filename rules. The repository browser can list accessible repositories and folders and check GitHub API connectivity and quota. Batch uploads support up to 100 files, editable paths and messages, ordering, ignore and size rules, rename/replace/skip collision handling, progress, pause, cancel, retry, and GitHub links. The development build adds a single-commit batch option alongside per-file commits.
 
 ## Component development preview

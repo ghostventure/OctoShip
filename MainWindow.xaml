@@ -93,9 +93,11 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="FolderBox" Text="Choose a folder to search…" ToolTip="Paste a folder path or browse to choose one" />
                                 <Button x:Name="BrowseButton" Grid.Column="1" Content="Browse folders" Margin="8,0,0,0" Click="Browse_Click" />
+                                <Button x:Name="OpenFolderInCodeButton" Grid.Column="2" Content="Open in VS Code" Margin="8,0,0,0" Click="OpenFolderInCode_Click" ToolTip="Open this project folder in Visual Studio Code" />
                             </Grid>
                             <Grid Grid.Row="2" Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
@@ -222,6 +224,7 @@
                             <WrapPanel Grid.Row="2" Margin="0,10,0,0">
                                 <Button x:Name="ReviewFileButton" Content="Preview / review" Padding="10,6" FontSize="11" Click="ReviewFile_Click" IsEnabled="False" Margin="0,0,6,6" Background="#174550" />
                                 <Button x:Name="OpenFileButton" Content="Open" Padding="10,6" FontSize="11" Click="OpenFile_Click" IsEnabled="False" Margin="0,0,6,6" />
+                                <Button x:Name="OpenFileInCodeButton" Content="Open in VS Code" Padding="10,6" FontSize="11" Click="OpenFileInCode_Click" IsEnabled="False" Margin="0,0,6,6" ToolTip="Open this file in Visual Studio Code" />
                                 <Button x:Name="RevealFileButton" Content="Show in folder" Padding="10,6" FontSize="11" Click="RevealFile_Click" IsEnabled="False" Margin="0,0,6,6" />
                                 <Button x:Name="CopyPathButton" Content="Copy path" Padding="10,6" FontSize="11" Click="CopyPath_Click" IsEnabled="False" Margin="0,0,6,6" />
                                 <Button x:Name="CopyHashButton" Content="Copy SHA-256" Padding="10,6" FontSize="11" Click="CopyHash_Click" IsEnabled="False" Margin="0,0,6,6" />

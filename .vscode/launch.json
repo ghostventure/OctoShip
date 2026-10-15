@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch OctoShip",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build OctoShip",
+      "program": "${workspaceFolder}/bin/Debug/net10.0-windows10.0.19041.0/OctoShip.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    }
+  ]
+}

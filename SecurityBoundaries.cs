@@ -105,6 +105,15 @@ public static class TrustedProcess
         {
             "git" => new[] { Path.Combine(program, "Git", "cmd", "git.exe"), Path.Combine(local, "Programs", "Git", "cmd", "git.exe") },
             "gh" => new[] { Path.Combine(program, "GitHub CLI", "gh.exe"), Path.Combine(local, "Programs", "GitHub CLI", "gh.exe") },
+            "code" => new[]
+            {
+                Path.Combine(local, "Programs", "Microsoft VS Code", "Code.exe"),
+                Path.Combine(program, "Microsoft VS Code", "Code.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft VS Code", "Code.exe"),
+                Path.Combine(local, "Programs", "Microsoft VS Code Insiders", "Code - Insiders.exe"),
+                Path.Combine(program, "Microsoft VS Code Insiders", "Code - Insiders.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft VS Code Insiders", "Code - Insiders.exe")
+            },
             "powershell.exe" => new[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe") },
             "explorer.exe" => new[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe") },
             _ => throw new InvalidOperationException("Unsupported external tool.")

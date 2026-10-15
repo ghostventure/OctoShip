@@ -32,6 +32,10 @@ To apply an icon change to an existing installation, rebuild and publish the Win
 
 ## Search, review and upload
 
+When Visual Studio Code is installed in its standard per-user or machine-wide location, the Files view can open the selected source file with **Open in VS Code** or open the selected search folder as a project. `.code-workspace` files open as workspaces. OctoShip starts the editor with normal user access; its GitHub upload and credential flow remain separate. The command uses VS Code's `--reuse-window`, and reports when VS Code cannot be found.
+
+The source checkout also includes `.vscode/` recommendations, build task, and launch configuration for Windows development. Open the repository root in VS Code, install the recommended C# Dev Kit and .NET 10 SDK, then use **Terminal → Run Build Task** or **Run and Debug → Launch OctoShip**. The debug launch targets the project's Windows WPF app and is not a Linux launch configuration.
+
 Search supports filename/content matching, regular expressions, exact/case-sensitive matching, recursion, hidden files, exclusions, extension, size and modification filters, sorting and result limits. Search runs off the UI thread and supports cooperative cancellation. Content reads are capped at 2 MiB; reparse points are skipped.
 
 File review shows small text/images, SHA-256 and optional remote text comparison; PDFs open in the default Windows viewer. It is not a syntax-aware code editor. Sensitive-name rules and bounded secret scanning assist review; they cannot prove that a file has no secrets. Binary, oversized and unsupported content is explicitly unscanned. Findings omit matched secret values.

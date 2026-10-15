@@ -29,6 +29,12 @@ To produce a supported Linux desktop app, keep the existing Windows client worki
 
 The WPF event handlers call application logic directly, so the existing classes are not yet a clean cross-platform UI/backend split. A port should move reusable behavior and data models into a UI-independent project before replacing the views.
 
+## Visual Studio Code
+
+The repository's `.vscode/` directory recommends C# Dev Kit and provides a Debug build task, a Windows WPF launch configuration, and excludes generated build/package folders from Explorer and search. Open the repository root in VS Code with the .NET 10 SDK installed. Run **Terminal → Run Build Task** to build or **Run and Debug → Launch OctoShip** to start the app under the debugger. These settings target Windows; they do not configure the separate Linux client.
+
+The Windows app can hand a selected file or search-root folder to VS Code from the Files view. `VisualStudioCodeSupport.cs` resolves stable or Insiders `Code.exe` from standard per-user and machine-wide installation locations and starts it with a separate argument list. A missing editor is reported without affecting search or upload. This integration opens files/folders for editing; it does not install extensions, commit changes, or send files to GitHub automatically.
+
 ## Authentication, settings, and privacy
 
 Git for Windows and Git Credential Manager are required by this build. The app asks Credential Manager to list, add, and retrieve GitHub account credentials. Access tokens are held in memory for API requests and are not saved in OctoShip preference files. Linux work should use Git Credential Manager's Linux support or another system credential store; do not put tokens in settings, source, environment files committed to the repository, or logs.

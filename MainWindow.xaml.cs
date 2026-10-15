@@ -105,6 +105,18 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OpenFolderInCode_Click(object sender, RoutedEventArgs e)
+    {
+        var folder = FolderBox.Text.Trim();
+        try
+        {
+            if (!Directory.Exists(folder)) throw new DirectoryNotFoundException("Choose a project folder first.");
+            VisualStudioCodeSupport.Open(folder);
+            SetStatus("Project folder opened in VS Code.");
+        }
+        catch (Exception ex) { SetStatus($"Could not open VS Code: {SafeMessage(ex)}", true); }
+    }
+
     private async void Search_Click(object sender, RoutedEventArgs e)
     {
         var root = FolderBox.Text;
@@ -151,7 +163,7 @@ public partial class MainWindow : Window
     private void Results_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var item = ResultsList.SelectedItem as ResultItem;
-        OpenFileButton.IsEnabled = RevealFileButton.IsEnabled = CopyPathButton.IsEnabled = CopyHashButton.IsEnabled = ReviewFileButton.IsEnabled = item is not null;
+        OpenFileButton.IsEnabled = OpenFileInCodeButton.IsEnabled = RevealFileButton.IsEnabled = CopyPathButton.IsEnabled = CopyHashButton.IsEnabled = ReviewFileButton.IsEnabled = item is not null;
         if (item is null) { UploadButton.IsEnabled = false; SelectedFileLabel.Text = "Select one search result to review it here."; return; }
         if (!_pathManuallyEdited || string.IsNullOrWhiteSpace(PathBox.Text))
         {
@@ -268,6 +280,11 @@ public partial class MainWindow : Window
     {
         try { if (SelectedResult is { } item) TrustedProcess.Start(new ProcessStartInfo(item.FullPath) { UseShellExecute = true }); }
         catch (Exception ex) { SetStatus($"Could not open the file: {SafeMessage(ex)}", true); }
+    }
+    private void OpenFileInCode_Click(object sender, RoutedEventArgs e)
+    {
+        try { if (SelectedResult is { } item) { VisualStudioCodeSupport.Open(item.FullPath); SetStatus("File opened in VS Code."); } }
+        catch (Exception ex) { SetStatus($"Could not open VS Code: {SafeMessage(ex)}", true); }
     }
     private void RevealFile_Click(object sender, RoutedEventArgs e)
     {

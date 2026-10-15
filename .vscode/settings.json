@@ -1,0 +1,14 @@
+{
+  "files.exclude": {
+    "**/bin": true,
+    "**/obj": true
+  },
+  "search.exclude": {
+    "**/bin/**": true,
+    "**/obj/**": true,
+    "**/dist*/**": true,
+    "**/installers/**": true,
+    "**/verification/**/bin/**": true,
+    "**/verification/**/obj/**": true
+  }
+}
