@@ -10,6 +10,7 @@ on:
       - .github/workflows/windows-release.yml
       - scripts/Publish-WindowsRelease.ps1
       - scripts/New-ReleaseSbom.ps1
+      - verification/updates/**
       - verification/sbom/**
   workflow_dispatch:
 

@@ -73,7 +73,8 @@ helper.ArgumentList.Add(Convert.ToBase64String(System.Text.Encoding.Unicode.GetB
 using (var process = System.Diagnostics.Process.Start(helper)!)
 {
     Check(process.WaitForExit(30000), "replacement helper completes");
-    Check(process.ExitCode == 0, "replacement helper succeeds");
+    var helperFailure = File.Exists(marker) ? File.ReadAllText(marker) : $"No failure marker was written (exit code {process.ExitCode}).";
+    Check(process.ExitCode == 0, "replacement helper succeeds: " + helperFailure);
 }
 var installedHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(destination, "OctoShip.dll"))));
 var stagedHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(stage, "OctoShip.dll"))));
