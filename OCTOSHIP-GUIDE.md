@@ -2,7 +2,7 @@
 
 ## Versions and scope
 
-Windows source and current local package: **1.6.1-preview.10**, .NET 10 WPF, Windows 10 build 19041 or newer, x64 self-contained installer. See the [P1 handoff](P1-HANDOFF.md) for package, SBOM, and verification details. This preview is not a published GitHub release. Linux source and packages are maintained independently under `linux/`; see [Linux guide](linux/README.md) and [packaging](linux/packaging/README.md). Windows verification does not establish Linux package behavior.
+Windows source candidate: **1.6.1-preview.15** (.NET 10 WPF, Windows 10 build 19041 or newer, x64 self-contained installer). It is not published yet. At last release check, preview.14 was the latest public preview and 1.6.0 the latest stable release. See the [P1 handoff](P1-HANDOFF.md) for package and release status. Linux source and packages are maintained independently under `linux/`; see [Linux guide](linux/README.md) and [packaging](linux/packaging/README.md). Windows verification does not establish Linux package behavior.
 
 The [P1 handoff](P1-HANDOFF.md) records implemented Windows changes, local installation, and remaining work. Earlier release documents are historical; building or installing a package locally does not publish it to GitHub.
 
@@ -17,6 +17,12 @@ Windows users need Git for Windows with Git Credential Manager for GitHub sign-i
 5. Review Activity for progress and outcomes. Account & settings contains preferences, account details, update controls and diagnostics.
 
 The navigation stays visible: Files, Uploads, Repositories, Releases, Activity, Account & settings. Actions that publish files, branches, PRs or releases require their normal explicit review/confirmation.
+
+## Installer agreement and included documents
+
+The preview.15 Windows installer source shows a plain-text agreement on the Inno Setup License page before installation can continue. The user must select **I accept the agreement**; choosing **Cancel** exits setup. The installer also places the User Guide, Privacy Notice, Third-Party Notices, Copyright and DMCA Information, and product/security guides in the installed `Docs` folder, with Start Menu shortcuts for the user-facing documents. These changes are local source changes and are not in a public release yet.
+
+The terms, privacy, copyright/DMCA, and third-party notices are drafts that include review language and publisher/contact details needing verification. They are informational drafts, not legal advice or a guarantee against claims. Do not present them as final legal terms until the publisher details are complete and counsel has reviewed them. The DMCA document does not itself designate an agent or promise statutory protection.
 
 ## Search, review and upload
 

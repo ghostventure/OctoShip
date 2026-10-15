@@ -1,0 +1,44 @@
+OCTOSHIP FOR GITHUB — PRIVACY NOTICE (DRAFT)
+
+This draft describes the Windows product based on repository documentation and source reviewed for the current development build. The publisher must verify it against the exact release, choose a retention schedule, identify the responsible legal entity, and provide an accurate privacy contact before distribution. This draft is not a legal determination or a complete jurisdiction-specific privacy notice.
+
+WHAT OCTOSHIP DOES WITH INFORMATION
+
+OctoShip runs on your Windows computer and communicates with GitHub when you connect, inspect repositories, upload or prepare content, create repository objects, or check/download updates. GitHub processes those requests under its own policies. Git Credential Manager provides credentials for your selected GitHub account. OctoShip does not operate a separate hosted user account service according to the product materials reviewed.
+
+LOCAL INFORMATION
+
+Depending on the features and settings you use, OctoShip may store in your Windows user profile:
+
+• Preferences, display settings, selected account name, and workspace/repository selections.
+• Search and repository history, destination preferences, and project bindings.
+• Queue recovery information, prepared files or plans, and diagnostic/update files.
+• Downloaded update packages and temporary update/backup files.
+
+The documented data directory is `%LOCALAPPDATA%\OctoShipForGitHub`. A first launch may copy legacy preference files from `%LOCALAPPDATA%\OctoCat` if present; the legacy files are left in place. Uninstalling OctoShip preserves user settings and Git Credential Manager credentials. Local retention and cleanup can depend on the operation and Windows environment.
+
+CREDENTIALS AND CONTENT
+
+GitHub credentials are obtained through Git Credential Manager and are not intentionally stored in ordinary OctoShip settings. While connected, a credential is held in application memory to make requests. The app may send file content, paths, repository identifiers, account information, and operation metadata to GitHub as needed to perform actions you request. Review the operation before confirming.
+
+The app's activity display can show recent transfer filenames, destinations, progress, and outcomes. Product documentation says this activity does not record tokens. Settings exports exclude credentials but may contain histories or local paths; inspect an export before sharing it. Prepared files and local queues may contain project data or local path information.
+
+UPDATES AND DIAGNOSTICS
+
+When enabled, the Windows updater contacts the public OctoShip GitHub releases feed and downloads a selected release package over HTTPS. The product documentation describes privacy-safe diagnostics; verify exact diagnostic fields and any update request metadata against the specific release. Do not assume that no network metadata is visible to GitHub or the network provider.
+
+CHOICES AND DELETION
+
+You can change preferences, use privacy mode to suppress some history, clear supported histories, disable automatic updates, disconnect within the app, or uninstall it. These actions do not erase data already sent to GitHub, GitHub commits/releases, Windows/Git Credential Manager credentials, system/network logs, backups, or all local files. Remove account credentials through Git Credential Manager and revoke authorization through GitHub if needed. Check the User Guide for current steps and limits.
+
+RECIPIENTS AND SECURITY LIMITS
+
+GitHub receives information required for GitHub operations and update-feed access. Windows and Git Credential Manager handle local account and credential functions. The reviewed materials do not establish any additional analytics/telemetry recipient; the publisher must verify the exact release's network behavior before making a definitive no-telemetry statement. No method of storage or transmission is guaranteed secure in every environment. OctoShip's inactivity lock is not encryption and does not protect against all processes running with the same Windows user privileges.
+
+CHILDREN, INTERNATIONAL TRANSFERS, AND LEGAL RIGHTS
+
+This draft does not establish an age threshold, data-controller identity, legal bases, international-transfer terms, retention durations, or jurisdiction-specific rights. The publisher must obtain legal review and complete the information applicable to its distribution audience and locations.
+
+CONTACT
+
+No verified privacy contact or publisher legal entity is specified in the reviewed project materials. Do not direct privacy requests to an invented address. The publisher must insert a monitored, accurate contact before publishing this notice.

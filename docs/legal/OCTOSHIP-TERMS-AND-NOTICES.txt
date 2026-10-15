@@ -1,0 +1,76 @@
+OCTOSHIP FOR GITHUB
+PRE-INSTALLATION AGREEMENT AND NOTICES
+
+Draft for product review and attorney review. This document is not a promise that OctoShip or its publisher is immune from legal claims. Acceptance records the installing user's assent to these proposed terms; enforceability depends on the publisher's identity, presentation, applicable law, and other facts. Do not ship this draft as final legal copy until an attorney reviews it and the publisher completes the missing identity and contact details.
+
+PUBLISHER DETAILS THAT MUST BE COMPLETED BEFORE DISTRIBUTION
+
+The project files reviewed for this draft do not identify a verified legal entity, mailing address, support address, privacy contact, or DMCA agent. The repository name and GitHub account are not substitutes for confirmed publisher details. The publisher must add accurate legal name and contact channels, and confirm any required designated-agent registration, before relying on or publishing the related notices. Do not invent or infer these details.
+
+AGREEMENT TO INSTALL AND USE
+
+By selecting “I accept the agreement” and continuing, you agree to the terms below. If you do not agree, choose Cancel; the installer will not install OctoShip. The person accepting must have authority to accept for themselves and, where applicable, the organization that owns the device or GitHub account.
+
+1. WHAT OCTOSHIP DOES
+
+OctoShip for GitHub is a Windows desktop tool that helps you find and review local files and, when you direct it to, transport selected code or other files to GitHub. Depending on the build, it can also prepare repository changes, branches, pull requests, or releases. GitHub receives and processes requests under its own terms and policies. OctoShip is not GitHub and is not endorsed by GitHub. Feature availability varies by build and platform.
+
+2. YOUR ACCOUNT, AUTHORIZATION, AND ACTIONS
+
+You must provide and authorize your own GitHub account through Git Credential Manager. A fresh Windows profile does not include or select another user's OctoShip account. OctoShip retrieves credentials from the local credential manager for the account you select; it does not intentionally save GitHub tokens or passwords in ordinary OctoShip settings. Your credential manager, Windows account, device, and GitHub authorization remain your responsibility.
+
+You authorize only the actions you initiate in OctoShip. Review the selected account, repository, branch, paths, files, changes, and requested operation before confirming. OctoShip can create GitHub commits and other remote changes. An interrupted or timed-out operation may already have completed remotely; check GitHub before retrying. OctoShip cannot undo all actions or guarantee that GitHub will accept, retain, or make a change available.
+
+3. YOUR CONTENT AND RIGHTS
+
+You are responsible for the files and instructions you select, and for having all rights, permissions, consents, and legal authority needed to access, transfer, publish, or modify them. Do not upload material that violates another person's copyright, privacy, confidentiality, contract, export-control, or other rights or applicable law. You are responsible for secrets, personal data, malware, and other sensitive content in your files. OctoShip's filename rules and bounded content scans are aids only; they may miss sensitive or harmful content and do not certify a file as safe or authorized.
+
+4. ACCEPTABLE USE AND THIRD-PARTY SERVICES
+
+Use OctoShip only for lawful purposes and in accordance with GitHub's terms, your organization's rules, and applicable repository policies. Do not use it to bypass access controls or upload content you are not authorized to publish. Your use of GitHub and Git Credential Manager is also governed by the terms and notices applicable to those services and products. Those third parties control their own services, availability, account decisions, and data practices.
+
+5. PRIVACY AND LOCAL DATA
+
+OctoShip operates on your computer and communicates with GitHub for account, repository, file, release, update, and related actions you use. Depending on your settings and actions, it can store preferences, selected account names, workspace paths, search or repository history, queues, prepared content, and update files in your Windows user profile. Privacy mode suppresses some saved history; it does not erase GitHub records, Windows/Git Credential Manager data, backups, or data already sent. Settings exports can contain histories or local paths and should be reviewed before sharing. See the installed User Guide and Privacy Notice for details and limitations.
+
+The project has not established a verified privacy contact or complete retention schedule in the materials reviewed for this draft. The publisher must confirm the actual release behavior, retention periods, legal identity, and contact route before treating this section as a complete privacy notice.
+
+6. NO PROFESSIONAL OR SECURITY GUARANTEE
+
+OctoShip is a file-transport and repository workflow utility, not legal, export, security, backup, or compliance advice. It does not guarantee that content is free of secrets or malware, that a transfer is secure in every environment, that a repository is backed up, or that an account or device cannot be compromised. Review changes and keep independent backups appropriate to your work.
+
+7. WARRANTY DISCLAIMER — DRAFT FOR COUNSEL
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, OCTOSHIP IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED, OR STATUTORY, INCLUDING IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. THIS DRAFT DOES NOT EXCLUDE A WARRANTY OR RIGHT THAT APPLICABLE LAW DOES NOT ALLOW THE PUBLISHER TO EXCLUDE.
+
+8. LIMITATION OF LIABILITY — DRAFT FOR COUNSEL
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE PUBLISHER WILL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR LOST PROFITS, DATA, GOODWILL, OR BUSINESS INTERRUPTION, ARISING FROM OR RELATED TO OCTOSHIP. TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE PUBLISHER'S TOTAL LIABILITY FOR SUCH CLAIMS WILL NOT EXCEED THE AMOUNT YOU PAID THE PUBLISHER FOR OCTOSHIP IN THE 12 MONTHS BEFORE THE EVENT, OR, IF YOU PAID NOTHING, US $0. THIS LIMIT DOES NOT APPLY WHERE APPLICABLE LAW PROHIBITS IT, AND DOES NOT LIMIT LIABILITY THAT CANNOT LAWFULLY BE LIMITED.
+
+This proposed cap and disclaimer require jurisdiction-specific attorney review. They may be unenforceable or require different wording, and do not prevent a person from bringing a claim.
+
+9. TERMINATION AND REMOVAL
+
+You may stop using OctoShip and uninstall it. Uninstalling does not necessarily delete user settings, Git Credential Manager credentials, local files, backups, or content and history already sent to GitHub. Remove credentials through the appropriate Windows/Git Credential Manager and GitHub controls. GitHub-hosted content must be handled through GitHub and remains subject to GitHub's systems and policies.
+
+10. CHANGES, GOVERNING LAW, AND GENERAL TERMS
+
+The publisher must have counsel complete this section before distribution. No publisher legal entity, governing-law jurisdiction, venue, notice address, or severability/entire-agreement language is asserted by this draft. Do not infer these terms from the publisher label, project name, or repository host.
+
+COPYRIGHT / DMCA REPORTING
+
+No verified DMCA designated agent or notice address was found in the project materials reviewed for this draft. This installer does not accept or route copyright complaints. A copyright owner who believes material hosted on GitHub infringes their rights should use GitHub's current copyright-reporting process and submit the notice to GitHub, the service hosting the material. Do not send legal notices to an unverified OctoShip contact or assume this notice creates a DMCA agent or takedown procedure for the publisher. Before publishing any publisher-side process, the publisher must obtain legal advice, provide an accurate contact, and complete any required U.S. Copyright Office designation. Counter-notices and other legal requests should be handled through the applicable platform's official process and qualified counsel.
+
+THIRD-PARTY AND OPEN-SOURCE SOFTWARE
+
+OctoShip's Windows installer is described by the project as a self-contained .NET 10 application. Git for Windows with Git Credential Manager is a separate prerequisite and is not stated to be bundled. GitHub is an independently operated third-party service. Exact runtime/native components and applicable license texts can vary by release. The publisher must ship and verify the release-specific software bill of materials and all required third-party license notices before distribution. This draft is not a complete component inventory and does not replace required license texts. See the release SBOM and the installed Third-Party Notices document for the exact package.
+
+SECURITY CONTACT AND VULNERABILITY REPORTS
+
+Do not include passwords, access tokens, private keys, or sensitive personal data in a public issue. Use the repository's private vulnerability-reporting feature only if it is enabled and available. No separate verified security contact is specified in this draft. The publisher must confirm a monitored, private contact channel before promising a response process or response time.
+
+NO WAIVER OF NON-WAIVABLE RIGHTS
+
+Nothing in this draft is intended to waive a consumer protection or other right that cannot legally be waived. This notice is not a guarantee against lawsuits, claims, investigations, or liability. It must be reviewed and completed by qualified counsel before use as a final agreement.
+
+END OF PRE-INSTALLATION AGREEMENT AND NOTICES

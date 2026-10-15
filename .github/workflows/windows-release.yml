@@ -7,6 +7,10 @@ on:
       - FileToGitHub.csproj
       - '*.cs'
       - '*.xaml'
+      - installer/**
+      - docs/legal/**
+      - OCTOSHIP-GUIDE.md
+      - SECURITY-OPERATIONS.md
       - .github/workflows/windows-release.yml
       - scripts/Publish-WindowsRelease.ps1
       - scripts/Publish-PreparedWindowsRelease.ps1

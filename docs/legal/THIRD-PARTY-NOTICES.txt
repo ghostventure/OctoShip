@@ -1,0 +1,20 @@
+OCTOSHIP FOR GITHUB — THIRD-PARTY SOFTWARE NOTICE
+
+This document is a release checklist/template, not a complete license notice. Exact Windows package contents can vary by release. Before distribution, the publisher must compare the package's CycloneDX SBOM and dependency manifest with the files actually shipped, include every license/attribution required for those components, and retain notices required by their licenses.
+
+PROJECT-IDENTIFIED COMPONENTS AND SERVICES
+
+• .NET 10 runtime: the Windows installer is described as self-contained and includes the .NET runtime. Use the license terms and third-party notices shipped with the specific runtime/package. Verify the actual runtime files and Microsoft notices for each release.
+• Git for Windows and Git Credential Manager: required for Windows GitHub sign-in; project documentation says these are separate prerequisites, not bundled. They have their own licenses and notices.
+• GitHub: a third-party service used for account, repository, transfer, release, and update operations. GitHub is not bundled with OctoShip and is not the publisher of OctoShip by implication.
+• Inno Setup: used to build the Windows installer according to repository packaging instructions. Confirm whether its license requires any notice in the distributed installer/package; do not assume build-tool use makes it a runtime component.
+
+RELEASE-SPECIFIC INVENTORY
+
+Application: OctoShip for GitHub
+Version: [publisher: fill from exact release]
+Package: [publisher: identify exact installer/package]
+SBOM: [publisher: identify exact generated SBOM]
+Required notices: [publisher: attach verified component notices]
+
+No package-by-package attribution or license text is fabricated here. Replace this template with a verified, release-specific notice bundle before using it to satisfy any open-source license obligation. The SBOM is an inventory aid; it does not itself grant rights or substitute for full license texts.

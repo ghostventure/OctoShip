@@ -56,6 +56,22 @@ $includedQueueData = Get-ChildItem -LiteralPath (Join-Path $payload 'UploadQueue
 if ($includedQueueData) { throw 'Release payload contains machine-specific upload queue data.' }
 $actualVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $payload 'OctoShip.dll')).ProductVersion.Split('+')[0]
 if ($actualVersion -ne $version) { throw 'Packaged DLL does not match release version.' }
+$legalDocs = @(
+    'docs/legal/OCTOSHIP-TERMS-AND-NOTICES.txt',
+    'docs/legal/OCTOSHIP-PRIVACY-NOTICE.txt',
+    'docs/legal/THIRD-PARTY-NOTICES.txt',
+    'docs/legal/OCTOSHIP-USER-GUIDE.md',
+    'docs/legal/OCTOSHIP-COPYRIGHT-AND-DMCA-NOTICE.txt',
+    'OCTOSHIP-GUIDE.md',
+    'SECURITY-OPERATIONS.md'
+)
+$docsDirectory = Join-Path $payload 'Docs'
+New-Item -ItemType Directory -Path $docsDirectory -Force | Out-Null
+foreach ($relativeDoc in $legalDocs) {
+    $sourceDoc = Join-Path (Get-Location) $relativeDoc
+    if (!(Test-Path -LiteralPath $sourceDoc -PathType Leaf)) { throw "Required user or legal document is missing: $relativeDoc" }
+    Copy-Item -LiteralPath $sourceDoc -Destination $docsDirectory -Force
+}
 $archive = Join-Path $output 'OctoShip-win-x64.zip'
 Compress-Archive -Path (Join-Path $payload '*') -DestinationPath $archive -Force
 $sbom = Join-Path $output 'OctoShip-win-x64-sbom.cdx.json'

@@ -1,8 +1,8 @@
 # P1 implementation and installation handoff
 
 Date: 2026-10-15
-Current installed Windows package: **1.6.1-preview.13**; latest GitHub-published package: **1.6.1-preview.14**
-Scope: installed and released P1 work. Preview.13 was published as GitHub release [v1.6.1-preview.13](https://github.com/ghostventure/OctoShip/releases/tag/v1.6.1-preview.13). Preview.14 adds fresh-install account isolation and was published after the Windows update release workflow passed for commit `2c5659b0802a768cb91ba3a1b9ad114c8fa147fb`.
+Current installed Windows package: **1.6.1-preview.13**; latest GitHub-published preview: **1.6.1-preview.14**; latest stable: **1.6.0** (at last release check).
+Scope: installed and released P1 work, plus clearly marked unpublished local changes. Preview.13 was published as GitHub release [v1.6.1-preview.13](https://github.com/ghostventure/OctoShip/releases/tag/v1.6.1-preview.13). Preview.14 adds fresh-install account isolation and was published after the Windows update release workflow passed for commit `2c5659b0802a768cb91ba3a1b9ad114c8fa147fb`. Preview.15 installer/legal-document changes are local and are not available through GitHub auto-update.
 
 ## Installed changes
 
@@ -129,9 +129,16 @@ Preview.13 remains installed locally, preserving this user's account profile. Pr
 - Added focused account-onboarding checks for clean profiles, existing-profile compatibility, and explicit account selection.
 - Published as [v1.6.1-preview.14](https://github.com/ghostventure/OctoShip/releases/tag/v1.6.1-preview.14); GitHub Actions run [38801494446](https://github.com/ghostventure/OctoShip/actions/runs/38801494446) completed successfully.
 
-## Release tamper evidence - preview.15
+## Release provenance candidate - preview.15 (unpublished)
 
-- The Windows release workflow pins checkout, setup-dotnet, and attest actions to immutable commit IDs.
-- After tests and packaging, GitHub creates signed build-provenance attestations for the Windows ZIP and SBOM before the release publisher uploads or makes the release public. The publisher rechecks the package SHA-256 after attestation and compares it with GitHub's uploaded asset digest before publishing.
-- Verify a downloaded ZIP with `gh attestation verify OctoShip-win-x64.zip --repo ghostventure/OctoShip`; review that the signer is the `Windows update release` workflow on `main`.
-- This provides verifiable release origin and artifact integrity. It does not prevent the same Windows user or an administrator from replacing files in a per-user installation; the app remains unsigned by Authenticode.
+- The local Windows release workflow pins checkout, setup-dotnet, and attest actions to immutable commit IDs and is configured to attest the Windows ZIP and SBOM before publication.
+- The preview.15 workflow run failed during test/package preparation; attestation and publication did not run. No preview.15 release or provenance attestation is available yet. The latest public preview remains preview.14.
+- After a release with provenance is successfully published, a downloaded ZIP can be checked with `gh attestation verify OctoShip-win-x64.zip --repo ghostventure/OctoShip`; confirm the signer workflow is `Windows update release` on `main`.
+- Even when published, provenance indicates the package's workflow origin; it does not prevent the same Windows user or an administrator from replacing files in a per-user installation. The app remains unsigned by Authenticode.
+
+## Pre-install agreement and bundled user/legal documents - preview.15 (unpublished)
+
+- The installer source presents the plain-text terms/notices file before installation and requires the user to select **I accept the agreement** to continue; **Cancel** exits setup.
+- The installer and Windows release packaging source bundle a User Guide, Privacy Notice, Third-Party Notices, Copyright and DMCA Information, and product/security guides as digital files under `Docs`, with Start Menu shortcuts.
+- These local changes are not in a public release and therefore are not delivered by the GitHub updater yet. The legal notices remain drafts with publisher/contact details requiring verification and legal review. User acceptance does not guarantee protection from legal claims; the documents must not be presented as final legal advice or as immunity from suit.
+- `README.md`, `OCTOSHIP-GUIDE.md`, and `SECURITY-OPERATIONS.md` describe the installer experience, status, and limitations.

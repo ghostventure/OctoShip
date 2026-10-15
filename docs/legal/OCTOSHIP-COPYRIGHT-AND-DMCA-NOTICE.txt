@@ -1,0 +1,20 @@
+OCTOSHIP FOR GITHUB
+COPYRIGHT AND DMCA INFORMATION
+
+DRAFT FOR PRODUCT AND ATTORNEY REVIEW
+
+OctoShip for GitHub is a local desktop client. It helps a user review local files and, when directed by that user, send content to GitHub. OctoShip does not operate or control the GitHub repositories where users choose to publish content. GitHub operates the hosting service and controls its own copyright-reporting and content-removal processes.
+
+REPORTING CONTENT ON GITHUB
+
+If you believe content in a GitHub repository infringes your copyright, use GitHub's current copyright reporting process: https://docs.github.com/en/site-policy/content-removal-policies/dmca-takedown-policy. GitHub provides separate forms and policies for other kinds of reports. A notice sent to OctoShip cannot itself remove or disable material hosted by GitHub.
+
+This document is informational only. It is not a DMCA notice submission channel, a counter-notice channel, or a designation of an agent for the OctoShip publisher. No verified OctoShip publisher legal entity, mailing address, telephone number, email address, or designated agent is provided here. Do not send formal legal notices to an unverified contact.
+
+PUBLISHER REVIEW REQUIRED
+
+The publisher must obtain legal advice about whether any of its activities qualify it for a service-provider role under any provision of the Digital Millennium Copyright Act, and what duties apply to those activities. For example, the U.S. Copyright Office explains that service providers seeking certain Section 512 limitations must make designated-agent information publicly available and provide that information to the Office: https://www.copyright.gov/dmca-directory/faq.html. This statement does not determine that OctoShip or its publisher qualifies for a safe harbor or is required to register an agent.
+
+Before publishing a publisher-side copyright process, the publisher must confirm the legal entity and monitored contact details, determine the applicable duties with counsel, and complete any required agent designation and registration. A notice or agreement cannot guarantee immunity from lawsuits, claims, or liability.
+
+END

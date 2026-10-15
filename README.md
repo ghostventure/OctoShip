@@ -1,6 +1,6 @@
 # OctoShip for GitHub
 
-**Current Windows build: 1.6.1-preview.15.** Fresh Windows profiles start disconnected, do not preselect an account already saved in Git Credential Manager, and keep automatic sign-in off until the user chooses an account and opts in. Existing profiles retain their saved account and auto-connect choice. Windows releases include signed GitHub build-provenance attestations for the package and SBOM; the updater verifies GitHub's SHA-256 asset digest. See [security and release verification](SECURITY-OPERATIONS.md) and the [P1 implementation and installation handoff](P1-HANDOFF.md). The app is not Authenticode-signed. Linux is unchanged by this Windows pass.
+**Windows source candidate: 1.6.1-preview.15 (not yet published).** The latest public Windows preview is 1.6.1-preview.14; the latest stable release is 1.6.0 (at last release check). Fresh profiles start disconnected and do not preselect an account already saved in Git Credential Manager; existing profiles retain their account choice. The preview.15 workflow is configured to attest the Windows package and SBOM, but that release workflow has not completed successfully, so no preview.15 attestation or release is available yet. The updater verifies GitHub's SHA-256 asset digest. See [security and release verification](SECURITY-OPERATIONS.md) and the [P1 implementation and installation handoff](P1-HANDOFF.md). The app is not Authenticode-signed. Linux is unchanged by this Windows pass.
 
 The Windows 1.6.0-preview.2 build now retains account/workspace preferences and locks after 30 minutes of inactivity, with Windows Hello or Windows account password unlocking. See [account retention and session protection](ACCOUNT-SESSION.md) for behavior and verification boundaries.
 
@@ -73,6 +73,8 @@ ISCC.exe /DPayloadDir=payload installer\OctoShip.iss
 ```
 
 Build the per-user Windows installer with Inno Setup 6 using the commands above; the output name/version comes from `installer/OctoShip.iss`. Setup installs under the current user's LocalAppData, creates Start Menu shortcuts, offers an optional desktop shortcut, and registers an uninstaller. It does not automatically close running applications. User settings and Git credentials are preserved on uninstall. Windows 10 build 19041 or later and Git for Windows with Git Credential Manager are required to use GitHub sign-in. The self-contained package bundles .NET 10. Developers need the .NET 10 SDK and Inno Setup 6. Publisher verification reports unsigned builds until an Authenticode certificate is configured.
+
+The preview.15 installer source displays the plain-text agreement on Inno Setup's License page and requires the user to check **I accept the agreement** before continuing; **Cancel** exits setup. It also bundles the User Guide, Privacy Notice, Third-Party Notices, Copyright and DMCA Information, and product/security guides in `Docs`, with Start Menu shortcuts. These local installer changes are not in a published release yet. Several legal notices are drafts with unverified publisher/contact fields; user acceptance cannot guarantee immunity from legal claims. Have counsel review them and complete publisher details before treating them as final terms.
 
 ## Additional development workflows
 
