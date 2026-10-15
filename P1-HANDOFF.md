@@ -128,3 +128,10 @@ Preview.13 remains installed locally, preserving this user's account profile. Pr
 - The Windows release packaging step now fails if user settings, session, display preferences, account bindings, or saved upload-queue data appear in the publish payload.
 - Added focused account-onboarding checks for clean profiles, existing-profile compatibility, and explicit account selection.
 - Published as [v1.6.1-preview.14](https://github.com/ghostventure/OctoShip/releases/tag/v1.6.1-preview.14); GitHub Actions run [38801494446](https://github.com/ghostventure/OctoShip/actions/runs/38801494446) completed successfully.
+
+## Release tamper evidence - preview.15
+
+- The Windows release workflow pins checkout, setup-dotnet, and attest actions to immutable commit IDs.
+- After tests and packaging, GitHub creates signed build-provenance attestations for the Windows ZIP and SBOM before the release publisher uploads or makes the release public. The publisher rechecks the package SHA-256 after attestation and compares it with GitHub's uploaded asset digest before publishing.
+- Verify a downloaded ZIP with `gh attestation verify OctoShip-win-x64.zip --repo ghostventure/OctoShip`; review that the signer is the `Windows update release` workflow on `main`.
+- This provides verifiable release origin and artifact integrity. It does not prevent the same Windows user or an administrator from replacing files in a per-user installation; the app remains unsigned by Authenticode.

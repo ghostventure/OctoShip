@@ -1,4 +1,4 @@
-param([switch]$PackageOnly)
+param([switch]$PackageOnly, [switch]$PrepareRelease)
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
@@ -63,7 +63,7 @@ $sbom = Join-Path $output 'OctoShip-win-x64-sbom.cdx.json'
 $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
 [IO.File]::WriteAllText((Join-Path $output 'SHA256SUMS.txt'), "$hash  OctoShip-win-x64.zip`n")
 Write-Host "Verified package: $archive ($hash)"
-if ($PackageOnly) { exit 0 }
+if ($PackageOnly -or $PrepareRelease) { exit 0 }
 
 if (!$existing) {
     Run-Native gh @('release', 'create', $tag, '--repo', $repository, '--target', $env:GITHUB_SHA, '--draft', '--title', "OctoShip for Windows $version", '--generate-notes')
