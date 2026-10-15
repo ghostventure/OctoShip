@@ -282,18 +282,22 @@ public sealed class ShippingWorkbenchService
     }
     private static async Task<string> ProcessAsync(string executable, string[] arguments, CancellationToken ct)
     {
-        var start = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        var start = TrustedProcess.Create(executable);
+        start.RedirectStandardOutput = start.RedirectStandardError = true;
+        if (executable == "git")
+            foreach (var argument in new[] { "--no-optional-locks", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false" }) start.ArgumentList.Add(argument);
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
         start.Environment["GH_PROMPT_DISABLED"] = "1";
         try
         {
-            using var process = Process.Start(start)!;
+            using var process = TrustedProcess.Start(start);
             var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct); timeout.CancelAfter(TimeSpan.FromMinutes(2));
             try { await process.WaitForExitAsync(timeout.Token); }
             catch (OperationCanceledException) { try { process.Kill(true); } catch (InvalidOperationException) { } throw; }
             var output = await stdout; var error = await stderr;
-            return (process.ExitCode == 0 ? "Succeeded" : "Failed / could not verify") + $" ({executable}, exit {process.ExitCode})\n" + output + "\n" + error;
+            AccountSessionLock.ThrowIfLocked();
+            return SecurityBoundaries.Redact((process.ExitCode == 0 ? "Succeeded" : "Failed / could not verify") + $" ({executable}, exit {process.ExitCode})\n" + output + "\n" + error);
         }
         catch (System.ComponentModel.Win32Exception) { return executable + " unavailable. Install it and authenticate if needed, then retry. Verification has not run."; }
     }

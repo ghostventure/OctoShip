@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Collections.Generic;
 using System.Security.Cryptography;
 
 namespace FileToGitHub;
@@ -18,8 +19,16 @@ public static class UpdatePackage
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
         if (archive.Entries.Count > 2000 || archive.Entries.Sum(entry => entry.Length) > 1024L * 1024 * 1024)
             throw new InvalidOperationException("The expanded update exceeds safety limits.");
+        SecurityBoundaries.RequireRegularPath(updatesRoot);
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in archive.Entries)
         {
+            var name = entry.FullName.Replace('\\', '/').TrimEnd('/');
+            var mode = (entry.ExternalAttributes >> 16) & 0xF000;
+            if (mode is not (0 or 0x8000 or 0x4000) || name.Length == 0 || !names.Add(name) ||
+                name.Split('/').Any(part => part.Length == 0 || part is "." or ".." || part.EndsWith('.') || part.EndsWith(' ') || part.Any(char.IsControl) ||
+                    System.Text.RegularExpressions.Regex.IsMatch(part, @"^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(?:\.|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase)))
+                throw new InvalidOperationException("The update contains an ambiguous, reserved, duplicate, or linked entry.");
             var target = Path.GetFullPath(Path.Combine(staging, entry.FullName));
             if (entry.FullName.Contains(':') || !target.StartsWith(staging + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("The update archive contains an unsafe file path.");

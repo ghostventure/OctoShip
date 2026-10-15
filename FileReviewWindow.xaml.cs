@@ -17,6 +17,7 @@ public partial class FileReviewWindow : Window
     private readonly Func<string, CancellationToken, Task<string?>>? _remoteContentLoader;
     private readonly CancellationTokenSource _lifetime = new();
     private bool _isText;
+    private bool _isPdf;
 
     public FileReviewWindow(string localPath, string? destinationRepositoryPath = null,
         Func<string, CancellationToken, Task<string?>>? remoteContentLoader = null,
@@ -62,24 +63,37 @@ public partial class FileReviewWindow : Window
 
     private void ConfigurePreview(FileInfo info)
     {
-        var ext = info.Extension.ToLowerInvariant();
-        if (new[] { ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff" }.Contains(ext))
+        PreviewContentKind kind;
+        try { kind = FileContentTypeAudit.Read(_localPath); }
+        catch (Exception ex)
+        {
+            PreviewMessage.Text = "Could not inspect the file signature: " + ex.Message;
+            CompareButton.IsEnabled = false;
+            return;
+        }
+        if (FileContentTypeAudit.HasKnownExtensionMismatch(info.Extension, kind))
+        {
+            WarningCard.Visibility = Visibility.Visible;
+            WarningText.Text += (WarningText.Text.Length == 0 ? "" : "\n") + $"The .{info.Extension.TrimStart('.')} extension does not match the detected {kind} content. Preview selection follows the detected content.";
+        }
+        if (kind is PreviewContentKind.Png or PreviewContentKind.Jpeg or PreviewContentKind.Gif or PreviewContentKind.Bitmap or PreviewContentKind.Tiff)
         {
             try
             {
                 var image = new BitmapImage();
-                image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.UriSource = new Uri(_localPath); image.EndInit(); image.Freeze();
+                image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.DecodePixelWidth = 1600; image.UriSource = new Uri(_localPath); image.EndInit(); image.Freeze();
                 ImagePreview.Source = image; ImagePreview.Visibility = Visibility.Visible; PreviewMessage.Visibility = Visibility.Collapsed;
             }
             catch (Exception ex) { PreviewMessage.Text = "Image preview could not be loaded: " + ex.Message; }
         }
-        else if (ext == ".pdf")
+        else if (kind == PreviewContentKind.Pdf)
         {
+            _isPdf = true;
             PreviewMessage.Text = "PDF preview is not built into this app. You can open it in your default PDF viewer.";
             OpenPdfButton.Visibility = Visibility.Visible;
         }
         else if (info.Length > TextLimitBytes) PreviewMessage.Text = "Inline text preview is limited to files up to 2 MiB. Use the compare tab only for supported text files.";
-        else
+        else if (kind == PreviewContentKind.Text)
         {
             try
             {
@@ -96,7 +110,8 @@ public partial class FileReviewWindow : Window
             }
             catch (Exception ex) { PreviewMessage.Text = "Could not read this file for preview: " + ex.Message; }
         }
-        if (!_isText && ext is not ".png" and not ".jpg" and not ".jpeg" and not ".gif" and not ".bmp" and not ".tif" and not ".tiff")
+        else PreviewMessage.Text = "Content type is not recognized. OctoShip will not launch it from this preview.";
+        if (!_isText)
         { CompareButton.IsEnabled = false; CompareStatus.Text = "Text comparison is available for UTF-8-like text files up to 2 MiB."; }
     }
 
@@ -125,7 +140,12 @@ public partial class FileReviewWindow : Window
 
     private void OpenPdf_Click(object sender, RoutedEventArgs e)
     {
-        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_localPath) { UseShellExecute = true }); }
+        try
+        {
+            if (!_isPdf || FileContentTypeAudit.Read(_localPath) != PreviewContentKind.Pdf)
+                throw new InvalidOperationException("The file no longer has a PDF signature. Review it again before opening.");
+            TrustedProcess.Start(new System.Diagnostics.ProcessStartInfo(_localPath) { UseShellExecute = true });
+        }
         catch (Exception ex) { OctoShipDialog.Show(this, ex.Message, "Could not open PDF", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
 

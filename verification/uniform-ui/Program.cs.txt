@@ -39,7 +39,12 @@ internal static class Program
             Pump(main);
             Require(toolsTabs.Template.FindName("PART_SelectedContentHost", toolsTabs) is ContentPresenter, "accessible selected tab content host");
             Capture(main, "main-account", 1280, 880);
-            using (var settings = new WindowScope(new OctoCatSettingsWindow())) CheckWindow(settings.Window, "settings");
+            using (var settings = new WindowScope(new OctoCatSettingsWindow(new OctoCatPreferences { ClearCopiedTextAfterSeconds = 60 })))
+            {
+                CheckWindow(settings.Window, "settings");
+                var clipboardPicker = (ComboBox)settings.Window.FindName("ClipboardClearPicker");
+                Require(clipboardPicker.Items.Count == 4 && clipboardPicker.SelectedIndex == 2, "clipboard auto-clear choices and saved interval render");
+            }
             using (var repo = new WindowScope(new RepositoryToolsWindow(http, () => null, Array.Empty<string>(), "sample/project", "main", ""))) CheckWindow(repo.Window, "repositories");
             using (var flow = new WindowScope(new RepositoryWorkflowWindow(http, () => null, "sample/project", "main", ""))) CheckWindow(flow.Window, "workflow");
             using (var prepare = new WindowScope(new ShippingPreparationWindow(http, () => null, () => null, "sample/project", "main", ""))) CheckWindow(prepare.Window, "prepare");

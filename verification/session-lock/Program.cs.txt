@@ -52,9 +52,14 @@ internal static class Program
             var original = new TextBox { Text = "Private account workspace", Width = 220 };
             var main = new Window { Title = "Private repository", Content = original, Width = 350, Height = 240, ShowInTaskbar = false };
             app.MainWindow = main; main.Show();
-            session = new AccountSessionLock(app, path);
+            session = new AccountSessionLock(app, path, requireWindowsAuthentication: true);
             Require(!session.IsLocked, "new live session active");
             session.Lock(); main.UpdateLayout();
+            try { TrustedProcess.Create("git"); throw new Exception("Locked subprocess was allowed"); }
+            catch (InvalidOperationException) { checks++; }
+            var worker = System.Threading.Tasks.Task.Run(() => { try { AccountSessionLock.ThrowIfLocked(); return false; } catch (InvalidOperationException) { return true; } });
+            while (!worker.IsCompleted) app.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            Require(worker.GetAwaiter().GetResult(), "background worker checks lock on UI dispatcher");
             var pendingUnlock = session.WaitUntilUnlockedAsync();
             Require(!pendingUnlock.IsCompleted, "startup connection waits for authenticated unlock");
             Require(session.IsLocked && main.Content != original && main.Title == "OctoShip — Locked", "main content and title shielded");
@@ -83,6 +88,15 @@ internal static class Program
             session.Dispose(); session = null;
             Require(pendingUnlock.IsCanceled, "shutdown cancels pending startup connection");
             Require(AccountSessionState.Load(path, DateTimeOffset.UtcNow).IsLocked, "shutdown retains lock");
+            var disabledPath = Path.Combine(directory, "session-disabled.json");
+            new AccountSessionState(DateTimeOffset.UtcNow.AddHours(-1)).Save(disabledPath);
+            var unlockedMain = new Window { Title = "OctoShip auto-login", Content = new TextBox { Text = "Windows session protected" }, Width = 300, Height = 200, ShowInTaskbar = false };
+            app.MainWindow = unlockedMain; unlockedMain.Show();
+            var unlockedContent = unlockedMain.Content;
+            session = new AccountSessionLock(app, disabledPath, requireWindowsAuthentication: false);
+            Require(!session.IsLocked, "opt-out skips the app authentication prompt on startup");
+            Require(unlockedMain.Content == unlockedContent, "opt-out leaves the workspace unshielded");
+            Require(!AccountSessionState.Load(disabledPath, DateTimeOffset.UtcNow).IsLocked, "opt-out clears the stale app lock state");
             Console.WriteLine("PASS: " + checks + " session policy, persistence, WPF shielding and HTTP gating checks. Real Windows authentication requires interactive verification.");
             return 0;
         }

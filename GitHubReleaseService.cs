@@ -35,7 +35,8 @@ public sealed class GitHubReleaseService
     {
         var root = Root(owner, repository).Replace("https://api.github.com/", "https://uploads.github.com/");
         if (releaseId <= 0) throw new ArgumentException("Invalid release ID.");
-        await using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true);
+        SecurityBoundaries.RequireRegularPath(path);
+        await using var file = SecurityBoundaries.OpenRead(path);
         if (file.Length == 0 || file.Length >= 2L * 1024 * 1024 * 1024) throw new ArgumentException("Release assets must be nonempty and smaller than 2 GiB.");
         using var request = Request(HttpMethod.Post, root + $"/releases/{releaseId}/assets?name=" + Uri.EscapeDataString(Path.GetFileName(path)), token);
         request.Content = new StreamContent(file);

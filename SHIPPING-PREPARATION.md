@@ -1,5 +1,7 @@
 # Preparation and inspection features (development build)
 
+Windows 1.6.1-preview.1: saved account/visibility bindings now apply to every shared-HTTP publishing path for a repository, with corrupt/conflicting bindings failing closed. Imported plans use bounded reads and source path validation. Older per-workflow boundaries in the feature table below describe the original implementation; see [P0 handoff](P0-HANDOFF.md) for the current changes and verification limits.
+
 This document describes the Windows implementation. For Linux 1.7.0 behavior, platform differences and verification, see the [Linux guide](linux/README.md) and [release handoff](docs/linux-1.7.0-handoff.md).
 
 Open **Prepare & inspect** in the main header. This source work extends the packaged 1.5.0 application; it does not itself publish a GitHub release. Features 1–12 are described separately in [SHIPPING-WORKBENCH.md](SHIPPING-WORKBENCH.md).

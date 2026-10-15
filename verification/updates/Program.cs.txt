@@ -13,9 +13,14 @@ Check(ReleaseVersion.Parse("1.6.0").CompareTo(ReleaseVersion.Parse("1.6.0-previe
 Check(ReleaseVersion.Parse("1.5.0").CompareTo(ReleaseVersion.Parse("1.6.0-preview.1")) < 0, "no downgrade");
 Check(ReleaseVersion.Parse("1.6.0+build.1").CompareTo(ReleaseVersion.Parse("1.6.0+build.2")) == 0, "build metadata ignored");
 Reject(() => ReleaseVersion.Parse("../../malicious"), "invalid tag");
-var prefs = OctoCatPreferencesService.Normalize(new OctoCatPreferences { AutomaticUpdates = false });
+var prefs = OctoCatPreferencesService.Normalize(new OctoCatPreferences { AutomaticUpdates = false, ClearCopiedTextAfterSeconds = 60 });
 Check(!prefs.AutomaticUpdates, "opt out survives normalization");
 Check(new OctoCatPreferences().AutomaticUpdates, "automatic updates enabled by default");
+Check(OctoCatPreferencesService.Normalize(new OctoCatPreferences { ClearCopiedTextAfterSeconds = 60 }).ClearCopiedTextAfterSeconds == 60, "clipboard clear interval survives preference normalization");
+Check(OctoCatPreferencesService.Normalize(new OctoCatPreferences { ClearCopiedTextAfterSeconds = 17 }).ClearCopiedTextAfterSeconds == 0, "unsupported clipboard interval safely disables clearing");
+Check(ClipboardClearPolicy.ShouldClear("copied path", "copied path", 30), "clipboard timer may clear the exact app-copied text");
+Check(!ClipboardClearPolicy.ShouldClear("new user text", "copied path", 30), "clipboard timer preserves text copied afterward");
+Check(!ClipboardClearPolicy.ShouldClear("copied path", "copied path", 0), "clipboard clearing stays opt-in");
 var root = Path.Combine(Path.GetTempPath(), "OctoShip-update-checks-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(root);
 var version = ReleaseVersion.Parse(typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion);
@@ -46,6 +51,7 @@ Check(!File.Exists(Path.Combine(root, "escape.txt")), "no escaped files written"
 var exported = Path.Combine(root, "prefs.json");
 OctoCatPreferencesService.Export(exported, prefs);
 Check(!OctoCatPreferencesService.Import(exported).AutomaticUpdates, "opt out survives export/import");
+Check(OctoCatPreferencesService.Import(exported).ClearCopiedTextAfterSeconds == 60, "clipboard clear interval survives export/import");
 using var releases = System.Text.Json.JsonDocument.Parse("[{\"tag_name\":\"linux-v99.0.0\",\"draft\":false,\"prerelease\":false,\"assets\":[{\"name\":\"linux.deb\"}]},{\"tag_name\":\"v1.7.0\",\"draft\":false,\"prerelease\":false,\"assets\":[{\"name\":\"OctoShip-win-x64.zip\"}]},{\"tag_name\":\"v1.8.0-preview.1\",\"draft\":false,\"prerelease\":true,\"assets\":[{\"name\":\"OctoShip-win-x64.zip\"}]},{\"tag_name\":\"v1.6.0\",\"draft\":false,\"prerelease\":false,\"assets\":[{\"name\":\"OctoShip-win-x64.zip\"}]},{\"tag_name\":\"v99.0.0\",\"draft\":true,\"prerelease\":false,\"assets\":[{\"name\":\"OctoShip-win-x64.zip\"}]}]");
 Check(WindowsUpdateRelease.Select(releases.RootElement, false).GetProperty("tag_name").GetString() == "v1.7.0", "stable skips Linux, drafts and prereleases and chooses greatest Windows version");
 Check(WindowsUpdateRelease.Select(releases.RootElement, true).GetProperty("tag_name").GetString() == "v1.8.0-preview.1", "preview selects Windows prerelease");

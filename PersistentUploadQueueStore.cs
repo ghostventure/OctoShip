@@ -21,12 +21,12 @@ public sealed class PersistentUploadQueueStore
         var path = FilePath(repository, branch);
         if (!File.Exists(path)) return null;
         if (new FileInfo(path).Length > 2 * 1024 * 1024) throw new InvalidDataException("The saved queue is too large.");
-        var snapshot = JsonSerializer.Deserialize<Snapshot>(File.ReadAllText(path));
+        var snapshot = JsonSerializer.Deserialize<Snapshot>(SecurityBoundaries.ReadBoundedJson(path, 2 * 1024 * 1024));
         if (snapshot == null || snapshot.Version != 1 || !string.Equals(snapshot.Repository, repository, StringComparison.OrdinalIgnoreCase) || snapshot.Branch != branch || snapshot.Entries == null || snapshot.Entries.Length > 100)
             throw new InvalidDataException("The saved queue is not valid for this repository and branch.");
         foreach (var entry in snapshot.Entries)
         {
-            if (string.IsNullOrWhiteSpace(entry.SourcePath) || !Path.IsPathFullyQualified(entry.SourcePath) || entry.Length < 0)
+            if (entry == null || string.IsNullOrWhiteSpace(entry.SourcePath) || !Path.IsPathFullyQualified(entry.SourcePath) || entry.Length < 0)
                 throw new InvalidDataException("A saved queue file is invalid.");
             UploadQueueItem.NormalizeDestination(entry.DestinationPath);
         }
@@ -36,9 +36,17 @@ public sealed class PersistentUploadQueueStore
     {
         Directory.CreateDirectory(_directory);
         var path = FilePath(snapshot.Repository, snapshot.Branch);
-        var temporary = path + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(snapshot));
-        File.Move(temporary, path, true);
+        var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            {
+                JsonSerializer.Serialize(stream, snapshot);
+                stream.Flush(true);
+            }
+            File.Move(temporary, path, true);
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
     public void Delete(string repository, string branch)
     {

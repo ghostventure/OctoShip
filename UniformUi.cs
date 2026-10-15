@@ -77,7 +77,15 @@ public static class UniformUi
         if (!save) return;
         Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
         var temp = SettingsPath + ".tmp-" + Guid.NewGuid().ToString("N");
-        try { File.WriteAllText(temp, JsonSerializer.Serialize(Preferences)); File.Move(temp, SettingsPath, true); }
+        try
+        {
+            using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            {
+                JsonSerializer.Serialize(stream, Preferences);
+                stream.Flush(true);
+            }
+            File.Move(temp, SettingsPath, true);
+        }
         finally { if (File.Exists(temp)) File.Delete(temp); }
     }
     private static void OnLoaded(object sender, RoutedEventArgs args)

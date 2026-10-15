@@ -1,12 +1,12 @@
 # OctoShip developer notes
 
-For exhaustive, end-to-end documentation across all features, architecture, and verification, see [OCTOSHIP-GUIDE.md](OCTOSHIP-GUIDE.md). Account retention, the 30-minute inactivity lock, Windows authentication, and its verification boundaries are documented in [ACCOUNT-SESSION.md](ACCOUNT-SESSION.md). The development target is now `net6.0-windows10.0.19041.0`; older target-path references below describe the original packaged release.
+For exhaustive, end-to-end documentation across all features, architecture, and verification, see [OCTOSHIP-GUIDE.md](OCTOSHIP-GUIDE.md). Account retention, the 30-minute inactivity lock, Windows authentication, and its verification boundaries are documented in [ACCOUNT-SESSION.md](ACCOUNT-SESSION.md). The current Windows development target is `net10.0-windows10.0.19041.0`; older target-path references below describe previous releases. The [P0 handoff](P0-HANDOFF.md) supersedes older Windows runtime, publishing-guard, update, and packaging instructions. Windows publisher signing and signed update manifests are optional distribution assurances outside core scope.
 
 This document describes the source snapshot in this repository and the work needed to combine it with a Linux version.
 
 ## Platform status
 
-The original 1.5.0 C# application is Windows-only. The native Python/Tk Linux 1.7.0 client now lives in `linux/`; see [Linux setup, feature coverage, packaging, and tests](linux/README.md). Its UI-independent backend implements the GitHub REST upload, atomic batch, comparison, branch/PR, and release workflows, with GitHub CLI credential integration, without requiring the Windows UI assemblies. The following platform notes describe the original C# client. `FileToGitHub.csproj` targets `net6.0-windows` and enables WPF and Windows Forms. Its XAML views and code-behind use WPF windows, controls, dialogs, clipboard, file pickers, Explorer, and PowerShell. Publishing these files with a Linux runtime identifier does not make the application runnable on Linux.
+The C# Windows client currently targets `net10.0-windows10.0.19041.0`; its WPF views and code-behind use Windows-specific windows, dialogs, clipboard, file pickers, Explorer, and PowerShell. The native Python/Tk Linux 1.7.0 client lives separately in `linux/`; see [Linux setup, feature coverage, packaging, and tests](linux/README.md). Its UI-independent backend implements GitHub REST upload, atomic batch, comparison, branch/PR, and release workflows, with GitHub CLI credential integration. The Windows client cannot run on Linux by selecting a Linux runtime identifier.
 
 To produce a supported Linux desktop app, keep the existing Windows client working while extracting platform-neutral logic and implementing a cross-platform UI. Avalonia is a reasonable C# UI choice. Then add Linux implementations for file selection, clipboard, URI/file launching, application data paths, single-instance behavior, credential setup, and updates. Build and smoke-test packages on Linux before distributing them. The Windows Inno Setup script is not a Linux installer.
 
@@ -35,19 +35,19 @@ Git for Windows and Git Credential Manager are required by this build. The app a
 
 The Windows app stores preferences under `%LOCALAPPDATA%\\OctoShipForGitHub` and can copy preference files from the former `%LOCALAPPDATA%\\OctoCat` directory on first launch. Privacy mode suppresses saved search/repository history. A Linux client needs to use XDG config/data locations and decide explicitly whether to migrate compatible JSON preferences. Windows paths and registry-based publisher checks must not be reused as Linux paths or trust checks.
 
-## Historical 1.5.0 build and package examples
+## Windows build and package
 
-Requirements for the Windows build are the .NET 6 SDK, the .NET Windows Desktop Runtime to run the framework-dependent app, Git for Windows with Git Credential Manager, and Inno Setup 6 to compile the installer.
+Requirements to build and package the Windows client are the .NET 10 SDK, Git for Windows with Git Credential Manager, and Inno Setup 6. The current Windows installer is self-contained and bundles the .NET 10 runtime; a separate runtime installation is not required to run it.
 
 ```powershell
 dotnet build FileToGitHub.csproj -c Release
-dotnet publish FileToGitHub.csproj -c Release --no-restore -o dist-OctoShip-v15
-Compress-Archive -Path dist-OctoShip-v15\* -DestinationPath OctoShip-for-GitHub-v1.5.0-win-x64.zip -Force
-dotnet publish FileToGitHub.csproj -c Release --no-restore -p:DebugType=None -o installer\payload
+dotnet publish FileToGitHub.csproj -c Release -r win-x64 --self-contained true -o dist-OctoShip
+Compress-Archive -Path dist-OctoShip\* -DestinationPath OctoShip-for-GitHub-win-x64.zip -Force
+dotnet publish FileToGitHub.csproj -c Release -r win-x64 --self-contained true -p:DebugType=None -o installer\payload
 ISCC.exe installer\OctoShip.iss
 ```
 
-The setup output is `installers/OctoShip-Setup-v1.5.0-win-x64.exe`. It installs per-user under LocalAppData, creates a Start Menu shortcut, optionally creates a desktop shortcut, and registers an uninstaller. The installer currently requires a compatible .NET Windows Desktop Runtime and Git for Windows; it is not self-contained or Authenticode-signed. Preserve user settings and Credential Manager entries when uninstalling.
+The setup output name/version is configured in `installer/OctoShip.iss`. It installs per-user under LocalAppData, creates a Start Menu shortcut, optionally creates a desktop shortcut, and registers an uninstaller. The current package is self-contained and bundles .NET 10; it is not Authenticode-signed. Git for Windows with Git Credential Manager is required for GitHub sign-in. Preserve user settings and Credential Manager entries when uninstalling.
 
 The component preview includes focused offline harnesses under `verification/`. Their source templates avoid the application project's default C# compilation glob. Build the app and run these harnesses before packaging. Mock HTTP verification does not establish live GitHub integration or installer behavior. The Linux package builder and offline/GUI harnesses are documented in `linux/README.md`; verification evidence is in `verification/linux-port-1.6.0.md`. Linux 1.7.0 also has a self-contained runtime installer and bundled Debian package; see `linux/packaging/README.md`. Linux CI and AppImage packaging remain future work.
 

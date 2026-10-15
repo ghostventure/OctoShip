@@ -131,7 +131,8 @@ public sealed class GitHubAtomicBatchService
 
     private static async Task<byte[]> ReadStableAsync(BatchUploadFile file, CancellationToken ct)
     {
-        await using var stream = new FileStream(file.SourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 131072, true);
+        SecurityBoundaries.RequireRegularPath(file.SourcePath);
+        await using var stream = SecurityBoundaries.OpenRead(file.SourcePath);
         if (stream.Length != file.Size || (file.CapturedLastWriteTimeUtc.HasValue && File.GetLastWriteTimeUtc(file.SourcePath) != file.CapturedLastWriteTimeUtc.Value))
             throw new InvalidOperationException("A local file changed after review. Rebuild and review the queue.");
         using var buffer = new MemoryStream(checked((int)file.Size));

@@ -13,6 +13,11 @@
                 <GroupBox Header="Privacy and update channel" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
                     <StackPanel>
                         <CheckBox x:Name="PrivacyCheck" Content="Privacy Mode: do not retain search terms, recent repositories, or local upload paths"/>
+                        <TextBlock Text="Clipboard copies" Foreground="#A9B9CE" Margin="0,8,0,0"/>
+                        <ComboBox x:Name="ClipboardClearPicker" Width="190" HorizontalAlignment="Left" SelectedIndex="0">
+                            <ComboBoxItem Content="Keep copied text"/><ComboBoxItem Content="Clear after 30 seconds"/><ComboBoxItem Content="Clear after 1 minute"/><ComboBoxItem Content="Clear after 5 minutes"/>
+                        </ComboBox>
+                        <TextBlock Text="When enabled, OctoShip clears its copied path, hash, or diagnostics only if that exact text is still on the clipboard when the timer expires." TextWrapping="Wrap" Foreground="#A9B9CE"/>
                         <CheckBox x:Name="AutomaticUpdatesCheck" Content="Automatically download updates and install when OctoShip closes"/>
                         <TextBlock Text="Checks public GitHub releases at startup and every two minutes while unlocked. No GitHub sign-in is needed for updates. Preview also receives stable releases." TextWrapping="Wrap"/>
                         <TextBlock Text="Update channel" Foreground="#A9B9CE"/>

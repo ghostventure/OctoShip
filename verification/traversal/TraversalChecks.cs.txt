@@ -1,0 +1,62 @@
+using System;
+using System.IO;
+using System.Linq;
+using FileToGitHub;
+
+internal static class Program
+{
+    private static int checks;
+    private static void Check(bool condition, string description)
+    {
+        if (!condition) throw new Exception("FAIL " + description);
+        Console.WriteLine("PASS " + description);
+        checks++;
+    }
+
+    private static void Main()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "OctoShip-traversal-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            Write(root, "src/main.cs");
+            Write(root, "bin/Debug/app.dll");
+            Write(root, "obj/project.assets.json");
+            Write(root, "node_modules/pkg/index.js");
+            Write(root, ".git/config");
+            Write(root, "build/output.zip");
+            Write(root, "build/keep/readme.md");
+            Write(root, "docs/site/index.html");
+
+            var defaults = UploadQueuePlanner.FromFolder(root, maxFiles: 100);
+            var defaultPaths = defaults.Select(item => item.DestinationPath).ToArray();
+            Check(defaultPaths.SequenceEqual(new[] { "build/keep/readme.md", "build/output.zip", "docs/site/index.html", "src/main.cs" }),
+                "default traversal prunes .git, bin, obj, and node_modules before collecting generated files");
+
+            var withRules = UploadQueuePlanner.FromFolder(root, maxFiles: 100,
+                exclusionPatterns: new[] { "build/", "!build/keep/**", "docs/site/" });
+            var paths = withRules.Select(item => item.DestinationPath).ToArray();
+            Check(paths.SequenceEqual(new[] { "build/keep/readme.md", "src/main.cs" }),
+                "nested exclusion prunes build while a later negation rescues only build/keep descendants");
+
+            var capped = false;
+            try { UploadQueuePlanner.FromFolder(root, maxFiles: 100, maxEntries: 1); }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("1 entries", StringComparison.Ordinal)) { capped = true; }
+            Check(capped, "traversal stops after its configured filesystem-entry budget");
+
+            var fileCapped = false;
+            try { UploadQueuePlanner.FromFolder(root, maxFiles: 1); }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("more than 1 files", StringComparison.Ordinal)) { fileCapped = true; }
+            Check(fileCapped, "existing file-count limit still protects oversized upload plans");
+            Console.WriteLine($"{checks} traversal checks passed.");
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    private static void Write(string root, string relative)
+    {
+        var path = Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, "test");
+    }
+}

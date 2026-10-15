@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -64,7 +65,7 @@ public sealed class UploadQueueItem
     {
         if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("A destination path is required.", nameof(path));
         var normalized = path.Trim().Replace('\\', '/').Trim('/');
-        if (normalized.Length == 0 || normalized.Split('/').Any(part => part is "" or "." or ".."))
+        if (normalized.Length == 0 || normalized.Any(char.IsControl) || normalized.Contains(':') || normalized.Split('/').Any(part => part is "" or "." or ".." || part.Equals(".git", StringComparison.OrdinalIgnoreCase)))
             throw new ArgumentException("The destination must be a repository-relative file path.", nameof(path));
         return normalized;
     }
@@ -73,6 +74,8 @@ public sealed class UploadQueueItem
 /// <summary>Creates a queue plan without accessing credentials or making network requests.</summary>
 public static class UploadQueuePlanner
 {
+    private static readonly string[] DefaultExcludedDirectoryNames = { ".git", "bin", "obj", "node_modules" };
+
     public static IReadOnlyList<UploadQueueItem> FromFiles(IEnumerable<string> files, string destinationFolder = "")
     {
         ArgumentNullException.ThrowIfNull(files);
@@ -88,36 +91,172 @@ public static class UploadQueuePlanner
     }
 
     /// <summary>Traverses a folder recursively, preserving its relative directory structure.</summary>
-    public static IReadOnlyList<UploadQueueItem> FromFolder(string folderPath, string destinationFolder = "", int maxFiles = 100)
+    public static IReadOnlyList<UploadQueueItem> FromFolder(string folderPath, string destinationFolder = "", int maxFiles = 100,
+        IEnumerable<string>? exclusionPatterns = null, int maxEntries = 50_000)
     {
         if (maxFiles is < 1 or > 10_000) throw new ArgumentOutOfRangeException(nameof(maxFiles), "The folder traversal limit must be between 1 and 10,000 files.");
+        if (maxEntries is < 1 or > 1_000_000) throw new ArgumentOutOfRangeException(nameof(maxEntries), "The folder traversal entry limit must be between 1 and 1,000,000 entries.");
         var root = Path.GetFullPath(folderPath);
         if (!Directory.Exists(root)) throw new DirectoryNotFoundException(root);
         if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
             throw new InvalidOperationException("Choose a real folder rather than a junction or symbolic link.");
         var files = new List<UploadQueueItem>();
         var pending = new Stack<string>();
+        var rules = new TraversalExclusions(exclusionPatterns);
+        var visitedEntries = 0;
         pending.Push(root);
         while (pending.Count > 0)
         {
             var current = pending.Pop();
-            foreach (var file in Directory.EnumerateFiles(current))
+            IEnumerable<string> children;
+            try { children = Directory.EnumerateFileSystemEntries(current); }
+            catch (Exception ex) when (IsTraversalAccessError(ex)) { continue; }
+
+            IEnumerator<string> enumerator;
+            try { enumerator = children.GetEnumerator(); }
+            catch (Exception ex) when (IsTraversalAccessError(ex)) { continue; }
+            using (enumerator)
             {
-                if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0) continue;
-                if (files.Count >= maxFiles) throw new InvalidOperationException($"This folder contains more than {maxFiles} files. Choose a smaller folder.");
-                var relative = Path.GetRelativePath(root, file).Replace('\\', '/');
-                var target = string.IsNullOrWhiteSpace(destinationFolder)
-                    ? relative
-                    : destinationFolder.Trim().Replace('\\', '/').TrimEnd('/') + "/" + relative;
-                files.Add(new UploadQueueItem(file, target));
-            }
-            foreach (var child in Directory.EnumerateDirectories(current))
-            {
-                // Do not traverse junctions/symlinks: they can escape the chosen folder or create cycles.
-                if ((File.GetAttributes(child) & FileAttributes.ReparsePoint) == 0) pending.Push(child);
+                while (true)
+                {
+                    string entry;
+                    try { if (!enumerator.MoveNext()) break; entry = enumerator.Current; }
+                    catch (Exception ex) when (IsTraversalAccessError(ex)) { break; }
+                    if (++visitedEntries > maxEntries)
+                        throw new InvalidOperationException($"Folder traversal stopped after examining {maxEntries} entries. Choose a smaller folder or increase the traversal limit.");
+
+                    FileAttributes attributes;
+                    try { attributes = File.GetAttributes(entry); }
+                    catch (Exception ex) when (IsTraversalAccessError(ex)) { continue; }
+                    if ((attributes & FileAttributes.ReparsePoint) != 0) continue;
+
+                    var relative = Path.GetRelativePath(root, entry).Replace('\\', '/');
+                    if ((attributes & FileAttributes.Directory) != 0)
+                    {
+                        if (!rules.IsExcludedDirectory(relative) || rules.MayReincludeDescendant(relative)) pending.Push(entry);
+                        continue;
+                    }
+
+                    if (rules.IsExcludedFile(relative)) continue;
+                    if (files.Count >= maxFiles) throw new InvalidOperationException($"This folder contains more than {maxFiles} files. Choose a smaller folder.");
+                    var target = string.IsNullOrWhiteSpace(destinationFolder)
+                        ? relative
+                        : destinationFolder.Trim().Replace('\\', '/').TrimEnd('/') + "/" + relative;
+                    try { files.Add(new UploadQueueItem(entry, target)); }
+                    catch (Exception ex) when (IsTraversalAccessError(ex)) { /* The file disappeared or became inaccessible during enumeration. */ }
+                }
             }
         }
         return files.OrderBy(item => item.DestinationPath, StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static bool IsTraversalAccessError(Exception ex) => ex is UnauthorizedAccessException or IOException or System.Security.SecurityException;
+
+    /// <summary>Gitignore-like path exclusions used only for local folder discovery.</summary>
+    private sealed class TraversalExclusions
+    {
+        private readonly Rule[] _rules;
+        public TraversalExclusions(IEnumerable<string>? patterns)
+        {
+            _rules = (patterns ?? Array.Empty<string>())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim())
+                .Where(value => !value.StartsWith('#'))
+                .Select(value => new Rule(value))
+                .ToArray();
+        }
+
+        public bool IsExcludedDirectory(string relativePath)
+        {
+            var segments = relativePath.Split('/');
+            if (segments.Any(segment => DefaultExcludedDirectoryNames.Contains(segment, StringComparer.OrdinalIgnoreCase))) return true;
+            return IsExcludedByRules(relativePath, isDirectory: true);
+        }
+
+        public bool IsExcludedFile(string relativePath) => IsExcludedByRules(relativePath, isDirectory: false);
+
+        public bool MayReincludeDescendant(string relativeDirectory)
+        {
+            // Negated rules can rescue a nested path, so conservatively descend excluded user-pattern
+            // directories when any negation exists. Built-in generated directories remain pruned.
+            var segments = relativeDirectory.Split('/');
+            if (segments.Any(segment => DefaultExcludedDirectoryNames.Contains(segment, StringComparer.OrdinalIgnoreCase))) return false;
+            return _rules.Any(rule => rule.Negated && rule.MayMatchBelow(relativeDirectory));
+        }
+
+        private bool IsExcludedByRules(string relativePath, bool isDirectory)
+        {
+            var excluded = false;
+            var pathSegments = relativePath.Split('/');
+            for (var count = 1; count <= pathSegments.Length; count++)
+            {
+                var prefix = string.Join('/', pathSegments.Take(count));
+                var prefixIsDirectory = count < pathSegments.Length || isDirectory;
+                foreach (var rule in _rules)
+                {
+                    if (!rule.Matches(prefix, prefixIsDirectory)) continue;
+                    excluded = !rule.Negated;
+                }
+            }
+            return excluded;
+        }
+
+        private sealed class Rule
+        {
+            private readonly Regex _regex;
+            private readonly bool _directoryOnly;
+            private readonly string _staticPrefix;
+            private readonly bool _matchesAnySegment;
+            public Rule(string value)
+            {
+                Negated = value.StartsWith('!');
+                if (Negated) value = value[1..];
+                value = value.Replace('\\', '/');
+                _directoryOnly = value.EndsWith('/');
+                var anchored = value.StartsWith('/');
+                value = value.TrimStart('/');
+                value = value.TrimEnd('/');
+                var hasSlash = value.Contains('/');
+                _matchesAnySegment = !hasSlash;
+                var wildcard = value.IndexOfAny(new[] { '*', '?' });
+                _staticPrefix = wildcard < 0 ? value : value[..wildcard];
+                var expression = GlobToRegex(value);
+                if (!anchored && !hasSlash) expression = "(?:^|.*/)" + expression;
+                _regex = new Regex("^" + expression + "$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                    TimeSpan.FromMilliseconds(100));
+            }
+            public bool Negated { get; }
+            public bool Matches(string relativePath, bool isDirectory) => (!_directoryOnly || isDirectory)
+                && (_regex.IsMatch(relativePath) || (isDirectory && _regex.IsMatch(relativePath + "/")));
+            public bool MayMatchBelow(string relativeDirectory)
+            {
+                if (_matchesAnySegment || _staticPrefix.Length == 0) return true;
+                return _staticPrefix.StartsWith(relativeDirectory + "/", StringComparison.OrdinalIgnoreCase)
+                    || relativeDirectory.StartsWith(_staticPrefix.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)
+                    || _regex.IsMatch(relativeDirectory);
+            }
+
+            private static string GlobToRegex(string pattern)
+            {
+                var result = new System.Text.StringBuilder();
+                for (var i = 0; i < pattern.Length; i++)
+                {
+                    if (pattern[i] == '*')
+                    {
+                        if (i + 1 < pattern.Length && pattern[i + 1] == '*')
+                        {
+                            i++;
+                            if (i + 1 < pattern.Length && pattern[i + 1] == '/') { i++; result.Append("(?:.*/)?"); }
+                            else result.Append(".*");
+                        }
+                        else result.Append("[^/]*");
+                    }
+                    else if (pattern[i] == '?') result.Append("[^/]");
+                    else result.Append(Regex.Escape(pattern[i].ToString()));
+                }
+                return result.ToString();
+            }
+        }
     }
 
     /// <summary>

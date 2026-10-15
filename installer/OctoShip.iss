@@ -1,5 +1,5 @@
 #define MyAppName "OctoShip for GitHub"
-#define MyAppVersion "1.6.0"
+#define MyAppVersion "1.6.1-preview.10"
 #ifndef PayloadDir
 #define PayloadDir "payload"
 #endif
@@ -29,28 +29,30 @@ RestartApplications=no
 Uninstallable=yes
 AppComments=Windows desktop uploader for GitHub
 AppSupportURL=https://github.com/ghostventure/OctoShip
-VersionInfoVersion=1.6.0.0
+VersionInfoVersion=1.6.1.10
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription=OctoShip for GitHub installer
 VersionInfoProductName={#MyAppName}
-VersionInfoProductVersion=1.6.0.0
+VersionInfoProductVersion=1.6.1.10
 MinVersion=10.0.19041
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
-WelcomeLabel2=Installs OctoShip for GitHub for your Windows user. Git for Windows and a compatible .NET Windows Desktop Runtime (6 or later) are required to run the app.
+WelcomeLabel2=Installs OctoShip for GitHub for your Windows user. This package includes the .NET 10 desktop runtime. Git for Windows with Git Credential Manager is required for GitHub sign-in.
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
 [Files]
 Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\SECURITY-OPERATIONS.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}\Security and account guide"; Filename: "{app}\SECURITY-OPERATIONS.md"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: postinstall nowait skipifsilent

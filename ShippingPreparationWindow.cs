@@ -49,8 +49,7 @@ public sealed class ShippingPreparationWindow : Window
     {
         UniformUi.Prepare(this);
         _http = http; _token = token; _account = account;
-        try { _profiles = File.Exists(ProfilePath) ? JsonSerializer.Deserialize<Dictionary<string, ShippingProjectProfile>>(File.ReadAllText(ProfilePath)) ?? new() : new(); }
-        catch { _profiles = new(); }
+        _profiles = PublicationBindings.Load();
         Title = "OctoShip — Prepare and inspect"; Width = 1000; Height = 850; MinWidth = 700; MinHeight = 600;
         Background = new SolidColorBrush(Color.FromRgb(16, 21, 30)); Foreground = Brushes.WhiteSmoke; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var panel = new StackPanel { Margin = new Thickness(18) }; Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
@@ -130,7 +129,7 @@ public sealed class ShippingPreparationWindow : Window
             Directory.CreateDirectory(Path.GetDirectoryName(ProfilePath)!); File.WriteAllText(ProfilePath, JsonSerializer.Serialize(_profiles, new JsonSerializerOptions { WriteIndented = true }));
             _status.Text = "Project binding saved locally, without credentials.";
         });
-        Note(accountPanel, "GitHub chooses the authenticated user's commit identity for API commits when no author override is supplied. Public profile email is not authoritative; OctoShip cannot promise the exact commit email before GitHub creates it. Configure your GitHub email privacy settings before publishing. Project binding applies to this preparation workflow.");
+        Note(accountPanel, "GitHub chooses commit identity for API commits. Public profile email is not a commit-email guarantee. Saved account and visibility bindings apply to every publishing workflow for this repository. Conflicting bindings block publication until reviewed.");
 
         var inspect = Tab(tabs, "Project and release checks");
         Field(inspect, "Expected version / release tag (optional)", _version, "");
@@ -252,10 +251,10 @@ public sealed class ShippingPreparationWindow : Window
     {
         var d = new Microsoft.Win32.OpenFileDialog { Filter = "OctoShip preparation plan|*.json" }; if (d.ShowDialog(this) != true) return;
         if (new FileInfo(d.FileName).Length > 1024 * 1024) throw new IOException("Plan exceeds 1 MiB.");
-        using var json = JsonDocument.Parse(File.ReadAllText(d.FileName)); var r = json.RootElement;
+        using var json = JsonDocument.Parse(SecurityBoundaries.ReadBoundedJson(d.FileName, 1024 * 1024)); var r = json.RootElement;
         var files = JsonSerializer.Deserialize<List<Mapping>>(r.GetProperty("Files").GetRawText()) ?? new();
         if (files.Count > 100) throw new IOException("Plan exceeds 100 files.");
-        foreach (var file in files) { file.Source = Path.GetFullPath(file.Source); file.Destination = UploadQueueItem.NormalizeDestination(file.Destination); }
+        foreach (var file in files) { if (file == null || !Path.IsPathFullyQualified(file.Source)) throw new IOException("Plan source paths must be absolute."); SecurityBoundaries.RequireRegularPath(file.Source); file.Source = Path.GetFullPath(file.Source); file.Destination = UploadQueueItem.NormalizeDestination(file.Destination); }
         _mappings.Clear(); foreach (var file in files) _mappings.Add(file);
         _repository.Text = r.GetProperty("Repository").GetString(); _branch.Text = r.GetProperty("Branch").GetString(); _root.Text = r.GetProperty("Project").GetString(); _selectiveHead = null; _selectiveStaged = false; _selectiveMapping = null; LoadProfile();
         _status.Text = "Offline plan loaded. Review local sources and destinations before publishing.";

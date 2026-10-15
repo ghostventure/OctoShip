@@ -27,8 +27,10 @@ public partial class MainWindow : Window
     private const long MaxUploadBytes = 50L * 1024 * 1024;
     private const string DefaultUpdateRepository = "ghostventure/OctoShip";
     private static readonly Regex RepositoryPattern = new("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", RegexOptions.Compiled);
-    private readonly HttpClient _http = new(new SessionLockHttpHandler()) { Timeout = TimeSpan.FromMinutes(3) };
+    private readonly HttpClient _http;
     private readonly HttpClient _updateHttp = new(new SessionLockHttpHandler()) { Timeout = TimeSpan.FromMinutes(2) };
+    private readonly System.Windows.Threading.DispatcherTimer _clipboardClearTimer = new();
+    private string? _pendingClipboardText;
     private CancellationTokenSource? _uploadCancellation;
     private CancellationTokenSource? _searchCancellation;
     private readonly SearchService _searchService = new();
@@ -43,6 +45,7 @@ public partial class MainWindow : Window
     private bool _branchManuallyEdited;
     private bool _pathManuallyEdited;
     private bool _autoConnect = true;
+    private bool _requireWindowsAuthentication = true;
     private string? _preferredAccount;
     private bool _settingsLoaded;
     private string _updateRepository = DefaultUpdateRepository;
@@ -61,6 +64,7 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        _http = new HttpClient(new SessionLockHttpHandler(() => _token, () => _account)) { Timeout = TimeSpan.FromMinutes(3) };
         UniformUi.Prepare(this);
         InitializeComponent();
         _repositoryService = new GitHubRepositoryService(_http);
@@ -74,9 +78,11 @@ public partial class MainWindow : Window
         PathBox.TextChanged += (_, _) => { if (!_loadingAccounts) _pathManuallyEdited = true; };
         VersionLabel.Text = $"Version {CurrentReleaseVersion()}";
         _updateTimer.Tick += async (_, _) => await CheckForUpdatesAsync(silent: true);
+        _clipboardClearTimer.Tick += ClipboardClearTimer_Tick;
         Closed += (_, _) =>
         {
             _updateTimer.Stop();
+            _clipboardClearTimer.Stop();
             if (_appPreferences.AutomaticUpdates && _pendingUpdateScript is not null)
                 try { StartUpdateHelper(_pendingUpdateScript); } catch (Exception ex) { File.WriteAllText(Path.Combine(ProductDataDirectory, "update-failed.txt"), SafeMessage(ex)); }
         };
@@ -260,17 +266,17 @@ public partial class MainWindow : Window
     private ResultItem? SelectedResult => ResultsList.SelectedItem as ResultItem;
     private void OpenFile_Click(object sender, RoutedEventArgs e)
     {
-        try { if (SelectedResult is { } item) Process.Start(new ProcessStartInfo(item.FullPath) { UseShellExecute = true }); }
+        try { if (SelectedResult is { } item) TrustedProcess.Start(new ProcessStartInfo(item.FullPath) { UseShellExecute = true }); }
         catch (Exception ex) { SetStatus($"Could not open the file: {SafeMessage(ex)}", true); }
     }
     private void RevealFile_Click(object sender, RoutedEventArgs e)
     {
-        try { if (SelectedResult is { } item) Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{item.FullPath}\"") { UseShellExecute = true }); }
+        try { if (SelectedResult is { } item) TrustedProcess.Start(new ProcessStartInfo(TrustedProcess.Resolve("explorer.exe"), $"/select,\"{item.FullPath}\"") { UseShellExecute = true }); }
         catch (Exception ex) { SetStatus($"Could not show the file in Explorer: {SafeMessage(ex)}", true); }
     }
     private void CopyPath_Click(object sender, RoutedEventArgs e)
     {
-        try { if (SelectedResult is { } item) { Clipboard.SetText(item.FullPath); SetStatus("Full file path copied."); } }
+        try { if (SelectedResult is { } item) CopyTextToClipboard(item.FullPath, "Full file path copied."); }
         catch (Exception ex) { SetStatus($"Could not copy the path: {SafeMessage(ex)}", true); }
     }
 
@@ -287,11 +293,38 @@ public partial class MainWindow : Window
                 using var sha = SHA256.Create();
                 return Convert.ToHexString(sha.ComputeHash(stream));
             });
-            Clipboard.SetText(hash);
-            SetStatus($"SHA-256 copied: {hash}");
+            CopyTextToClipboard(hash, $"SHA-256 copied: {hash}");
         }
         catch (Exception ex) { SetStatus($"Could not calculate hash: {SafeMessage(ex)}", true); }
         finally { CopyHashButton.IsEnabled = SelectedResult is not null; }
+    }
+
+    private void CopyTextToClipboard(string text, string status)
+    {
+        Clipboard.SetText(text);
+        var seconds = ClipboardClearPolicy.NormalizeDelay(_appPreferences.ClearCopiedTextAfterSeconds);
+        _clipboardClearTimer.Stop();
+        _pendingClipboardText = seconds > 0 ? text : null;
+        if (seconds > 0)
+        {
+            _clipboardClearTimer.Interval = TimeSpan.FromSeconds(seconds);
+            _clipboardClearTimer.Start();
+        }
+        SetStatus(seconds > 0 ? $"{status} Clipboard clear is scheduled in {seconds} seconds if unchanged." : status);
+    }
+
+    private void ClipboardClearTimer_Tick(object? sender, EventArgs e)
+    {
+        _clipboardClearTimer.Stop();
+        var expected = _pendingClipboardText;
+        _pendingClipboardText = null;
+        try
+        {
+            if (ClipboardClearPolicy.ShouldClear(Clipboard.GetText(), expected, _appPreferences.ClearCopiedTextAfterSeconds))
+                Clipboard.Clear();
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.ExternalException or InvalidOperationException)
+        { /* The clipboard may be busy; preserve the current contents. */ }
     }
 
     private async void ReviewFile_Click(object sender, RoutedEventArgs e)
@@ -338,6 +371,7 @@ public partial class MainWindow : Window
         ReadSafetyAndPresetSettings();
         _preferredAccount = saved.Account;
         _autoConnect = saved.AutoConnect;
+        _requireWindowsAuthentication = saved.RequireWindowsAuthentication;
         _updateRepository = DefaultUpdateRepository;
         _searchHistory.AddRange(_appPreferences.PrivacyMode ? Array.Empty<string>() : _appPreferences.SearchHistory.Count > 0 ? _appPreferences.SearchHistory : saved.SearchHistory);
         _destinationHistory.AddRange(_appPreferences.Destinations.Count > 0 ? _appPreferences.Destinations : saved.Destinations);
@@ -346,6 +380,8 @@ public partial class MainWindow : Window
         DestinationPicker.ItemsSource = _namedPresets.Select(x => x.Label == x.Value ? x.Value : x.Label + "  ·  " + x.Value).ToList();
         if (!_appPreferences.PrivacyMode && !string.IsNullOrWhiteSpace(saved.LastFolder) && Directory.Exists(saved.LastFolder)) FolderBox.Text = saved.LastFolder;
         RestoreWorkspaceSettings();
+        AutoConnectCheckBox.IsChecked = _autoConnect;
+        RequireWindowsAuthenticationCheckBox.IsChecked = _requireWindowsAuthentication;
         _settingsLoaded = true;
         if (AccountSessionLock.Current is { } session)
         {
@@ -353,6 +389,7 @@ public partial class MainWindow : Window
             catch (TaskCanceledException) { return; }
         }
         await RefreshAccountsAsync(autoConnect: _autoConnect);
+        _ = RunStartupHealthCheckAsync();
         _updateTimer.Start();
         if (!string.IsNullOrWhiteSpace(_updateRepository)) _ = CheckForUpdatesAsync(silent: true);
     }
@@ -360,6 +397,12 @@ public partial class MainWindow : Window
     private void AccountPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_loadingAccounts) return;
+        if (!CanChangeAccount())
+        {
+            _loadingAccounts = true; AccountPicker.SelectedItem = _account; _loadingAccounts = false;
+            return;
+        }
+        ClearAccountViews();
         _token = null; _account = null;
         _githubProjects.Clear();
         RefreshGithubProjectsList();
@@ -372,12 +415,48 @@ public partial class MainWindow : Window
         AccountLabel.Foreground = new SolidColorBrush(Color.FromRgb(158, 172, 198));
         UploadButton.IsEnabled = false;
         ConnectButton.IsEnabled = !_busy && AccountPicker.SelectedItem is string;
+        UpdateAutoConnectControl();
+    }
+
+    private void AutoConnect_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_settingsLoaded || _loadingAccounts) return;
+        var enabled = AutoConnectCheckBox.IsChecked == true;
+        var account = AccountPicker.SelectedItem as string ?? _preferredAccount;
+        if (enabled && string.IsNullOrWhiteSpace(account))
+        {
+            _loadingAccounts = true;
+            AutoConnectCheckBox.IsChecked = false;
+            _loadingAccounts = false;
+            SetStatus("Choose a saved GitHub account before enabling automatic sign-in.", true);
+            return;
+        }
+        _autoConnect = enabled;
+        if (!string.IsNullOrWhiteSpace(account))
+        {
+            _preferredAccount = account;
+            SaveAccountSettings(account, enabled);
+        }
+        else SaveSettings();
+        SetStatus(enabled
+            ? $"OctoShip will automatically connect as {account} when it starts."
+            : "Automatic sign-in is off. Connect manually when you want to use GitHub.");
+    }
+
+    private void UpdateAutoConnectControl()
+    {
+        if (AutoConnectCheckBox is null) return;
+        AutoConnectCheckBox.IsEnabled = AccountPicker.SelectedItem is string || !string.IsNullOrWhiteSpace(_preferredAccount);
+        AutoConnectCheckBox.ToolTip = AutoConnectCheckBox.IsEnabled
+            ? "Uses the GitHub login already saved in Git Credential Manager. OctoShip does not save your password or token."
+            : "Add or select a saved GitHub account to enable automatic sign-in.";
     }
 
     private async void Connect_Click(object sender, RoutedEventArgs e) => await ConnectSelectedAsync();
 
     private async Task ConnectSelectedAsync()
     {
+        if (!CanChangeAccount()) return;
         if (AccountPicker.SelectedItem is not string requestedAccount)
         {
             SetStatus("Choose a saved GitHub account, or add an account first.", true);
@@ -397,8 +476,7 @@ public partial class MainWindow : Window
             if (!string.Equals(_account, requestedAccount, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("GitHub returned a different account than the one selected. The upload session was stopped.");
             _preferredAccount = requestedAccount;
-            _autoConnect = true;
-            SaveAccountSettings(requestedAccount, autoConnect: true);
+            SaveAccountSettings(requestedAccount, _autoConnect);
             AccountLabel.Text = _account ?? "Connected";
             AccountLabel.Foreground = new SolidColorBrush(Color.FromRgb(95, 225, 177));
             await LoadRepositoriesAsync(_token);
@@ -422,11 +500,11 @@ public partial class MainWindow : Window
         try
         {
             var before = await ListGitHubAccountsAsync();
-            var start = new ProcessStartInfo("git") { UseShellExecute = false, CreateNoWindow = false, WindowStyle = ProcessWindowStyle.Normal };
+            var start = TrustedProcess.Create("git");
             foreach (var argument in new[] { "credential-manager", "github", "login", "--url", "https://github.com", "--browser", "--force" }) start.ArgumentList.Add(argument);
             start.Environment["GCM_INTERACTIVE"] = "always";
-            using var process = Process.Start(start) ?? throw new InvalidOperationException("Git Credential Manager did not start.");
-            await process.WaitForExitAsync();
+            using var process = TrustedProcess.Start(start);
+            await TrustedProcess.WaitAsync(process, seconds: 300);
             if (process.ExitCode != 0) throw new InvalidOperationException("GitHub sign-in did not complete. Your current account is unchanged; you can try again.");
             var after = await ListGitHubAccountsAsync();
             var newlyAdded = after.FirstOrDefault(name => !before.Contains(name, StringComparer.OrdinalIgnoreCase));
@@ -444,11 +522,16 @@ public partial class MainWindow : Window
 
     private void SignOut_Click(object sender, RoutedEventArgs e)
     {
+        if (!CanChangeAccount()) return;
+        ClearAccountViews();
         _token = null; _account = null;
         _githubProjects.Clear();
         RefreshGithubProjectsList();
         GithubProjectStatus.Text = "Signed out. Connect an account to list its repositories.";
         _autoConnect = false;
+        _loadingAccounts = true;
+        AutoConnectCheckBox.IsChecked = false;
+        _loadingAccounts = false;
         if (AccountPicker.SelectedItem is string selectedAccount)
         {
             _preferredAccount = selectedAccount;
@@ -459,6 +542,22 @@ public partial class MainWindow : Window
         RepoPicker.ItemsSource = null; RepoPicker.Text = "";
         UploadButton.IsEnabled = false;
         SetStatus("Signed out of OctoShip. Your Windows Git Credential Manager login remains saved.");
+    }
+
+    private bool CanChangeAccount()
+    {
+        if (_uploadQueue?.IsRunning == true || Application.Current.Windows.OfType<Window>().Any(w => w != this))
+        { SetStatus("Finish active work and close tool windows before changing or signing out of the account. This preserves the account context of your prepared work.", true); return false; }
+        return true;
+    }
+    private void ClearAccountViews()
+    {
+        _queueExistingShas.Clear(); _uploadQueue = null;
+        RefreshQueueView(); QueueStatusLabel.Text = "Account context cleared."; QueuePathBox.Text = "";
+        _transferLog.Clear(); TransferTerminal.Clear();
+        _githubProjects.Clear(); RepoPicker.ItemsSource = null; RepoPicker.Text = "";
+        BranchBox.Text = "main"; PathBox.Text = "";
+        QueueRunButton.IsEnabled = false;
     }
 
     private async Task RefreshAccountsAsync(string? prefer = null, bool autoConnect = false)
@@ -472,6 +571,8 @@ public partial class MainWindow : Window
                 .FirstOrDefault(candidate => candidate is not null && accounts.Contains(candidate, StringComparer.OrdinalIgnoreCase));
             AccountPicker.SelectedItem = choice is null ? null : accounts.First(a => string.Equals(a, choice, StringComparison.OrdinalIgnoreCase));
             _loadingAccounts = false;
+            AutoConnectCheckBox.IsChecked = _autoConnect;
+            UpdateAutoConnectControl();
             if (accounts.Count == 0)
             {
                 AccountLabel.Text = "No saved GitHub accounts";
@@ -484,6 +585,7 @@ public partial class MainWindow : Window
             }
             else if (autoConnect) await ConnectSelectedAsync();
             else AccountLabel.Text = _account ?? "Choose Use account to connect";
+            UpdateAutoConnectControl();
         }
         catch (Exception ex)
         {
@@ -635,7 +737,7 @@ public partial class MainWindow : Window
         if (GithubProjectsList.SelectedItem is not GitHubProjectChoice project
             || !Uri.TryCreate(project.HtmlUrl, UriKind.Absolute, out var uri)
             || uri.Scheme != Uri.UriSchemeHttps || !uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)) return;
-        Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
+        TrustedProcess.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
     }
 
     private void RepoPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -704,7 +806,7 @@ public partial class MainWindow : Window
         SetStatus("Saved destination loaded. Review it before sending a file.");
     }
 
-    private (string? Account, bool AutoConnect, string? LastFolder, List<string> SearchHistory, List<string> Destinations) ReadSavedSettings()
+    private (string? Account, bool AutoConnect, bool RequireWindowsAuthentication, string? LastFolder, List<string> SearchHistory, List<string> Destinations) ReadSavedSettings()
     {
         try
         {
@@ -714,12 +816,15 @@ public partial class MainWindow : Window
             var autoConnect = !root.TryGetProperty("autoConnect", out var savedAutoConnect)
                 || savedAutoConnect.ValueKind is not (JsonValueKind.True or JsonValueKind.False)
                 || savedAutoConnect.GetBoolean();
+            var requireWindowsAuthentication = !root.TryGetProperty("requireWindowsAuthentication", out var savedWindowsAuthentication)
+                || savedWindowsAuthentication.ValueKind is not (JsonValueKind.True or JsonValueKind.False)
+                || savedWindowsAuthentication.GetBoolean();
             var folder = root.TryGetProperty("lastFolder", out var savedFolder) && savedFolder.ValueKind == JsonValueKind.String ? savedFolder.GetString() : null;
             var searches = ReadStringList(root, "searchHistory", 12);
             var destinations = ReadStringList(root, "destinations", 12);
-            return (account, autoConnect, folder, searches, destinations);
+            return (account, autoConnect, requireWindowsAuthentication, folder, searches, destinations);
         }
-        catch { return (null, true, null, new List<string>(), new List<string>()); }
+        catch { return (null, true, true, null, new List<string>(), new List<string>()); }
     }
 
     private static List<string> ReadStringList(JsonElement root, string property, int max)
@@ -813,6 +918,7 @@ public partial class MainWindow : Window
             {
                 githubAccount = _preferredAccount,
                 autoConnect = _autoConnect,
+                requireWindowsAuthentication = _requireWindowsAuthentication,
                 lastRepository = _appPreferences.PrivacyMode ? null : RepoPicker.Text.Trim(),
                 lastBranch = _appPreferences.PrivacyMode ? null : BranchBox.Text.Trim(),
                 lastDestinationPath = _appPreferences.PrivacyMode ? null : PathBox.Text.Trim(),
@@ -841,7 +947,8 @@ public partial class MainWindow : Window
 
     private void ShippingPreparation_Click(object sender, RoutedEventArgs e)
     {
-        new ShippingPreparationWindow(_http, () => _token, () => _account, RepoPicker.Text.Trim(), BranchBox.Text.Trim(), QueuePathBox.Text.Trim()) { Owner = this }.ShowDialog();
+        try { new ShippingPreparationWindow(_http, () => _token, () => _account, RepoPicker.Text.Trim(), BranchBox.Text.Trim(), QueuePathBox.Text.Trim()) { Owner = this }.ShowDialog(); }
+        catch (Exception ex) { SetStatus(SafeMessage(ex), true); }
     }
 
     private void ShippingWorkbench_Click(object sender, RoutedEventArgs e)
@@ -920,6 +1027,17 @@ public partial class MainWindow : Window
         AccountSessionLock.Current?.Lock();
     }
 
+    private void RequireWindowsAuthentication_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_settingsLoaded) return;
+        _requireWindowsAuthentication = RequireWindowsAuthenticationCheckBox.IsChecked == true;
+        AccountSessionLock.Current?.SetWindowsAuthenticationRequired(_requireWindowsAuthentication);
+        SaveSettings();
+        SetStatus(_requireWindowsAuthentication
+            ? "OctoShip will ask for Windows authentication after 30 minutes without activity."
+            : "OctoShip's own inactivity prompt is off. Windows sign-in still protects this computer.");
+    }
+
     private void BackToSearch_Click(object sender, RoutedEventArgs e)
     {
         ToolsView.Visibility = Visibility.Collapsed;
@@ -943,7 +1061,7 @@ public partial class MainWindow : Window
         {
             var folder = Path.GetDirectoryName(PreferencesPath)!;
             Directory.CreateDirectory(folder);
-            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
+            TrustedProcess.Start(new ProcessStartInfo(TrustedProcess.Resolve("explorer.exe"), $"\"{folder}\"") { UseShellExecute = true });
         }
         catch (Exception ex) { OctoShipDialog.Show(this, "Could not open the OctoShip data folder: " + SafeMessage(ex), "OctoShip for GitHub", MessageBoxButton.OK, MessageBoxImage.Warning); }
     }
@@ -958,6 +1076,85 @@ public partial class MainWindow : Window
         CompatibilityStatus.Foreground = compatible ? new SolidColorBrush(Color.FromRgb(116, 221, 168)) : new SolidColorBrush(Color.FromRgb(255, 161, 129));
         CompatibilityStatus.Text = $"{(compatible ? "Compatible" : "Check required")}: Windows {(isWindows ? "available" : "required")}; .NET {Environment.Version} active; {RuntimeInformation.ProcessArchitecture}; Git {(gitPath is null ? "not found on PATH" : "available")}. Git Credential Manager sign-in is still needed to connect.";
         NetworkStatus.Text = GetNetworkNotice();
+    }
+
+    private async void RunStartupHealthCheck_Click(object sender, RoutedEventArgs e) => await RunStartupHealthCheckAsync();
+
+    private async Task RunStartupHealthCheckAsync()
+    {
+        if (StartupHealthButton is null || StartupHealthStatus is null) return;
+        StartupHealthButton.IsEnabled = false;
+        StartupHealthStatus.Text = "Checking Git, saved account access, profile storage, runtime, and GitHub connectivity…";
+        StartupHealthStatus.Foreground = new SolidColorBrush(Color.FromRgb(170, 184, 203));
+        try
+        {
+            var checks = await Task.WhenAll(
+                CheckGitReadinessAsync(), CheckCredentialReadinessAsync(), CheckProfileStorageAsync(), CheckConnectivityAsync());
+            var passed = checks.Count(result => result.Ok);
+            StartupHealthStatus.Text = string.Join(Environment.NewLine, checks.Select(result =>
+                $"{(result.Ok ? "READY" : "CHECK")}: {result.Name} — {result.Detail}"));
+            StartupHealthStatus.Foreground = new SolidColorBrush(passed == checks.Length
+                ? Color.FromRgb(116, 221, 168) : Color.FromRgb(255, 190, 115));
+        }
+        finally { StartupHealthButton.IsEnabled = true; }
+    }
+
+    private async Task<(string Name, bool Ok, string Detail)> CheckGitReadinessAsync()
+    {
+        try
+        {
+            var (exitCode, output, _) = await RunGitAsync(new[] { "--version" });
+            return exitCode == 0
+                ? ("Git and runtime", OperatingSystem.IsWindows() && Environment.Is64BitProcess,
+                    $"{output.Trim()} · .NET {Environment.Version} · {RuntimeInformation.ProcessArchitecture}")
+                : ("Git and runtime", false, "Git did not return a version. Repair Git for Windows and try again.");
+        }
+        catch (Exception ex) { return ("Git and runtime", false, SafeMessage(ex)); }
+    }
+
+    private async Task<(string Name, bool Ok, string Detail)> CheckCredentialReadinessAsync()
+    {
+        try
+        {
+            var accounts = await ListGitHubAccountsAsync();
+            return accounts.Count > 0
+                ? ("Git Credential Manager", true, $"Available; {accounts.Count} saved GitHub account(s).")
+                : ("Git Credential Manager", true, "Available; no saved GitHub account yet. Use Add account to sign in.");
+        }
+        catch (Exception ex) { return ("Git Credential Manager", false, SafeMessage(ex)); }
+    }
+
+    private Task<(string Name, bool Ok, string Detail)> CheckProfileStorageAsync() => Task.Run(() =>
+    {
+        string? probe = null;
+        try
+        {
+            Directory.CreateDirectory(ProductDataDirectory);
+            probe = Path.Combine(ProductDataDirectory, ".readiness-" + Guid.NewGuid().ToString("N") + ".tmp");
+            using (new FileStream(probe, FileMode.CreateNew, FileAccess.Write, FileShare.None)) { }
+            File.Delete(probe);
+            return ("OctoShip profile storage", true, "The local settings folder is writable.");
+        }
+        catch (Exception ex)
+        {
+            if (probe is not null) try { File.Delete(probe); } catch { }
+            return ("OctoShip profile storage", false, "Check access and free space in LocalAppData. " + SafeMessage(ex));
+        }
+    });
+
+    private async Task<(string Name, bool Ok, string Detail)> CheckConnectivityAsync()
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/meta");
+            request.Headers.UserAgent.ParseAdd("OctoShip-readiness-check/1.0");
+            using var response = await _updateHttp.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            return response.IsSuccessStatusCode
+                ? ("GitHub connectivity", true, "GitHub API responded successfully.")
+                : ("GitHub connectivity", false, $"GitHub API returned HTTP {(int)response.StatusCode}. Check network or proxy policy.");
+        }
+        catch (Exception ex) { return ("GitHub connectivity", false, SafeMessage(ex)); }
     }
 
     private void CopyDiagnostics_Click(object sender, RoutedEventArgs e)
@@ -975,8 +1172,7 @@ public partial class MainWindow : Window
                 "GitHub connected: " + (_account is not null),
                 "Update channel: " + _appPreferences.UpdateChannel,
                 "Privacy mode: " + _appPreferences.PrivacyMode);
-            Clipboard.SetText(report);
-            SetStatus("Privacy-safe diagnostics copied. No account name, token, or local file paths were included.");
+            CopyTextToClipboard(report, "Privacy-safe diagnostics copied. No account name, token, or local file paths were included.");
         }
         catch (Exception ex) { SetStatus("Could not copy diagnostics: " + SafeMessage(ex), true); }
     }
@@ -1239,13 +1435,9 @@ public partial class MainWindow : Window
     private static void StartUpdateHelper(string script)
     {
         var encodedCommand = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
-        var start = new ProcessStartInfo("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand {encodedCommand}")
-        {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden
-        };
-        _ = Process.Start(start) ?? throw new InvalidOperationException("The Windows update helper could not start.");
+        var start = TrustedProcess.Create("powershell.exe");
+        foreach (var argument in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-EncodedCommand", encodedCommand }) start.ArgumentList.Add(argument);
+        _ = TrustedProcess.Start(start);
     }
 
     private static string CurrentReleaseVersion() => typeof(MainWindow).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
@@ -1269,16 +1461,17 @@ public partial class MainWindow : Window
 
     private static async Task<(int ExitCode, string Output, string Error)> RunGitAsync(IEnumerable<string> arguments, string? input = null)
     {
-        var start = new ProcessStartInfo("git") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        var start = TrustedProcess.Create("git");
+        start.RedirectStandardInput = start.RedirectStandardOutput = start.RedirectStandardError = true;
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
         start.Environment["GCM_INTERACTIVE"] = "never";
         start.Environment["GIT_TERMINAL_PROMPT"] = "0";
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("Git for Windows could not start.");
+        using var process = TrustedProcess.Start(start);
         var outputTask = process.StandardOutput.ReadToEndAsync();
         var errorTask = process.StandardError.ReadToEndAsync();
         if (input is not null) await process.StandardInput.WriteAsync(input);
         process.StandardInput.Close();
-        await process.WaitForExitAsync();
+        await TrustedProcess.WaitAsync(process);
         return (process.ExitCode, await outputTask, await errorTask);
     }
 
@@ -1377,7 +1570,7 @@ public partial class MainWindow : Window
             DestinationPicker.ItemsSource = null; DestinationPicker.ItemsSource = _destinationHistory; SaveSettings();
             SetStatus($"Uploaded successfully to {repository}/{targetPath}. GitHub commit created.");
             if (url is not null && OctoShipDialog.Show(this, "File uploaded successfully. Open it on GitHub?", "Upload complete", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
-                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                TrustedProcess.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
         catch (OperationCanceledException) { LogTransfer($"Upload canceled: {repository}/{targetPath}. Confirm GitHub state before retrying."); SetStatus("Upload canceled. If data was already sending, check GitHub before retrying; the commit may have completed.", true); }
         catch (Exception ex) { LogTransfer($"Upload failed: {repository}/{targetPath}: {SafeMessage(ex)}"); SetStatus(SafeMessage(ex), true); }
@@ -1651,8 +1844,8 @@ public partial class MainWindow : Window
 
     private static async Task<byte[]> ReadStableFileAsync(string path, long expectedLength, DateTime expectedLastWriteTimeUtc, CancellationToken cancellationToken)
     {
-        await using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
-            128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        SecurityBoundaries.RequireRegularPath(path);
+        await using var input = SecurityBoundaries.OpenRead(path);
         if (input.Length != expectedLength || File.GetLastWriteTimeUtc(path) != expectedLastWriteTimeUtc)
             throw new InvalidOperationException("The file changed after it was queued or reviewed. Search or queue it again before uploading.");
         if (input.Length > MaxUploadBytes) throw new InvalidOperationException("Files larger than 50 MB cannot be uploaded.");
@@ -1667,22 +1860,9 @@ public partial class MainWindow : Window
 
     private async Task<(string Token, string Username)> GetCredentialAsync(string account)
     {
-        var start = new ProcessStartInfo("git", "credential fill")
-        {
-            UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true,
-            RedirectStandardError = true, CreateNoWindow = true
-        };
-        start.Environment["GCM_INTERACTIVE"] = "never";
-        start.Environment["GIT_TERMINAL_PROMPT"] = "0";
-        using var process = new Process { StartInfo = start };
-        try { if (!process.Start()) throw new InvalidOperationException(); }
-        catch { throw new InvalidOperationException("Git Credential Manager could not start. Install Git for Windows and sign in to GitHub."); }
-        await process.StandardInput.WriteAsync($"protocol=https\nhost=github.com\nusername={account}\n\n");
-        process.StandardInput.Close();
-        var outputTask = process.StandardOutput.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        var output = await outputTask;
-        if (process.ExitCode != 0) throw new InvalidOperationException("No saved GitHub login was found. Sign in to GitHub with Git for Windows Credential Manager, then press Connect again.");
+        if (!Regex.IsMatch(account, "^(?=.{1,39}$)[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$")) throw new InvalidOperationException("Invalid GitHub account name.");
+        var (exitCode, output, _) = await RunGitAsync(new[] { "credential", "fill" }, $"protocol=https\nhost=github.com\nusername={account}\n\n");
+        if (exitCode != 0) throw new InvalidOperationException("No saved GitHub login was found. Sign in again with Git Credential Manager.");
         var fields = output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line => line.Trim().Split('=', 2)).Where(pair => pair.Length == 2).ToDictionary(pair => pair[0], pair => pair[1]);
         if (!fields.TryGetValue("password", out var token) || string.IsNullOrWhiteSpace(token) || !fields.TryGetValue("username", out var username))
             throw new InvalidOperationException("The saved GitHub login is incomplete. Refresh it with Git Credential Manager, then connect again.");
@@ -1699,20 +1879,9 @@ public partial class MainWindow : Window
         return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
     }
 
-    private static async Task EnsureSuccess(HttpResponseMessage response)
+    private static Task EnsureSuccess(HttpResponseMessage response)
     {
-        if (response.IsSuccessStatusCode) return;
-        var detail = string.Empty;
-        try
-        {
-            var body = await response.Content.ReadAsStringAsync();
-            using var error = JsonDocument.Parse(body);
-            if (error.RootElement.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String)
-                detail = message.GetString() ?? string.Empty;
-        }
-        catch { /* Keep the useful status-based explanation when GitHub returns no JSON body. */ }
-        if (detail.Length > 400) detail = detail[..400] + "…";
-
+        if (response.IsSuccessStatusCode) return Task.CompletedTask;
         var reason = response.StatusCode switch
         {
             HttpStatusCode.Unauthorized => "GitHub rejected the saved login. Sign in again with Git Credential Manager.",
@@ -1724,12 +1893,14 @@ public partial class MainWindow : Window
             HttpStatusCode.Conflict => "The repository changed during upload. Refresh the destination and try again.",
             _ => $"GitHub returned HTTP {(int)response.StatusCode}. Check your connection and try again."
         };
-        throw new InvalidOperationException(string.IsNullOrWhiteSpace(detail) ? reason : $"{reason} GitHub: {detail}");
+        // Error bodies are untrusted and may echo credentials or private request data. Keep
+        // diagnostics actionable with the status-derived message; never display/store the body.
+        throw new InvalidOperationException(reason);
     }
 
-    private static string SafeMessage(Exception ex) => ex is HttpRequestException or TaskCanceledException
+    private string SafeMessage(Exception ex) => ex is HttpRequestException or TaskCanceledException
         ? "Could not reach GitHub. Check your internet connection and try again."
-        : ex.Message;
+        : SecurityBoundaries.Redact(ex.Message, _token);
     private static string FormatSize(long bytes) => bytes < 1024 * 1024 ? $"{bytes / 1024d:0.#} KB" : $"{bytes / (1024d * 1024):0.##} MB";
     private void SetStatus(string message, bool error = false)
     {

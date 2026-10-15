@@ -1,5 +1,7 @@
 # OctoShip for GitHub
 
+**Current Windows build: 1.6.1-preview.10 (2026-10-15).** The self-contained x64 installer includes the .NET 10 desktop runtime. GitHub auto-connect, an option to skip OctoShip's own Windows-authentication inactivity prompt, startup readiness checks, bounded file traversal, busy-file recovery, safer content previews, a CycloneDX release SBOM, and additional security/performance fixes are included. See the [P1 implementation and installation handoff](P1-HANDOFF.md) for feature and verification details. This locally built preview has not been published as a GitHub release. The installer/app are unsigned. The updater is active and verifies GitHub release downloads over HTTPS against GitHub's SHA-256 asset digest. Linux is unchanged by this Windows pass.
+
 The Windows 1.6.0-preview.2 build now retains account/workspace preferences and locks after 30 minutes of inactivity, with Windows Hello or Windows account password unlocking. See [account retention and session protection](ACCOUNT-SESSION.md) for behavior and verification boundaries.
 
 OctoShip for GitHub finds local files and sends them to GitHub. The original Windows desktop client is in the repository root. A native Linux client is now available in [linux/](linux/README.md), with a desktop launcher, Debian package builder, and tested GitHub upload backend.
@@ -32,7 +34,7 @@ remaining Windows-only features.
 
 ## Use OctoShip on Windows
 
-Install Git for Windows and sign in through Git Credential Manager. Launch `OctoShip.exe`, choose an account, and connect. GitHub tokens stay in memory and are never written to OctoShip settings.
+Install Git for Windows with Git Credential Manager and sign in. The Windows installer includes the .NET 10 desktop runtime; no separate .NET runtime install is needed. Launch OctoShip, choose an account, and connect. GitHub tokens stay in memory and are never written to OctoShip settings.
 
 Choose a folder and search by filename or file contents. Search options include regular expressions, exact and case-sensitive matches, file types, size and modified-date filters, hidden files, recursion, excluded folders, sorting, result limits, and cancel. Reparse points are skipped and content searches read at most 2 MiB per file. Review a selected file with image or small-text preview, local SHA-256, and optional text comparison against the remote destination.
 
@@ -42,7 +44,7 @@ Single-file uploads check repository permissions, branches, destination conflict
 
 The layout preview groups search and results in the left workspace and the GitHub destination in the right panel. Selected-file and folder-batch uploads have separate tabs; advanced search filters open in a flyout. Settings and tools are organized into Projects, Repository tools, Preferences, and Updates & diagnostics tabs. Build this preview separately from an already-running development build with `dotnet build FileToGitHub.csproj -c Release --no-restore -o dist-layout-preview`, then run `dist-layout-preview/OctoShip.exe` after closing the previous OctoShip window.
 
-The working source includes the first priority wave from [COMPONENT-ROADMAP.md](COMPONENT-ROADMAP.md). Existing 1.5.0 release archives and installers do not contain these additions.
+The working Windows source includes the implemented priority waves documented in [P1-HANDOFF.md](P1-HANDOFF.md). The local preview.10 package includes the current Windows additions; older 1.5.0 and 1.6.0 packages do not. The improvement backlog remains partially open.
 
 - **Batch uploads:** select single-commit mode to publish the reviewed files with one branch update. A moved branch stops publication; updates are never forced. Files are checked again before sending. Closing a batch preserves its queue when privacy mode is off; use **Resume saved batch** with the same repository and branch to recover and review it. Recovery never automatically uploads files and does not persist credentials.
 - **Content review:** previews and upload paths scan supported text for likely credentials. Findings contain type and line number, never matched values. Scans are heuristic and bounded to 2 MiB; binary files, archives, and unsupported encodings are explicitly reported as unscanned. Uploads require review when findings exist or scanning is incomplete.
@@ -57,21 +59,20 @@ OctoShip detects active Wi-Fi or Ethernet adapters. Before uploads it warns when
 
 Developer architecture, build prerequisites, security boundaries, and Linux-port notes are in [DEVELOPMENT.md](DEVELOPMENT.md). For comprehensive end-to-end technical documentation covering all features, design systems, and security mechanisms, see [OCTOSHIP-GUIDE.md](OCTOSHIP-GUIDE.md).
 
-OctoShip checks `ghostventure/OctoShip` at startup and hourly for packaged releases. Automatic updates download and verify the release, then install when the app closes normally. Settings can disable this behavior or choose Stable/Preview. Private releases require a connected account with access. Release publishers must attach `OctoShip-win-x64.zip` with GitHub SHA-256 metadata and a package version matching the tag. See the [update protocol and limitations](OCTOSHIP-GUIDE.md#github-automatic-updates).
+The updater checks the public GitHub release feed at startup and every two minutes while enabled and idle. It downloads the release package over HTTPS and verifies GitHub's SHA-256 asset digest before staging an update. Code signing and signed update manifests are not required. See the [update protocol and limitations](OCTOSHIP-GUIDE.md#github-automatic-updates).
 
 Settings are stored under `%LOCALAPPDATA%\OctoShipForGitHub`. On first launch, the app copies existing preference files from `%LOCALAPPDATA%\OctoCat` when present; the old files are left intact. Privacy mode suppresses saved search and repository history. Portable settings exports exclude credentials and machine-local paths.
 
 ## Build
 
-Build with `dotnet build FileToGitHub.csproj -c Release`. Publish the framework-dependent Windows app with:
+Build with `dotnet build FileToGitHub.csproj -c Release`. Publish the self-contained Windows app with:
 
 ```powershell
-dotnet publish FileToGitHub.csproj -c Release --no-restore -p:DebugType=None -o installer\payload-1.6.0-preview.2
-Compress-Archive -Path installer\payload-1.6.0-preview.2\* -DestinationPath installers\OctoShip-v1.6.0-preview.2-win-x64.zip
-ISCC.exe /DPayloadDir=payload-1.6.0-preview.2 installer\OctoShip.iss
+dotnet publish FileToGitHub.csproj -c Release -r win-x64 --self-contained true -p:DebugType=None -o installer\payload
+ISCC.exe /DPayloadDir=payload installer\OctoShip.iss
 ```
 
-Build the per-user Windows installer with Inno Setup 6 using the commands above. The setup executable is written to `installers\OctoShip-Setup-v1.6.0-preview.2-win-x64.exe`. Setup installs under the current user's LocalAppData, creates Start Menu shortcuts, offers an optional desktop shortcut, and registers an uninstaller. It does not automatically close running applications. User settings and Git credentials are preserved on uninstall. Windows 10 build 19041 or later, Git for Windows and a compatible .NET Windows Desktop Runtime (6 or later) are required. Publisher verification will report unsigned builds until an Authenticode certificate is configured.
+Build the per-user Windows installer with Inno Setup 6 using the commands above; the output name/version comes from `installer/OctoShip.iss`. Setup installs under the current user's LocalAppData, creates Start Menu shortcuts, offers an optional desktop shortcut, and registers an uninstaller. It does not automatically close running applications. User settings and Git credentials are preserved on uninstall. Windows 10 build 19041 or later and Git for Windows with Git Credential Manager are required to use GitHub sign-in. The self-contained package bundles .NET 10. Developers need the .NET 10 SDK and Inno Setup 6. Publisher verification reports unsigned builds until an Authenticode certificate is configured.
 
 ## Additional development workflows
 

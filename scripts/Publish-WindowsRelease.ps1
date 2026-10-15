@@ -36,13 +36,25 @@ Run-Native dotnet @('build', 'FileToGitHub.csproj', '-c', 'Release')
 foreach ($checks in @('updates/UpdateChecks', 'session-lock/SessionLockChecks', 'uploads/AtomicUploadChecks', 'repository-workflows/WorkflowTests', 'uniform-ui/UniformUiChecks')) {
     Run-Native dotnet @('run', '--project', "verification/$checks.csproj", '-c', 'Release')
 }
+& (Join-Path (Get-Location) 'verification/sbom/Test-ReleaseSbom.ps1')
 $output = Join-Path (Get-Location) "installers/release-$version"
+$auditLines = & dotnet list FileToGitHub.csproj package --vulnerable --include-transitive 2>&1
+if ($LASTEXITCODE -ne 0) { throw 'NuGet vulnerability audit failed; package creation stopped.' }
+$auditPath = Join-Path $output 'OctoShip-dependency-audit.txt'
+if (!(Test-Path -LiteralPath $output)) { New-Item -ItemType Directory -Path $output -Force | Out-Null }
+[IO.File]::WriteAllText($auditPath, "Dependency vulnerability audit`nGenerated UTC: $([DateTime]::UtcNow.ToString('o'))`nCommand: dotnet list FileToGitHub.csproj package --vulnerable --include-transitive`n`n$($auditLines -join "`n")`n", [Text.UTF8Encoding]::new($false))
+Write-Host ($auditLines -join "`n")
 $payload = Join-Path $output ('payload-' + [guid]::NewGuid().ToString('N'))
-Run-Native dotnet @('publish', 'FileToGitHub.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:DebugType=None', '-o', $payload)
+Run-Native dotnet @('publish', 'FileToGitHub.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:DebugType=None', '-o', $payload)
+foreach ($runtimeFile in @('coreclr.dll', 'hostfxr.dll')) {
+    if (!(Test-Path -LiteralPath (Join-Path $payload $runtimeFile))) { throw "Self-contained package is missing $runtimeFile." }
+}
 $actualVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $payload 'OctoShip.dll')).ProductVersion.Split('+')[0]
 if ($actualVersion -ne $version) { throw 'Packaged DLL does not match release version.' }
 $archive = Join-Path $output 'OctoShip-win-x64.zip'
 Compress-Archive -Path (Join-Path $payload '*') -DestinationPath $archive -Force
+$sbom = Join-Path $output 'OctoShip-win-x64-sbom.cdx.json'
+& (Join-Path (Get-Location) 'scripts/New-ReleaseSbom.ps1') -PayloadDirectory $payload -OutputPath $sbom -ApplicationName 'OctoShip for GitHub' -Version $version
 $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
 [IO.File]::WriteAllText((Join-Path $output 'SHA256SUMS.txt'), "$hash  OctoShip-win-x64.zip`n")
 Write-Host "Verified package: $archive ($hash)"
@@ -53,7 +65,7 @@ if (!$existing) {
 } else {
     Run-Native gh @('api', '--method', 'PATCH', "repos/$repository/releases/$($existing.id)", '-f', "target_commitish=$env:GITHUB_SHA", '--silent')
 }
-Run-Native gh @('release', 'upload', $tag, $archive, (Join-Path $output 'SHA256SUMS.txt'), '--repo', $repository, '--clobber')
+Run-Native gh @('release', 'upload', $tag, $archive, (Join-Path $output 'SHA256SUMS.txt'), $sbom, $auditPath, '--repo', $repository, '--clobber')
 # The by-tag REST endpoint does not return unpublished drafts. Resolve the draft
 # through the authenticated release list, as gh release upload itself does.
 $releaseJson = & gh api --paginate --slurp "repos/$repository/releases?per_page=100"

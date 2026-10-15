@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -28,23 +29,26 @@ public sealed class AccountSessionLock : IDisposable
     private Window? _lockWindow;
     private TextBlock? _status;
     private bool _unlocking, _disposed, _allowClose;
+    private bool _windowsAuthenticationRequired = true;
     private DateTimeOffset _retryAfter;
     private DateTimeOffset _lastSaved;
     private Point? _lastMousePosition;
     private TaskCompletionSource<bool>? _unlockCompletion;
     public static AccountSessionLock? Current { get; private set; }
-    public bool IsLocked => _state.IsLocked;
+    public bool IsLocked => _windowsAuthenticationRequired && _state.IsLocked;
     public Task WaitUntilUnlockedAsync()
     {
         Check();
         return IsLocked ? (_unlockCompletion ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)).Task : Task.CompletedTask;
     }
     public string? PersistenceError { get; private set; }
-    public AccountSessionLock(Application application, string? statePath = null)
+    public AccountSessionLock(Application application, string? statePath = null, bool? requireWindowsAuthentication = null)
     {
         _application = application;
         _path = statePath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OctoShipForGitHub", "session.json");
+        _windowsAuthenticationRequired = requireWindowsAuthentication ?? ReadWindowsAuthenticationPreference();
         _state = AccountSessionState.Load(_path, DateTimeOffset.UtcNow);
+        if (!_windowsAuthenticationRequired) _state.ResumeWithoutAuthentication(DateTimeOffset.UtcNow);
         Current = this;
         InputManager.Current.PreProcessInput += OnInput;
         SystemEvents.SessionSwitch += OnSessionSwitch;
@@ -58,6 +62,7 @@ public sealed class AccountSessionLock : IDisposable
         if (Current is { } session)
         {
             if (session._application.Dispatcher.CheckAccess()) session.Check();
+            else session._application.Dispatcher.Invoke(session.Check);
             if (session.IsLocked) throw new InvalidOperationException("OctoShip is locked. Unlock the account workspace, then review and retry this operation.");
         }
     }
@@ -65,7 +70,7 @@ public sealed class AccountSessionLock : IDisposable
     {
         if (_disposed) return;
         var wasLocked = _state.IsLocked;
-        _state.CheckTimeout(DateTimeOffset.UtcNow);
+        if (_windowsAuthenticationRequired) _state.CheckTimeout(DateTimeOffset.UtcNow);
         if (_state.IsLocked)
         {
             if (!wasLocked) Persist();
@@ -84,9 +89,31 @@ public sealed class AccountSessionLock : IDisposable
     {
         _state.Lock(); Persist(); Check();
     }
+    public void SetWindowsAuthenticationRequired(bool required)
+    {
+        if (_windowsAuthenticationRequired == required) return;
+        _windowsAuthenticationRequired = required;
+        _state.ResumeWithoutAuthentication(DateTimeOffset.UtcNow);
+        Persist();
+        if (!required) _unlockCompletion?.TrySetResult(true);
+        _unlockCompletion = null;
+    }
+    private static bool ReadWindowsAuthenticationPreference()
+    {
+        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OctoShipForGitHub", "settings.json");
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            var root = document.RootElement;
+            return !root.TryGetProperty("requireWindowsAuthentication", out var value)
+                || value.ValueKind is not (JsonValueKind.True or JsonValueKind.False)
+                || value.GetBoolean();
+        }
+        catch { return true; }
+    }
     private void OnSessionSwitch(object sender, SessionSwitchEventArgs args)
     {
-        if (args.Reason is SessionSwitchReason.SessionLock or SessionSwitchReason.SessionLogoff or SessionSwitchReason.RemoteDisconnect)
+        if (_windowsAuthenticationRequired && args.Reason is (SessionSwitchReason.SessionLock or SessionSwitchReason.SessionLogoff or SessionSwitchReason.RemoteDisconnect))
             _application.Dispatcher.BeginInvoke(new Action(Lock));
     }
     private void OnInput(object sender, PreProcessInputEventArgs args)

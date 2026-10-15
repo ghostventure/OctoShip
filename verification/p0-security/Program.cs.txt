@@ -1,0 +1,82 @@
+using System;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using FileToGitHub;
+
+internal static class Program
+{
+    static int checks;
+    static void Check(bool condition, string name) { if (!condition) throw new Exception(name); checks++; }
+    static async Task Reject(Func<Task> action, string name)
+    { try { await action(); } catch (Exception e) when (e is InvalidOperationException or IOException or CryptographicException or JsonException) { checks++; return; } throw new Exception(name); }
+    static Task Run(Action action) { action(); return Task.CompletedTask; }
+    static async Task Main()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "OctoShip-P0-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var bindingPath = Path.Combine(root,"bindings.json");
+        string? token="fixture-current"; string? account="alice";
+        var transport = new Fake();
+        using var client = new HttpClient(new SessionLockHttpHandler(()=>token,()=>account,transport,bindingPath));
+        async Task Send(string credential="fixture-current", string host="api.github.com", string method="POST")
+        { using var request = new HttpRequestMessage(new HttpMethod(method),"https://"+host+"/repos/owner/project/git/blobs"); request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",credential); using var response=await client.SendAsync(request); }
+        void Bind(string login,string visibility="private") => File.WriteAllText(bindingPath,JsonSerializer.Serialize(new System.Collections.Generic.Dictionary<string,ShippingProjectProfile>{{"C:\\project|owner/project",new(login,visibility)}}));
+        Bind("alice"); await Send(); Check(transport.Writes==1,"bound mutation succeeds");
+        Bind("bob"); await Reject(()=>Send(),"account binding rejects"); Check(transport.Writes==1,"binding failure has no mutation");
+        Bind("alice","public"); await Reject(()=>Send(),"visibility change rejects");
+        File.WriteAllText(bindingPath,"broken"); await Reject(()=>Send(),"corrupt policy fails closed");
+        Bind("alice"); transport.Login="bob"; await Reject(()=>Send(),"server credential identity mismatch rejects"); transport.Login="alice";
+        await Reject(()=>Send("stale"),"old token rejected");
+        await Reject(()=>Send(host:"example.invalid"),"credentials cannot reach other host");
+        account=null; await Reject(()=>Send(),"no verified session rejects writes"); account="alice";
+        transport.FailRead=true; await Reject(()=>Send(),"preflight failure prevents mutation"); transport.FailRead=false;
+        foreach(var method in new[]{"POST","PUT","PATCH","DELETE"}) { var before=transport.Writes; await Send(method:method); Check(transport.Writes==before+1,"guard covers "+method); }
+        var writes=transport.Writes; Bind("bob"); await Reject(()=>Send(host:"uploads.github.com"),"release uploads guarded"); Check(transport.Writes==writes,"blocked release has no mutation"); Bind("alice");
+        transport.Delay = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending=Send(method:"GET"); await transport.Started.Task; token="different-session"; transport.Delay.SetResult(true);
+        await Reject(()=>pending,"in-flight old account response rejected"); token="fixture-current"; transport.Delay=null;
+        transport.Error=true;
+        using(var request=new HttpRequestMessage(HttpMethod.Get,"https://api.github.com/user"))
+        { request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",token); using var response=await client.SendAsync(request); Check(!(await response.Content.ReadAsStringAsync()).Contains("fixture-secret"),"server error credential echo removed"); }
+        transport.Error=false;
+        Check(!SecurityBoundaries.Redact("password=fixture-secret").Contains("fixture-secret"),"diagnostic assignment redacted");
+        Check(!SecurityBoundaries.Redact("unusual opaque text", "opaque").Contains("opaque"),"active credential exact redaction");
+        var regular=Path.Combine(root,"regular.txt"); File.WriteAllText(regular,"reviewed"); using(var input=SecurityBoundaries.OpenRead(regular)) Check(input.Length==8,"handle-resolved regular source readable");
+        await Reject(()=>Run(()=>SecurityBoundaries.ReadBoundedJson(regular,2)),"bounded saved document");
+        var oldPath=Environment.GetEnvironmentVariable("PATH");
+        try { Environment.SetEnvironmentVariable("PATH",root); Check(Path.IsPathFullyQualified(TrustedProcess.Resolve("git"))&&!TrustedProcess.Resolve("git").StartsWith(root),"PATH substitution cannot choose git"); }
+        finally { Environment.SetEnvironmentVariable("PATH",oldPath); }
+        await Reject(()=>Run(()=>TrustedProcess.Resolve("cmd.exe")),"unapproved tool rejected");
+        var version=ReleaseVersion.Parse(typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion);
+        byte[] Archive(string[] names, bool link=false)
+        { using var buffer=new MemoryStream(); using(var zip=new ZipArchive(buffer,ZipArchiveMode.Create,true)) foreach(var name in names){var entry=zip.CreateEntry(name);if(link)entry.ExternalAttributes=0xA000<<16; using var writer=new StreamWriter(entry.Open());writer.Write("fixture");} return buffer.ToArray(); }
+        foreach(var names in new[]{new[]{"../escaped"},new[]{"A.txt","a.txt"},new[]{"CON.txt"},new[]{"folder./file"},new[]{"file:stream"},new[]{"a/../b"}})
+        { var bytes=Archive(names);await Reject(()=>Run(()=>UpdatePackage.Stage(bytes,Convert.ToHexString(SHA256.HashData(bytes)),version,root)),"unsafe ZIP rejected: "+string.Join(',',names)); }
+        var linked=Archive(new[]{"link"},true); await Reject(()=>Run(()=>UpdatePackage.Stage(linked,Convert.ToHexString(SHA256.HashData(linked)),version,root)),"ZIP symlink rejected");
+        Check(!File.Exists(Path.Combine(root,"escaped")),"no escaped output");
+        Console.WriteLine($"PASS: {checks} P0 account, publication, credential, path, tool, and ZIP safety checks. HTTP writes were fake; no account credentials used.");
+    }
+    sealed class Fake : HttpMessageHandler
+    {
+        public int Writes; public string Login="alice"; public bool FailRead,Error;
+        public TaskCompletionSource<bool>? Delay;
+        public TaskCompletionSource<bool> Started=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct)
+        {
+            if(Delay!=null){Started.TrySetResult(true);await Delay.Task;}
+            if(Error)return new(HttpStatusCode.BadRequest){Content=new StringContent("password=fixture-secret")};
+            if(request.Method==HttpMethod.Get)
+            { if(FailRead)return new(HttpStatusCode.Forbidden){Content=new StringContent("denied")}; return new(HttpStatusCode.OK){Content=new StringContent(request.RequestUri!.AbsolutePath=="/user"?JsonSerializer.Serialize(new{login=Login}):"{\"visibility\":\"private\"}")}; }
+            Writes++;return new(HttpStatusCode.Created){Content=new StringContent("{}")};
+        }
+    }
+}

@@ -23,6 +23,7 @@ public sealed class AccountSessionState
     }
     public void Lock() => IsLocked = true;
     public void UnlockAfterVerification(DateTimeOffset now) { LastActivityUtc = now; IsLocked = false; }
+    public void ResumeWithoutAuthentication(DateTimeOffset now) { LastActivityUtc = now; IsLocked = false; }
     public void Save(string path)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);

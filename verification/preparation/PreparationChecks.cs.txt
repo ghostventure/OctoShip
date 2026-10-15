@@ -4,6 +4,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -21,7 +22,7 @@ internal static class Program
     [STAThread] private static void Main()
     {
         var root = Path.Combine(Path.GetTempPath(), "OctoShip-preparation-checks-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
-        try { Local(root); Network(root).GetAwaiter().GetResult(); Smoke(); Console.WriteLine($"{checks} preparation checks passed; fake HTTP only."); }
+        try { Local(root); Network(root).GetAwaiter().GetResult(); HttpErrors().GetAwaiter().GetResult(); Smoke(); Console.WriteLine($"{checks} preparation checks passed; fake HTTP only."); }
         finally { Directory.Delete(root, true); }
     }
     private static void Local(string root)
@@ -61,6 +62,15 @@ internal static class Program
         var entries = ShippingInspectionService.InspectZip(zip);
         Check(entries.Count == 5 && entries.Count(x => x.Check == "Review archive entry") == 4, "ZIP traversal, sensitive names and token contents flagged without extraction");
         Check(!File.Exists(Path.Combine(root, "escape.txt")), "archive inspection never extracts");
+        Check(FileContentTypeAudit.Detect(new byte[] { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a }) == PreviewContentKind.Png, "PNG handler requires the PNG signature");
+        Check(FileContentTypeAudit.Detect(Encoding.ASCII.GetBytes("%PDF-1.7")) == PreviewContentKind.Pdf, "PDF identified from a bounded signature");
+        Check(FileContentTypeAudit.Detect(Encoding.ASCII.GetBytes("GIF89a")) == PreviewContentKind.Gif, "GIF identified from its signature");
+        Check(FileContentTypeAudit.Detect(new byte[] { 0xff, 0xd8, 0xff, 0x00 }) == PreviewContentKind.Jpeg, "JPEG identified from its signature");
+        Check(FileContentTypeAudit.Detect(Encoding.UTF8.GetBytes("readme")) == PreviewContentKind.Text, "plain text remains previewable");
+        Check(FileContentTypeAudit.Detect(new byte[] { 0x00, 0x01 }) == PreviewContentKind.Unknown, "unknown binary content gets no preview handler");
+        Check(FileContentTypeAudit.HasKnownExtensionMismatch(".pdf", PreviewContentKind.Text), "mismatched PDF extension is detected");
+        Check(!FileContentTypeAudit.HasKnownExtensionMismatch(".png", PreviewContentKind.Png), "matching image extension is accepted");
+        Check(FileContentTypeAudit.Detect(Encoding.ASCII.GetBytes("%PDF-1.7")) == PreviewContentKind.Pdf, "PDF content is recognized independently of extension");
         var secret = "password=super-sensitive\nBearer abcdefghijk\nghp_123456789012345678901234\na@example.com\n-----BEGIN PRIVATE KEY-----\nPRIVATE_MATERIAL\n-----END PRIVATE KEY-----";
         var redacted = ShippingInspectionService.Redact(secret);
         Check(!redacted.Contains("super-sensitive") && !redacted.Contains("abcdefghijk") && !redacted.Contains("123456789") && !redacted.Contains("a@example.com") && !redacted.Contains("PRIVATE_MATERIAL"), "support redaction covers assignments tokens email and private keys");
@@ -77,6 +87,24 @@ internal static class Program
             try { var result = await service.UploadAsync("owner", "repo", "main", "fake-token", new[] { item }, "test", Head); Check(mode != "unconfirmed" && result[0].Succeeded, "timeout reconciles " + mode); }
             catch (InvalidOperationException ex) { Check(mode == "unconfirmed" && ex.Message.Contains("unconfirmed"), "unknown result remains unconfirmed"); }
             Check(handler.Patches == 1, "no duplicate PATCH after " + mode);
+        }
+    }
+    private static async Task HttpErrors()
+    {
+        var ensure = typeof(MainWindow).GetMethod("EnsureSuccess", BindingFlags.NonPublic | BindingFlags.Static)!;
+        using var response = new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent("{\"message\":\"token=fake-secret private-data <script>bad()</script>\"}")
+        };
+        try
+        {
+            await (Task)ensure.Invoke(null, new object[] { response })!;
+            throw new Exception("Expected GitHub HTTP failure");
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is InvalidOperationException error)
+        {
+            Check(error.Message.Contains("write access", StringComparison.OrdinalIgnoreCase), "HTTP status error keeps actionable guidance");
+            Check(!error.Message.Contains("fake-secret", StringComparison.Ordinal) && !error.Message.Contains("private-data", StringComparison.Ordinal) && !error.Message.Contains("<script>", StringComparison.Ordinal), "main upload HTTP error omits response body secrets and markup");
         }
     }
     private static void Smoke()

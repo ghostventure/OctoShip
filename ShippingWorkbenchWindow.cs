@@ -77,7 +77,7 @@ public sealed class ShippingWorkbenchWindow : Window
             var match = System.Text.RegularExpressions.Regex.Match(_output.Text, "\"html_url\"\\s*:\\s*\"(https://[^\"]+)\"");
             if (match.Success) _pagesUrl = match.Groups[1].Value;
         });
-        Button(checks, "Open Pages site", () => { if (_pagesUrl == null) throw new InvalidOperationException("Check Pages first; an available site URL is required."); System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_pagesUrl) { UseShellExecute = true }); return Task.CompletedTask; });
+        Button(checks, "Open Pages site", () => { if (_pagesUrl == null) throw new InvalidOperationException("Check Pages first; an available site URL is required."); TrustedProcess.Start(new System.Diagnostics.ProcessStartInfo(_pagesUrl) { UseShellExecute = true }); return Task.CompletedTask; });
         Note(checks, "Pages build data can be unavailable for an Actions-based deployment. An unavailable endpoint is reported without assuming the website failed. GitHub CLI attestation verification uses its own signed-in account.");
         Button(checks, "Verify artifact attestation", async () =>
         {
@@ -121,7 +121,7 @@ public sealed class ShippingWorkbenchWindow : Window
             var picker = new Microsoft.Win32.OpenFileDialog { Filter = "OctoShip project recipe (*.json)|*.json" };
             if (picker.ShowDialog(this) != true) return Task.CompletedTask;
             if (new FileInfo(picker.FileName).Length > 65536) throw new InvalidOperationException("Recipe exceeds 64 KiB.");
-            var value = JsonSerializer.Deserialize<ProjectRecipe>(File.ReadAllText(picker.FileName)) ?? throw new InvalidOperationException("Invalid recipe."); ShippingWorkbenchService.ValidateRecipe(value);
+            var value = JsonSerializer.Deserialize<ProjectRecipe>(SecurityBoundaries.ReadBoundedJson(picker.FileName, 65536)) ?? throw new InvalidOperationException("Invalid recipe."); ShippingWorkbenchService.ValidateRecipe(value);
             _repository.Text = value.Repository; _branch.Text = value.BaseBranch; _destination.Text = value.DestinationFolder; _exclusions.Text = string.Join("\n", value.Exclusions); _releaseName.Text = value.ReleaseName;
             _output.Text = "Recipe imported. Choose your local folder and review before shipping."; return Task.CompletedTask;
         });

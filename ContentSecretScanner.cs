@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -20,6 +21,7 @@ public sealed record SecretScanResult(IReadOnlyList<SecretFinding> Findings, str
 public static class ContentSecretScanner
 {
     public const int MaximumBytes = 2 * 1024 * 1024;
+    public static readonly TimeSpan MaximumScanDuration = TimeSpan.FromSeconds(2);
     private static readonly (string Name, Regex Pattern)[] Rules =
     {
         Rule("Private key", @"-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----"),
@@ -34,6 +36,9 @@ public static class ContentSecretScanner
 
     public static async Task<SecretScanResult> ScanAsync(string path, CancellationToken cancellationToken = default)
     {
+        var started = Stopwatch.GetTimestamp();
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(MaximumScanDuration);
         try
         {
             await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 8192, true);
@@ -42,21 +47,31 @@ public static class ContentSecretScanner
             var offset = 0;
             while (offset < bytes.Length)
             {
-                var count = await stream.ReadAsync(bytes.AsMemory(offset), cancellationToken);
+                var count = await stream.ReadAsync(bytes.AsMemory(offset), deadline.Token);
                 if (count == 0) break;
                 offset += count;
             }
             if (offset != bytes.Length) return new(Array.Empty<SecretFinding>(), "Not scanned: file changed while reading.", false);
-            return ScanBytes(bytes, cancellationToken);
+            var remaining = MaximumScanDuration - Stopwatch.GetElapsedTime(started);
+            if (remaining <= TimeSpan.Zero) return new(Array.Empty<SecretFinding>(), "Not scanned: total per-file time budget reached.", false);
+            return ScanBytes(bytes, cancellationToken, remaining);
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        { return new(Array.Empty<SecretFinding>(), "Not scanned: total per-file time budget reached.", false); }
         catch (IOException) { return new(Array.Empty<SecretFinding>(), "Not scanned: file could not be read.", false); }
         catch (UnauthorizedAccessException) { return new(Array.Empty<SecretFinding>(), "Not scanned: file access denied.", false); }
     }
 
     public static SecretScanResult ScanBytes(byte[] bytes, CancellationToken cancellationToken = default)
+        => ScanBytes(bytes, cancellationToken, MaximumScanDuration);
+
+    public static SecretScanResult ScanBytes(byte[] bytes, CancellationToken cancellationToken, TimeSpan timeBudget)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (bytes.Length > MaximumBytes) return new(Array.Empty<SecretFinding>(), "Not scanned: file exceeds the 2 MiB content-scan limit.", false);
+        if (timeBudget <= TimeSpan.Zero || timeBudget > MaximumScanDuration)
+            throw new ArgumentOutOfRangeException(nameof(timeBudget), "The scan budget must be positive and no more than two seconds.");
+        var started = Stopwatch.GetTimestamp();
         try
         {
             string content;
@@ -67,24 +82,36 @@ public static class ContentSecretScanner
                 if (bytes.Contains((byte)0)) return new(Array.Empty<SecretFinding>(), "Not scanned: binary content or unsupported text encoding. Archives are not unpacked.", false);
                 content = new UTF8Encoding(false, true).GetString(bytes);
             }
-            return ScanText(content, cancellationToken);
+            var remaining = timeBudget - Stopwatch.GetElapsedTime(started);
+            if (remaining <= TimeSpan.Zero) return new(Array.Empty<SecretFinding>(), "Not scanned: total per-file time budget reached.", false);
+            return ScanText(content, cancellationToken, remaining);
         }
         catch (DecoderFallbackException) { return new(Array.Empty<SecretFinding>(), "Not scanned: unsupported text encoding.", false); }
     }
 
     public static SecretScanResult ScanText(string content, CancellationToken cancellationToken = default)
+        => ScanText(content, cancellationToken, MaximumScanDuration);
+
+    public static SecretScanResult ScanText(string content, CancellationToken cancellationToken, TimeSpan timeBudget)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (content.Length > MaximumBytes) return new(Array.Empty<SecretFinding>(), "Not scanned: content exceeds the scan limit.", false);
+        if (timeBudget <= TimeSpan.Zero || timeBudget > MaximumScanDuration)
+            throw new ArgumentOutOfRangeException(nameof(timeBudget), "The scan budget must be positive and no more than two seconds.");
+        var started = Stopwatch.GetTimestamp();
         var findings = new List<SecretFinding>();
         try
         {
             foreach (var rule in Rules)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (Stopwatch.GetElapsedTime(started) >= timeBudget)
+                    return new(findings, "Scan incomplete: total per-file time budget reached.", false);
                 foreach (Match match in rule.Pattern.Matches(content))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    if (Stopwatch.GetElapsedTime(started) >= timeBudget)
+                        return new(findings, "Scan incomplete: total per-file time budget reached.", false);
                     var line = 1;
                     for (var i = 0; i < match.Index; i++) if (content[i] == '\n') line++;
                     findings.Add(new SecretFinding(rule.Name, line));

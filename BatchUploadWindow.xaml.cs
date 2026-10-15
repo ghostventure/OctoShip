@@ -41,6 +41,34 @@ public sealed class BatchUploadProgress
     public double Percent { get; }
 }
 
+/// <summary>Checks that a queued local source is still the reviewed file and can be opened for upload.</summary>
+public static class BatchUploadSourceReadiness
+{
+    public static bool TryValidate(string path, long expectedLength, DateTime? expectedLastWriteTimeUtc, out string? error)
+    {
+        error = null;
+        try
+        {
+            // Keep this probe read-only. FileShare.Read rejects an existing exclusive lock and
+            // prevents cooperating writers/deleters from changing the source during the probe.
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
+            var lastWriteUtc = File.GetLastWriteTimeUtc(path);
+            if (stream.Length != expectedLength || (expectedLastWriteTimeUtc.HasValue && lastWriteUtc != expectedLastWriteTimeUtc.Value))
+            {
+                error = "The source changed after it was queued. Review it again before uploading.";
+                return false;
+            }
+            return true;
+        }
+        catch (FileNotFoundException) { error = "The source file is missing. Restore it and retry, or skip it."; }
+        catch (DirectoryNotFoundException) { error = "The source folder is missing. Restore it and retry, or skip it."; }
+        catch (UnauthorizedAccessException) { error = "Windows denied access to this file. Close the app holding it or fix access, then retry, or skip it."; }
+        catch (IOException ex) { error = "The file is unavailable or locked by another app. Close that app, then retry, or skip it. " + ex.Message; }
+        catch (ArgumentException ex) { error = "The source path is invalid. Add the file again. " + ex.Message; }
+        return false;
+    }
+}
+
 public enum BatchCommitMode { PerFile, SingleBatch }
 
 public sealed class BatchUploadEntry : System.ComponentModel.INotifyPropertyChanged
@@ -204,22 +232,32 @@ public partial class BatchUploadWindow : Window
     {
         if (!QueueGrid.CommitEdit(DataGridEditingUnit.Cell, true) || !QueueGrid.CommitEdit(DataGridEditingUnit.Row, true)) return;
         if (!ApplyRules()) return;
-        var ready = _entries.Where(x => x.StatusText is "Ready" or "Failed").ToArray();
+        var candidates = _entries.Where(x => x.StatusText is "Ready" or "Failed").ToArray();
+        foreach (var entry in candidates)
+        {
+            if (!BatchUploadSourceReadiness.TryValidate(entry.SourcePath, entry.Item.CapturedLength, entry.Item.CapturedLastWriteTimeUtc, out var sourceError))
+            {
+                entry.StatusText = "Failed"; entry.Error = sourceError; entry.ProgressText = "—"; entry.Refresh();
+            }
+            else { entry.StatusText = "Ready"; entry.Error = null; entry.Refresh(); }
+        }
+        UpdateSummary();
+        var ready = candidates.Where(x => x.StatusText == "Ready").ToArray();
         if (ready.Length == 0) { OctoShipDialog.Show(this, "There are no ready files to upload.", "Upload", MessageBoxButton.OK, MessageBoxImage.Information); return; }
         if (ready.Length > 100) { OctoShipDialog.Show(this, "A batch supports at most 100 files."); return; }
         foreach (var entry in ready)
         {
-            if (entry.Item.HasChangedOnDisk())
-            {
-                OctoShipDialog.Show(this, $"The file is missing or changed since it was queued:\n{entry.SourcePath}\n\nRemove it and add it again to review the current version.", "Queue needs review");
-                return;
-            }
             try { UploadQueueItem.NormalizeDestination(entry.DestinationPath); }
             catch (ArgumentException ex) { OctoShipDialog.Show(this, ex.Message); return; }
         }
         if ((CommitMode == BatchCommitMode.SingleBatch && string.IsNullOrWhiteSpace(BatchMessageBox.Text)) ||
             (CommitMode == BatchCommitMode.PerFile && ready.Any(x => string.IsNullOrWhiteSpace(x.CommitMessage))))
         { OctoShipDialog.Show(this, "Enter a commit message before uploading."); return; }
+        var pathWarnings = UploadPathAudit.Analyze(ready.Select(x => x.DestinationPath));
+        if (pathWarnings.Count > 0 && OctoShipDialog.Show(this,
+            "Some destination paths may be interpreted differently across Windows and GitHub. Review these warnings before continuing:\n\n" +
+            string.Join("\n", pathWarnings) + "\n\nContinue with the exact paths shown in the queue?",
+            "Destination path review", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         var totalBytes = ready.Sum(x => x.Size);
         if (OctoShipDialog.Show(this, $"Upload {ready.Length} files ({FormatBytes(totalBytes)}) to {_repository}?\n\nReview the paths and commit settings before continuing.", "Confirm upload", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         _runCts = new CancellationTokenSource(); SetRunning(true);
@@ -246,6 +284,10 @@ public partial class BatchUploadWindow : Window
             if (_paused && _resumeSignal != null) await _resumeSignal.Task.WaitAsync(token);
             if (token.IsCancellationRequested) { entry.StatusText = "Cancelled"; entry.Error = "Cancelled before upload."; entry.Refresh(); continue; }
             entry.StatusText = "Uploading"; entry.ProgressText = "0%"; entry.Refresh(); SaveQueue();
+            if (!BatchUploadSourceReadiness.TryValidate(entry.SourcePath, entry.Item.CapturedLength, entry.Item.CapturedLastWriteTimeUtc, out var sourceError))
+            {
+                entry.StatusText = "Failed"; entry.Error = sourceError; entry.ProgressText = "—"; entry.Refresh(); processed++; UpdateSummary(); continue;
+            }
             var file = new BatchUploadFile(entry.SourcePath, entry.DestinationPath, entry.CommitMessage, entry.Item.CapturedLength, entry.Item.CapturedLastWriteTimeUtc);
             var progress = new Progress<double>(value => { entry.ProgressText = $"{Math.Clamp(value, 0, 100):0}%"; OverallProgress.Value = Math.Clamp((processed + value / 100d) / entries.Length * 100, 0, 100); ProgressText.Text = Estimate(sw.Elapsed, sent + (long)(entry.Size * Math.Clamp(value, 0, 100) / 100d), entries.Sum(x => x.Size)); entry.Refresh(); });
             try
@@ -262,6 +304,19 @@ public partial class BatchUploadWindow : Window
     private async Task RunSingleBatchAsync(BatchUploadEntry[] entries, CancellationToken token)
     {
         if (_uploadBatch == null) throw new InvalidOperationException("The host did not provide a single-commit upload callback.");
+        foreach (var entry in entries)
+        {
+            if (!BatchUploadSourceReadiness.TryValidate(entry.SourcePath, entry.Item.CapturedLength, entry.Item.CapturedLastWriteTimeUtc, out var sourceError))
+            {
+                entry.StatusText = "Failed"; entry.Error = sourceError; entry.ProgressText = "—"; entry.Refresh();
+            }
+        }
+        if (entries.Any(x => x.StatusText == "Failed"))
+        {
+            foreach (var entry in entries.Where(x => x.StatusText != "Failed")) { entry.StatusText = "Ready"; entry.Refresh(); }
+            OctoShipDialog.Show(this, "At least one source file is unavailable or changed. No batch commit was sent. Close apps holding the file, then choose Retry failed, or remove/skip that entry and start again.", "Batch source recovery", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         var files = entries.Select(x => new BatchUploadFile(x.SourcePath, x.DestinationPath, x.CommitMessage, x.Item.CapturedLength, x.Item.CapturedLastWriteTimeUtc)).ToArray();
         foreach (var entry in entries) { entry.StatusText = "Uploading"; entry.ProgressText = "0%"; entry.Refresh(); }
         SaveQueue();
@@ -302,7 +357,7 @@ public partial class BatchUploadWindow : Window
     }
     private void Cancel_Click(object sender, RoutedEventArgs e) => _runCts?.Cancel();
     private void Close_Click(object sender, RoutedEventArgs e) { if (_runCts != null) { OctoShipDialog.Show(this, "Cancel the active upload before closing."); return; } Close(); }
-    private void OpenLink_Click(object sender, RoutedEventArgs e) { if ((sender as Button)?.Tag is string url && Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == "https" && uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)) Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true }); }
+    private void OpenLink_Click(object sender, RoutedEventArgs e) { if ((sender as Button)?.Tag is string url && Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == "https" && uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)) TrustedProcess.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true }); }
     private void SetRunning(bool running)
     {
         QueueGrid.IsReadOnly = running;

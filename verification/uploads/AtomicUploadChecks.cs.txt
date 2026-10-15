@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -17,6 +18,14 @@ internal static class Program
     private static void Check(bool passed, string name) { if (!passed) throw new Exception(name); Console.WriteLine("PASS " + name); checks++; }
     private static async Task Main()
     {
+        var unsafePathWarnings = UploadPathAudit.Analyze(new[] { "CON.txt", "space .txt ", "Folder/Name", "folder/name", "invisible\u200Bname", "café.txt", "cafe\u0301.txt", "p\u0430yload.txt" });
+        Check(unsafePathWarnings.Any(x => x.Contains("reserved", StringComparison.OrdinalIgnoreCase)), "reserved Windows filename is flagged");
+        Check(unsafePathWarnings.Any(x => x.Contains("space or dot", StringComparison.OrdinalIgnoreCase)), "trailing dot or space is flagged");
+        Check(unsafePathWarnings.Any(x => x.Contains("letter case", StringComparison.OrdinalIgnoreCase)), "case-only destination collision is flagged");
+        Check(unsafePathWarnings.Any(x => x.Contains("invisible", StringComparison.OrdinalIgnoreCase)), "invisible text control is flagged");
+        Check(unsafePathWarnings.Any(x => x.Contains("Unicode normalization", StringComparison.OrdinalIgnoreCase)), "non-NFC path is flagged");
+        Check(unsafePathWarnings.Any(x => x.Contains("mixes Latin", StringComparison.OrdinalIgnoreCase)), "mixed Latin-Cyrillic filename is flagged");
+        Check(UploadPathAudit.Analyze(new[] { "src/Program.cs", "docs/readme.md" }).Count == 0, "ordinary repository paths remain warning-free");
         var dir = Path.Combine(Path.GetTempPath(), "OctoShip-upload-checks-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         try
@@ -34,6 +43,13 @@ internal static class Program
             Check(!JsonDocument.Parse(patch.Body!).RootElement.GetProperty("force").GetBoolean(), "branch update never forces");
             var tree = JsonDocument.Parse(handler.Calls.Single(x => x.Path.EndsWith("/git/trees") && x.Method == "POST").Body!);
             Check(tree.RootElement.GetProperty("tree")[0].GetProperty("mode").GetString() == "100755", "existing executable mode preserved");
+            handler.Reset(); handler.ErrorBody = "{\"message\":\"token=fake-test-credential <script>steal()</script> private-data\"}";
+            try { await service.UploadAsync("owner", "repo", "main", "fake-test-credential", new[] { file }, "test", Head); throw new Exception("Expected HTTP failure"); }
+            catch (HttpRequestException ex)
+            {
+                Check(ex.StatusCode == HttpStatusCode.Forbidden && ex.Message.Contains("HTTP 403", StringComparison.Ordinal), "GitHub HTTP failure retains status for actionable diagnostics");
+                Check(!ex.Message.Contains("fake-test-credential", StringComparison.Ordinal) && !ex.Message.Contains("<script>", StringComparison.Ordinal) && !ex.Message.Contains("private-data", StringComparison.Ordinal), "GitHub HTTP error body cannot leak credentials, private data, or untrusted HTML into errors");
+            }
             handler.Reset(); handler.Moved = true;
             try { await service.UploadAsync("owner", "repo", "main", "fake-test-credential", new[] { file }, "test", Head); throw new Exception("Expected conflict"); }
             catch (InvalidOperationException) { Check(handler.Calls.All(x => x.Method == "GET"), "changed head rejected before writes"); }
@@ -51,13 +67,19 @@ internal static class Program
             try { await service.UploadAsync("owner", "repo", "main", "fake-test-credential", new[] { file }, "test", Head); throw new Exception("Expected local conflict"); }
             catch (InvalidOperationException) { Check(handler.Calls.All(x => x.Method == "GET"), "changed local file rejected before writes"); }
             var store = new PersistentUploadQueueStore(Path.Combine(dir, "journal"));
+            Directory.CreateDirectory(Path.Combine(dir, "journal"));
+            var journalKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("owner/repo\nmain")));
+            var unrelatedTemp = Path.Combine(dir, "journal", journalKey + ".json.tmp");
+            await File.WriteAllTextAsync(unrelatedTemp, "keep this unrelated file");
             var row = new PersistentUploadQueueStore.Entry(local, "run.sh", "test", file.Size, file.CapturedLastWriteTimeUtc!.Value, "Uploading", null);
             store.Save(new PersistentUploadQueueStore.Snapshot(1, "owner/repo", "main", 1, "batch test", new[] { row }));
+            Check(await File.ReadAllTextAsync(unrelatedTemp) == "keep this unrelated file", "queue save leaves a predictable unrelated temp file untouched");
+            Check(!Directory.EnumerateFiles(Path.Combine(dir, "journal"), "*.tmp").Except(new[] { unrelatedTemp }, StringComparer.OrdinalIgnoreCase).Any(), "queue save cleans only its own temporary file");
             var saved = store.Load("owner/repo", "main")!;
             Check(saved.Entries[0].Status == "Uploading" && saved.CommitMode == 1, "queue state and mode survive restart");
             Check(PersistentUploadQueueStore.RestoreItem(saved.Entries[0]).HasChangedOnDisk(), "restored metadata detects changed source");
             Check(store.Load("owner/repo", "other") == null, "queues isolated by branch");
-            Check(!File.ReadAllText(Directory.GetFiles(Path.Combine(dir, "journal")).Single()).Contains("fake-test-credential"), "journal excludes credential");
+            Check(!File.ReadAllText(Directory.GetFiles(Path.Combine(dir, "journal"), "*.json").Single()).Contains("fake-test-credential"), "journal excludes credential");
             store.Delete("owner/repo", "main"); Check(store.Load("owner/repo", "main") == null, "completed journal can be removed");
             Console.WriteLine($"{checks} upload checks passed. No network requests were sent.");
         }
@@ -66,12 +88,13 @@ internal static class Program
     private sealed class FakeGitHub : HttpMessageHandler
     {
         public List<(string Method, string Path, string? Body)> Calls = new();
-        public bool Moved; public bool MoveAtPublication; public string Mode = "100755"; private int heads;
-        public void Reset() { Calls.Clear(); Moved = false; MoveAtPublication = false; Mode = "100755"; heads = 0; }
+        public bool Moved; public bool MoveAtPublication; public string Mode = "100755"; public string? ErrorBody; private int heads;
+        public void Reset() { Calls.Clear(); Moved = false; MoveAtPublication = false; Mode = "100755"; ErrorBody = null; heads = 0; }
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri!.AbsolutePath;
             Calls.Add((request.Method.Method, path, request.Content == null ? null : await request.Content.ReadAsStringAsync()));
+            if (ErrorBody != null) return new HttpResponseMessage(HttpStatusCode.Forbidden) { Content = new StringContent(ErrorBody) };
             string json;
             if (path.Contains("/git/ref/heads/")) json = JsonSerializer.Serialize(new { @object = new { sha = Moved || (MoveAtPublication && ++heads > 1) ? "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" : Head } });
             else if (request.Method == HttpMethod.Get && path.Contains("/git/commits/")) json = "{\"tree\":{\"sha\":\"base-tree\"}}";

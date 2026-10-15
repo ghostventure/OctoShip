@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -40,6 +41,13 @@ class Program
         Assert(!ContentSecretScanner.ScanBytes(new byte[ContentSecretScanner.MaximumBytes + 1]).Complete, "Size limit");
         Assert(!ContentSecretScanner.ScanBytes(new byte[] { 0, 1, 2 }).Complete, "Binary limit");
         Assert(!ContentSecretScanner.ScanBytes(new byte[] { 0xff }).Complete, "Encoding limit");
+        var exhausted = ContentSecretScanner.ScanText("password=" + new string('x', 500_000), default, TimeSpan.FromTicks(1));
+        Assert(!exhausted.Complete && exhausted.Status.Contains("budget", StringComparison.OrdinalIgnoreCase), "per-file budget reports unfinished scan");
+        var hostileText = new string(' ', ContentSecretScanner.MaximumBytes - 32) + "password=12345678901234567890";
+        var scanWatch = Stopwatch.StartNew();
+        var hostileScan = ContentSecretScanner.ScanText(hostileText);
+        Assert(scanWatch.Elapsed < TimeSpan.FromSeconds(4), "maximum-size adversarial text stays within scan budget");
+        Assert(hostileScan.Complete || !hostileScan.Status.Contains("No supported secret patterns", StringComparison.OrdinalIgnoreCase), "incomplete scan is never reported clean");
         var utf16 = Encoding.Unicode.GetPreamble();
         Assert(ContentSecretScanner.ScanBytes(Combine(utf16, Encoding.Unicode.GetBytes(secret))).HasFindings, "UTF16 detection");
         Assert(!ContentSecretScanner.ScanText("ordinary text").HasFindings, "Clean text");

@@ -2,13 +2,13 @@
 
 ## Versions and scope
 
-Windows source: **1.6.0**, .NET 6 WPF, Windows 10 build 19041 or newer, x64 package. Linux source is maintained independently under `linux/`; see [Linux guide](linux/README.md) and [packaging](linux/packaging/README.md). This Windows verification does not establish Linux package behavior.
+Windows source and current local package: **1.6.1-preview.10**, .NET 10 WPF, Windows 10 build 19041 or newer, x64 self-contained installer. See the [P1 handoff](P1-HANDOFF.md) for package, SBOM, and verification details. This preview is not a published GitHub release. Linux source and packages are maintained independently under `linux/`; see [Linux guide](linux/README.md) and [packaging](linux/packaging/README.md). Windows verification does not establish Linux package behavior.
 
-For current update verification and delivery evidence, see [Windows 1.6.0](RELEASE-1.6.0.md). Historical local installation evidence is in [preview.2](RELEASE-1.6.0-preview.2.md). Building a package locally does not publish it to GitHub.
+The [P1 handoff](P1-HANDOFF.md) records implemented Windows changes, local installation, and remaining work. Earlier release documents are historical; building or installing a package locally does not publish it to GitHub.
 
 ## Install and first use
 
-Windows users need Git for Windows with Git Credential Manager and a compatible .NET Windows Desktop Runtime (6 or later, with major roll-forward enabled). Developers additionally need the .NET 6 SDK and Inno Setup 6. The per-user installer installs to `%LOCALAPPDATA%\Programs\OctoShip for GitHub`, registers an uninstaller and Start Menu shortcut, and optionally adds a desktop shortcut. Close OctoShip before upgrading.
+Windows users need Git for Windows with Git Credential Manager for GitHub sign-in. The current self-contained installer bundles .NET 10, so users do not need a separate .NET runtime installation. Developers need the .NET 10 SDK and Inno Setup 6. The per-user installer installs to `%LOCALAPPDATA%\Programs\OctoShip for GitHub`, registers an uninstaller and Start Menu shortcut, and optionally adds a desktop shortcut. Close OctoShip before upgrading.
 
 1. Launch OctoShip, choose a saved GitHub account and Connect, or use Add account.
 2. Choose a local folder and search. Review a result before uploading.
@@ -50,7 +50,7 @@ Selective preparation supports one file, up to 2,000 lines/1 MiB. Contiguous edi
 
 ## Accounts, retention and locking
 
-See [ACCOUNT-SESSION.md](ACCOUNT-SESSION.md) for the full security model. Selected account, reconnect preference, destinations and preferences persist locally. Main-window settings save on deactivation and closing. Privacy mode suppresses search/history/workspace fields as documented; explicit preparation saves have separate rules.
+See [ACCOUNT-SESSION.md](ACCOUNT-SESSION.md) for the full security model. Selected account, configurable GitHub auto-connect, destinations and preferences persist locally. Auto-connect reuses Git Credential Manager's selected account; OctoShip does not persist the token or password. A separate preference controls OctoShip's own Windows-authentication inactivity prompt; Windows' own sign-in lock remains in effect. Main-window settings save on deactivation and closing. Privacy mode suppresses search/history/workspace fields as documented; explicit preparation saves have separate rules.
 
 GitHub tokens are retrieved through Git Credential Manager and retained in memory, never intentionally written into OctoShip settings. This is local retention, not a cloud account service.
 
@@ -94,17 +94,17 @@ Shared styles cover buttons, inputs, tabs, grids, groups, scrollbars, menus, too
 
 ## GitHub automatic updates
 
-The trusted release source is `ghostventure/OctoShip`. Automatic updates default on and can be disabled in Settings. Checks run after startup connection and every two minutes while unlocked and not busy. Failures back off for at least 15 minutes; GitHub rate-limit reset and Retry-After headers can extend that delay. Availability is polling-based, not an instantaneous push notification. Shared public IP addresses share GitHub's anonymous quota. The latest 100 releases are filtered for the Windows ZIP asset; Stable accepts stable releases and Preview accepts both stable and preview releases. The greatest compatible version is chosen. Linux-only releases and drafts are skipped. Semantic version comparison handles tags such as `v1.6.0-preview.2` and never intentionally downgrades.
+The updater uses the public `ghostventure/OctoShip` GitHub releases feed and is active in this build. Automatic updates default on and can be disabled in Settings; users can select Stable or Preview. It checks after startup and every two minutes while unlocked and idle, with backoff for failures and GitHub rate limits. The public feed is read anonymously, so GitHub account sign-in is not needed for update checks or downloads. Drafts and Linux-only releases are skipped; the newest compatible Windows package among the latest 100 releases is selected, without intentional downgrades.
 
-The release must attach **`OctoShip-win-x64.zip`**, with a GitHub `sha256:` digest, containing published app files at ZIP root. The public feed and asset downloads are anonymous, so a missing, expired or restricted user token cannot block updates. This updater requires a public release repository. Source commits/source ZIPs alone are not installable updates. Updates download a complete package, not binary delta patches.
+The release must attach **`OctoShip-win-x64.zip`**, with a GitHub `sha256:` asset digest, containing published app files at ZIP root. The updater downloads the package over HTTPS from GitHub and requires the digest to match the downloaded bytes. It does not require code signing, publisher signing keys, or signed update manifests. The digest checks package correspondence/integrity; it is not an independent publisher identity check. Source commits/source ZIPs alone are not installable updates. Updates download a complete package, not binary delta patches.
 
 The `Windows update release` GitHub Actions workflow runs when Windows source, project version or release workflow changes on `main`, and can be dispatched manually from `main`. Increment `<Version>` in `FileToGitHub.csproj` for each release. The workflow builds, runs focused checks, publishes a Windows x64 payload, verifies the packaged version, uploads a draft ZIP and SHA256SUMS, checks GitHub's asset digest, then publishes the release. Hyphenated versions are prereleases; other versions are stable. Published versions are never overwritten; source changes without a version bump skip publication. A failed upload remains a draft, invisible to installed clients. Run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Publish-WindowsRelease.ps1 -PackageOnly` for local verification and packaging without publishing.
 
-Computers running the older `1.6.0-preview.2` updater still check hourly until upgraded. If their channel is Preview, select Stable once to receive `1.6.0`; that older updater does not select stable releases from Preview. After upgrading, Preview automatically follows newer stable releases too. Automatic updates must be enabled and the app must be running, unlocked and online to detect a release.
+Older release documents describe updater behavior for those historical builds and may not reflect the current public-feed flow.
 
-Downloads are bounded to 250 MiB, checked against the release digest, and extracted only after path/expanded-size checks. The packaged DLL product version must match the tag. Automatic downloads stage while the app remains open and install when the main window closes normally, without forcing a restart; the next launch uses the update. Disabling automatic updates suppresses pending installation. Manual Check for updates asks before installing and restarting, and refuses while active work/tool windows remain.
+Downloads are bounded to 250 MiB, checked against the GitHub release digest, and extracted only after path and expanded-size checks. The packaged DLL product version must match the tag. Automatic downloads stage while the app remains open and install when the app closes normally; manual installation asks before restarting. The helper backs up the app directory and attempts restoration if replacement fails. Pending downloads are not automatically recovered across a crash. Current preview packages are unsigned, but signing is not a prerequisite for this updater.
 
-The helper waits for the old process to exit, backs up the installation and attempts restoration if replacement fails. Backups are retained. A failed restoration can still require rerunning the installer. SHA-256 establishes correspondence with the selected GitHub asset, not independent publisher identity; current preview packages are unsigned. A writable installation directory is required. Failed checks retry on the next scheduled check; pending downloads are not automatically recovered across a crash. Actual release availability and real remote update delivery require separate verification.
+The updater requires a writable installation directory. HTTPS validates the GitHub connection; the matching SHA-256 digest confirms correspondence with GitHub's selected asset, not independent publisher identity. No signing key or signed manifest is required to perform an update.
 
 ## Source map
 
@@ -133,9 +133,8 @@ From the repository root in PowerShell:
 
 ```powershell
 dotnet build FileToGitHub.csproj -c Release
-dotnet publish FileToGitHub.csproj -c Release --no-restore -p:DebugType=None -o installer\payload-1.6.0-preview.2
-Compress-Archive -Path installer\payload-1.6.0-preview.2\* -DestinationPath installers\OctoShip-v1.6.0-preview.2-win-x64.zip
-& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" /Q /DPayloadDir=payload-1.6.0-preview.2 installer\OctoShip.iss
+dotnet publish FileToGitHub.csproj -c Release -r win-x64 --self-contained true -p:DebugType=None -o installer\payload
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" /Q /DPayloadDir=payload installer\OctoShip.iss
 ```
 
 Run the focused verification projects under `verification`: uploads/AtomicUploadChecks, repository-workflows/WorkflowTests, session-lock/SessionLockChecks, preparation/PreparationChecks, shipping-workbench/ShippingWorkbenchChecks, uniform-ui/UniformUiChecks and updates/UpdateChecks using `dotnet run --project verification/<folder>/<project>.csproj -c Release`. Scanner/release checks use `powershell -NoProfile -ExecutionPolicy Bypass -File verification/secrets-release/run.ps1`.

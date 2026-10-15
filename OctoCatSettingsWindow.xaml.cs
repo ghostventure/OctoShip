@@ -33,6 +33,7 @@ public partial class OctoCatSettingsWindow : Window
         DestinationPresets = Array.Empty<DestinationPreset>();
         PrivacyCheck.IsChecked = _preferences.PrivacyMode;
         AutomaticUpdatesCheck.IsChecked = _preferences.AutomaticUpdates;
+        ClipboardClearPicker.SelectedIndex = ClipboardClearSelection(_preferences.ClearCopiedTextAfterSeconds);
         ChannelPicker.SelectedIndex = _preferences.UpdateChannel == OctoCatUpdateChannel.Preview ? 1 : 0;
         _patterns.AddRange(NormalizePatterns(sensitivePatterns ?? Array.Empty<string>()));
         _presets.AddRange((destinationPresets ?? ToPresets(_preferences.Destinations)).Where(IsValidPreset).Take(50));
@@ -138,6 +139,7 @@ public partial class OctoCatSettingsWindow : Window
             PrivacyCheck.IsChecked = _preferences.PrivacyMode;
             ChannelPicker.SelectedIndex = _preferences.UpdateChannel == OctoCatUpdateChannel.Preview ? 1 : 0;
             AutomaticUpdatesCheck.IsChecked = _preferences.AutomaticUpdates;
+            ClipboardClearPicker.SelectedIndex = ClipboardClearSelection(_preferences.ClearCopiedTextAfterSeconds);
             PatternList.ItemsSource = _patterns.ToArray();
             RefreshPresets();
             SetStatus("Settings imported into this window. Select Save to apply them.");
@@ -183,6 +185,7 @@ public partial class OctoCatSettingsWindow : Window
             PrivacyMode = privacy,
             UpdateChannel = channel,
             AutomaticUpdates = AutomaticUpdatesCheck.IsChecked == true,
+            ClearCopiedTextAfterSeconds = ClipboardClearDelay(ClipboardClearPicker.SelectedIndex),
             Destinations = values,
             SearchHistory = privacy ? Array.Empty<string>() : _preferences.SearchHistory,
             RecentRepositories = privacy ? Array.Empty<string>() : _preferences.RecentRepositories
@@ -191,6 +194,8 @@ public partial class OctoCatSettingsWindow : Window
     }
 
     private void RefreshPresets() => PresetList.ItemsSource = _presets.ToArray();
+    private static int ClipboardClearSelection(int seconds) => seconds switch { 30 => 1, 60 => 2, 300 => 3, _ => 0 };
+    private static int ClipboardClearDelay(int selection) => selection switch { 1 => 30, 2 => 60, 3 => 300, _ => 0 };
     private void SetStatus(string text, bool error = false)
     {
         StatusText.Text = text;

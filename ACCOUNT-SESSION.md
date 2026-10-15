@@ -1,5 +1,7 @@
 # Retained account information and inactivity locking
 
+Windows 1.6.1-preview.1 additionally checks the lock from background HTTP and subprocess paths, refuses stale account requests/responses, and requires tool windows to close before changing accounts or signing out. Main account-related queue/repository/activity views are cleared during a switch. See [P0 handoff](P0-HANDOFF.md) for verification and limits.
+
 This document describes the Windows implementation. For Linux 1.7.0 behavior, platform differences and verification, see the [Linux guide](linux/README.md) and [release handoff](docs/linux-1.7.0-handoff.md).
 
 The Windows development build retains the selected GitHub account, reconnect preference, destination presets, repository/branch/destination selection, and existing application preferences on this computer. Settings are saved when the main window loses focus or closes, as well as during existing save actions. Privacy mode continues to suppress search history, the previous local search folder, and the newly remembered repository/branch/path workspace fields. GitHub credentials remain managed by Git Credential Manager; OctoShip settings never contain tokens or passwords. This is local retention, not cloud synchronization or a new OctoShip account service.

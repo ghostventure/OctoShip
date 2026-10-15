@@ -46,7 +46,8 @@ public static class OctoCatPreferencesService
             .Take(100).ToDictionary(pair => pair.Key, pair => pair.Value.Trim('/'), StringComparer.OrdinalIgnoreCase),
         PrivacyMode = value.PrivacyMode,
         UpdateChannel = value.UpdateChannel == OctoCatUpdateChannel.Preview ? OctoCatUpdateChannel.Preview : OctoCatUpdateChannel.Stable,
-        AutomaticUpdates = value.AutomaticUpdates
+        AutomaticUpdates = value.AutomaticUpdates,
+        ClearCopiedTextAfterSeconds = ClipboardClearPolicy.NormalizeDelay(value.ClearCopiedTextAfterSeconds)
     };
 
     /// <summary>Checks the Windows Authenticode signature and optional expected signer thumbprint.</summary>
@@ -59,7 +60,11 @@ public static class OctoCatPreferencesService
             using var trustData = new WinTrustData(executablePath);
             var trustResult = WinVerifyTrust(IntPtr.Zero, ref GenericVerifyV2, trustData);
             if (trustResult != 0) return new(false, $"Windows Authenticode verification failed (0x{trustResult:X8}).", null);
-            using var cert = new System.Security.Cryptography.X509Certificates.X509Certificate2(System.Security.Cryptography.X509Certificates.X509Certificate.CreateFromSignedFile(executablePath));
+            // PE Authenticode extraction still requires this API; the loader accepts certificate bytes, not PE images.
+#pragma warning disable SYSLIB0057
+            using var embedded = System.Security.Cryptography.X509Certificates.X509Certificate.CreateFromSignedFile(executablePath);
+#pragma warning restore SYSLIB0057
+            using var cert = System.Security.Cryptography.X509Certificates.X509CertificateLoader.LoadCertificate(embedded.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Cert));
             var signer = cert.Thumbprint?.Replace(" ", "", StringComparison.Ordinal).ToUpperInvariant();
             if (string.IsNullOrWhiteSpace(signer)) return new(false, "The file has no embedded publisher signature.", null);
             if (!string.IsNullOrWhiteSpace(expectedSignerThumbprint) && !string.Equals(signer, expectedSignerThumbprint.Replace(" ", "", StringComparison.Ordinal), StringComparison.OrdinalIgnoreCase))
@@ -158,4 +163,5 @@ public sealed record OctoCatPreferences
     public bool PrivacyMode { get; init; }
     public OctoCatUpdateChannel UpdateChannel { get; init; } = OctoCatUpdateChannel.Stable;
     public bool AutomaticUpdates { get; init; } = true;
+    public int ClearCopiedTextAfterSeconds { get; init; }
 }

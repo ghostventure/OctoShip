@@ -1,8 +1,8 @@
 # OctoShip component assignments
 
-Assigned 2026-10-03. Numbers refer to the 60-component proposal. Only the first wave is in active implementation; later waves are assigned backlog, not completed features. No deployment or remote repository mutation is part of local verification.
+Assigned 2026-10-03. Numbers refer to the original 60-component proposal. The first wave is integrated locally; later proposals are tracked in the improvement backlog, and only explicitly checked/handed-off items should be treated as implemented. No deployment or remote repository mutation is implied by local verification.
 
-First-wave update: implemented and integrated locally. Release build and 62 offline/service/GUI checks passed. See [verification/README.md](verification/README.md) for commands and remaining live-integration boundaries. P1-P3 remain planned work, not running agents.
+First-wave update: implemented and integrated locally. Release build and 62 offline/service/GUI checks passed. See [verification/README.md](verification/README.md) for commands and remaining live-integration boundaries. A subset of P1 tasks is implemented in local preview.10; see [P1-HANDOFF.md](P1-HANDOFF.md) for current package details and remaining P1 work. Other roadmap entries remain proposals, not active work.
 
 Linux update, 2026-10-04: the P0 feature group now has native Python/Tk implementations and an upload/tools layout. See [Linux verification](verification/linux-port-1.6.0.md) for coverage and boundaries. This does not mark the later P1–P3 backlog complete.
 

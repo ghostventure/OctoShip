@@ -50,7 +50,10 @@
                             <Button x:Name="AddAccountButton" Content="Add account" Padding="11,7" Margin="0,0,8,0" Click="AddAccount_Click" />
                             <Button x:Name="SignOutButton" Content="Sign out" Padding="4,2" Margin="0,0,8,0" BorderThickness="0" Background="Transparent" Foreground="#93A3B9" FontSize="10" Click="SignOut_Click" />
                         </StackPanel>
-                        <TextBlock x:Name="AccountLabel" Text="Connect a GitHub account" Foreground="#AAB8CB" FontSize="11" VerticalAlignment="Center" />
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock x:Name="AccountLabel" Text="Connect a GitHub account" Foreground="#AAB8CB" FontSize="11" />
+                            <CheckBox x:Name="AutoConnectCheckBox" Content="Automatically connect this account when OctoShip starts" IsChecked="True" IsEnabled="False" FontSize="10" Foreground="#AAB8CB" Margin="0,4,0,0" ToolTip="Uses the GitHub login already saved in Git Credential Manager. OctoShip does not save your password or token." Checked="AutoConnect_Changed" Unchecked="AutoConnect_Changed" />
+                        </StackPanel>
                     </DockPanel>
                 </Border>
             </Grid>
@@ -454,7 +457,9 @@
                                             <TextBlock x:Name="ProfilePrivacy" Text="Off" Foreground="#E4ECF7" Margin="0,5,0,0" />
                                         </StackPanel>
                                     </Grid>
-                                    <TextBlock Text="Account preferences are retained on this computer. OctoShip locks after 30 minutes of inactivity; unlock with Windows Hello or your Windows account password." Foreground="#A9B8CF" TextWrapping="Wrap" Margin="0,16,0,8" />
+                                    <TextBlock Text="Least-privilege guide for fine-grained tokens: browsing needs Metadata read and Contents read; uploading reviewed files needs Contents write; creating pull requests needs Pull requests write (and Contents write for the source branch); creating releases needs Contents write. Adding workflow files to a release may also require Workflows write. Grant only the permissions for workflows you use. Organization rules still apply, and OctoShip does not broaden GitHub access." Foreground="#A9B8CF" TextWrapping="Wrap" FontSize="10" Margin="0,12,0,0" />
+                                    <TextBlock Text="Choose whether OctoShip asks for Windows authentication after inactivity. Windows still controls access to your signed-in computer." Foreground="#A9B8CF" TextWrapping="Wrap" Margin="0,16,0,6" />
+                                    <CheckBox x:Name="RequireWindowsAuthenticationCheckBox" Content="Require Windows authentication after 30 minutes of inactivity" IsChecked="True" FontSize="11" Margin="0,0,0,8" ToolTip="When off, OctoShip skips its own inactivity prompt. Your Windows account lock remains in effect." Checked="RequireWindowsAuthentication_Changed" Unchecked="RequireWindowsAuthentication_Changed" />
                                     <Button Content="Lock account workspace now" HorizontalAlignment="Left" Click="LockAccount_Click" AutomationProperties.Name="Lock the OctoShip account workspace now" />
                                 </StackPanel>
                             </Border>
@@ -471,11 +476,13 @@
                                     <TextBlock Text="Check the configured release channel, verify the current Windows/runtime compatibility, or copy a privacy-safe diagnostic summary." Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16" />
                                     <Button Content="Check for updates" HorizontalAlignment="Left" Click="Update_Click" x:Name="UpdateButton" />
                                     <Button Content="Run compatibility check" HorizontalAlignment="Left" Margin="0,4,0,0" Click="CheckCompatibility_Click" />
+                                    <Button x:Name="StartupHealthButton" Content="Run account and startup readiness check" HorizontalAlignment="Left" Margin="0,4,0,0" Click="RunStartupHealthCheck_Click" />
                                     <Button Content="Copy diagnostics" HorizontalAlignment="Left" Margin="0,4,0,0" Click="CopyDiagnostics_Click" />
                                     <TextBlock x:Name="NetworkStatus" Text="Network type: not checked" Foreground="#AAB8CB" FontSize="10" TextWrapping="Wrap" Margin="0,10,0,0" />
                                     <ProgressBar x:Name="UpdateDownloadProgress" Height="7" Minimum="0" Maximum="100" Value="0" Visibility="Collapsed" Margin="0,9,0,0" Background="#202B3E" Foreground="#50D6D0" />
                                     <TextBlock x:Name="UpdateDownloadStatus" Foreground="#91A0B7" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0" />
                                     <TextBlock x:Name="CompatibilityStatus" Text="Compatibility has not been checked this session." Foreground="#72839A" TextWrapping="Wrap" FontSize="10" Margin="0,12,0,0" />
+                                    <TextBlock x:Name="StartupHealthStatus" Text="Readiness has not been checked this session." Foreground="#72839A" TextWrapping="Wrap" FontSize="10" Margin="0,8,0,0" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
