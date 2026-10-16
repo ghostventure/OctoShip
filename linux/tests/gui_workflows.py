@@ -55,10 +55,11 @@ class GuiWorkflows(unittest.TestCase):
         self.assertEqual(self.api.calls, [])
         for size in ('1000x760', '1180x860'):
             self.root.geometry(size); self.root.update()
-            for index in range(4):
+            for index in range(len(self.app.tools.tabs.tabs())):
                 self.app.notebook.select(1); self.app.tools.tabs.select(index); self.root.update()
-            self.assertTrue(self.app.tools.publish_button.winfo_viewable())
-            self.assertLess(self.app.tools.publish_button.winfo_rooty() + self.app.tools.publish_button.winfo_height(), self.root.winfo_rooty() + self.root.winfo_height())
+                if index == 3:
+                    self.assertTrue(self.app.tools.publish_button.winfo_viewable())
+                    self.assertLess(self.app.tools.publish_button.winfo_rooty() + self.app.tools.publish_button.winfo_height(), self.root.winfo_rooty() + self.root.winfo_height())
             self.app.notebook.select(0); self.root.update()
             self.assertGreater(self.app.tree.winfo_height(), 50)
             button = self.button('Review upload…')
@@ -71,6 +72,51 @@ class GuiWorkflows(unittest.TestCase):
         self.app.notebook.select(1); self.app.tools.tabs.select(3); self.root.update()
         if shutil.which('import'):
             subprocess.run(['import', '-window', str(self.root.winfo_id()), '/tmp/octoship-linux-1.6-tools.png'], check=True)
+
+    def test_audit_report_filter_sort_copy_and_json_export(self):
+        from octoship.git_insights import Insight
+        tools = self.app.tools
+        tools._report_rows['git'] = [
+            Insight('branch', 'Current branch', 'review', 'feature/test'),
+            Insight('conflicts', 'Unmerged paths', 'error', '2'),
+        ]
+        tools._filter_report('git')
+        tree = tools._report_trees['git']
+        self.assertEqual(len(tree.get_children()), 2)
+        tools._report_controls['git'][0].set('conflict')
+        self.root.update()
+        self.assertEqual(len(tree.get_children()), 1)
+        tools._report_controls['git'][0].set('')
+        tools._report_controls['git'][1].set('Error')
+        self.root.update()
+        self.assertEqual(len(tree.get_children()), 1)
+        tools._report_controls['git'][1].set('All')
+        tools._sort_report('git', 'status')
+        self.assertEqual(tree.set(tree.get_children()[0], 'status'), 'ERROR')
+        tree.selection_set(tree.get_children()[0])
+        clipboard = []
+        with patch.object(self.root, 'clipboard_clear'), patch.object(self.root, 'clipboard_append', side_effect=clipboard.append):
+            tools._copy_report_row('git')
+        self.assertIn('Unmerged paths', clipboard[0])
+        target = Path(self.temp.name) / 'report.json'
+        with patch('tkinter.filedialog.asksaveasfilename', return_value=str(target)):
+            tools._save_report_json('git')
+        self.assertEqual(len(__import__('json').loads(target.read_text())), 2)
+
+    def test_project_recipe_preview_and_safe_creation(self):
+        tools = self.app.tools
+        tools.recipe_root.set(self.temp.name)
+        tools.recipe_key.set('readme')
+        tools.recipe_project.set('GUI Sample')
+        tools.preview_recipe()
+        self.assertIn('# GUI Sample', tools.recipe_preview.get('1.0', 'end'))
+        tools.create_project_recipe()
+        target = Path(self.temp.name) / 'README.md'
+        self.assertIn('# GUI Sample', target.read_text())
+        before = target.read_text()
+        tools.recipe_project.set('Changed')
+        tools.create_project_recipe()
+        self.assertEqual(target.read_text(), before)
 
     def test_atomic_review_confirmation_and_persisted_success(self):
         self.app.remember.set(True)

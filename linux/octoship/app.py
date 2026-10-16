@@ -510,7 +510,13 @@ class App:
 def main():
     parser = argparse.ArgumentParser(description='OctoShip Linux desktop client')
     parser.add_argument('--smoke-test', action='store_true', help='Build the GUI and exit without network calls')
+    parser.add_argument('--doctor', action='store_true', help='Print offline environment diagnostics and exit')
+    parser.add_argument('--doctor-format', choices=('text', 'json'), default='text', help='Select environment diagnostics output format')
     args = parser.parse_args()
+    if args.doctor:
+        from .diagnostics import environment_report, format_report
+        print(format_report(environment_report(), args.doctor_format))
+        return
     lock_root = Path(os.environ.get('XDG_RUNTIME_DIR', str(Path.home() / '.cache'))) / 'octoship'
     lock_root.mkdir(mode=0o700, parents=True, exist_ok=True)
     with (lock_root / 'instance.lock').open('w') as lock:

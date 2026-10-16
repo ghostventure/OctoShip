@@ -24,6 +24,14 @@ tab for open Dependabot alerts on the selected repository. Alert access requires
 the GitHub account/token to have Dependabot alerts read permission and the feature
 to be enabled for that repository; access failures are not reported as zero alerts.
 See the [1.8.1 update handoff](../docs/linux-1.8.1-update.md).
+This source branch adds read-only Local Git, Project Audit, Release Audit, and
+Workspace diagnostics views under Repository Tools, plus an offline environment
+doctor (`./linux/octoship-linux --doctor`, with `--doctor-format json` for JSON).
+Together they report 214 bounded checks. The Recipes view adds 208
+create-new project file recipes with preview and no-overwrite behavior. See the
+[feature inventory](../docs/octoship-feature-wave-200.md) for the separately
+numbered checks and recipes. These additions are source-preview features and do
+not change the published Linux release.
 The download link below remains the published 1.7.0 release until a newer Linux
 release is published.
 

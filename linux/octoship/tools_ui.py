@@ -1,11 +1,18 @@
 """Native repository tools. Opening tabs never sends GitHub requests."""
 from pathlib import Path
+from dataclasses import asdict
+import json
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import webbrowser
 from .core import OctoShipError
 from .scanner import scan_bytes, check_cancel
 from . import workflows as flow
+from . import git_insights
+from . import project_audit
+from . import release_audit
+from . import workspace_audit
+from . import project_recipes
 
 
 def field(parent, label, value='', row=0):
@@ -29,10 +36,14 @@ class ToolsPanel:
         self.release = None
         self.release_context = None
         self.assets_ready = True
+        self._report_rows = {}
+        self._report_trees = {}
+        self._report_controls = {}
+        self._sort_reverse = {}
         self.tabs = ttk.Notebook(parent)
         self.tabs.pack(fill='both', expand=True)
-        compare, branches, pulls, releases, security = [ttk.Frame(self.tabs, padding=16) for _ in range(5)]
-        for tab, name in zip((compare, branches, pulls, releases, security), ('Compare folders', 'Branches', 'Pull requests', 'Releases', 'Dependencies')):
+        compare, branches, pulls, releases, security, local_git, project, artifacts, workspace, recipes = [ttk.Frame(self.tabs, padding=16) for _ in range(10)]
+        for tab, name in zip((compare, branches, pulls, releases, security, local_git, project, artifacts, workspace, recipes), ('Compare', 'Branches', 'Pulls', 'Releases', 'Alerts', 'Local Git', 'Project', 'Artifacts', 'Workspace', 'Recipes')):
             self.tabs.add(tab, text=name)
         ttk.Label(compare, text='Compare local bytes against one fixed GitHub commit. This does not change either folder.').pack(anchor='w')
         form = ttk.Frame(compare); form.pack(fill='x', pady=8)
@@ -103,6 +114,318 @@ class ToolsPanel:
         self.security_alerts.pack(side='left', fill='both', expand=True)
         alert_scroll.pack(side='right', fill='y')
         self.security_alert_repo = None
+
+        ttk.Label(local_git, text='Inspect the selected local Git repository without contacting GitHub or changing files. URL credentials are redacted from the report.').pack(anchor='w')
+        local_git_form = ttk.Frame(local_git); local_git_form.pack(fill='x', pady=8)
+        self.git_root = field(local_git_form, 'Repository folder', str(Path.home()), 0)
+        git_actions = ttk.Frame(local_git); git_actions.pack(fill='x')
+        ttk.Button(git_actions, text='Choose repository…', command=self.choose_git_root).pack(side='left')
+        ttk.Button(git_actions, text='Inspect local Git', command=self.inspect_local_git).pack(side='left', padx=8)
+        self.git_status = tk.StringVar(value='No repository inspection has run.')
+        ttk.Label(local_git, textvariable=self.git_status, wraplength=850).pack(anchor='w', pady=6)
+        self._make_report_controls(local_git, 'git')
+        git_columns = ('status', 'check', 'detail')
+        self.git_report = ttk.Treeview(local_git, columns=git_columns, show='headings', height=18)
+        for key, title, width in (('status', 'STATUS', 95), ('check', 'CHECK', 245), ('detail', 'DETAIL', 570)):
+            self.git_report.heading(key, text=title); self.git_report.column(key, width=width, minwidth=90, stretch=(key == 'detail'))
+        git_scroll = ttk.Scrollbar(local_git, orient='vertical', command=self.git_report.yview)
+        self.git_report.configure(yscrollcommand=git_scroll.set)
+        self.git_report.pack(side='left', fill='both', expand=True); git_scroll.pack(side='right', fill='y')
+        self._register_report('git', self.git_report)
+
+        ttk.Label(project, text='Run bounded local project checks for repository metadata, package manifests, file hygiene, and GitHub Actions settings. Project code is never run.').pack(anchor='w')
+        project_form = ttk.Frame(project); project_form.pack(fill='x', pady=8)
+        self.project_root = field(project_form, 'Project folder', str(Path.home()), 0)
+        project_actions = ttk.Frame(project); project_actions.pack(fill='x')
+        ttk.Button(project_actions, text='Choose project…', command=self.choose_project_root).pack(side='left')
+        ttk.Button(project_actions, text='Audit project', command=self.audit_local_project).pack(side='left', padx=8)
+        self.project_status = tk.StringVar(value='No project audit has run.')
+        ttk.Label(project, textvariable=self.project_status, wraplength=850).pack(anchor='w', pady=6)
+        self._make_report_controls(project, 'project')
+        project_columns = ('status', 'check', 'path', 'message')
+        self.project_report = ttk.Treeview(project, columns=project_columns, show='headings', height=18)
+        for key, title, width in (('status', 'STATUS', 95), ('check', 'CHECK', 190), ('path', 'PATH', 235), ('message', 'RECOMMENDATION', 385)):
+            self.project_report.heading(key, text=title); self.project_report.column(key, width=width, minwidth=90, stretch=(key == 'message'))
+        project_scroll = ttk.Scrollbar(project, orient='vertical', command=self.project_report.yview)
+        self.project_report.configure(yscrollcommand=project_scroll.set)
+        self.project_report.pack(side='left', fill='both', expand=True); project_scroll.pack(side='right', fill='y')
+        self._register_report('project', self.project_report)
+
+        ttk.Label(artifacts, text='Check a local release directory for artifact names, versions, SHA-256 manifests, ZIP integrity, and package coverage. Nothing is run, extracted, or uploaded.').pack(anchor='w')
+        artifact_form = ttk.Frame(artifacts); artifact_form.pack(fill='x', pady=8)
+        self.release_folder = field(artifact_form, 'Release folder', str(Path.home()), 0)
+        self.release_version = field(artifact_form, 'Expected version (optional)', '', 1)
+        artifact_actions = ttk.Frame(artifacts); artifact_actions.pack(fill='x')
+        ttk.Button(artifact_actions, text='Choose release folder…', command=self.choose_release_folder).pack(side='left')
+        ttk.Button(artifact_actions, text='Audit artifacts', command=self.audit_release_folder).pack(side='left', padx=8)
+        ttk.Button(artifact_actions, text='Create SHA-256 manifest…', command=self.create_release_manifest).pack(side='left')
+        self.release_audit_status = tk.StringVar(value='No release artifact audit has run.')
+        ttk.Label(artifacts, textvariable=self.release_audit_status, wraplength=850).pack(anchor='w', pady=6)
+        self._make_report_controls(artifacts, 'release')
+        release_columns = ('status', 'check', 'detail')
+        self.release_audit_report = ttk.Treeview(artifacts, columns=release_columns, show='headings', height=18)
+        for key, title, width in (('status', 'STATUS', 95), ('check', 'CHECK', 250), ('detail', 'DETAIL', 560)):
+            self.release_audit_report.heading(key, text=title); self.release_audit_report.column(key, width=width, minwidth=90, stretch=(key == 'detail'))
+        release_scroll = ttk.Scrollbar(artifacts, orient='vertical', command=self.release_audit_report.yview)
+        self.release_audit_report.configure(yscrollcommand=release_scroll.set)
+        self.release_audit_report.pack(side='left', fill='both', expand=True); release_scroll.pack(side='right', fill='y')
+        self._register_report('release', self.release_audit_report)
+
+        ttk.Label(workspace, text='Inspect saved OctoShip queue journals and private state folder permissions. The check is read-only and does not resume, edit, or delete queued work.').pack(anchor='w')
+        workspace_form = ttk.Frame(workspace); workspace_form.pack(fill='x', pady=8)
+        self.workspace_root = field(workspace_form, 'OctoShip state folder', str(Path.home() / '.local/state/octoship'), 0)
+        workspace_actions = ttk.Frame(workspace); workspace_actions.pack(fill='x')
+        ttk.Button(workspace_actions, text='Audit local workspace', command=self.audit_workspace_state).pack(side='left')
+        self.workspace_status = tk.StringVar(value='No workspace audit has run.')
+        ttk.Label(workspace, textvariable=self.workspace_status, wraplength=850).pack(anchor='w', pady=6)
+        self._make_report_controls(workspace, 'workspace')
+        workspace_columns = ('status', 'check', 'detail')
+        self.workspace_report = ttk.Treeview(workspace, columns=workspace_columns, show='headings', height=18)
+        for key, title, width in (('status', 'STATUS', 95), ('check', 'CHECK', 245), ('detail', 'DETAIL', 565)):
+            self.workspace_report.heading(key, text=title); self.workspace_report.column(key, width=width, minwidth=90, stretch=(key == 'detail'))
+        workspace_scroll = ttk.Scrollbar(workspace, orient='vertical', command=self.workspace_report.yview)
+        self.workspace_report.configure(yscrollcommand=workspace_scroll.set)
+        self.workspace_report.pack(side='left', fill='both', expand=True); workspace_scroll.pack(side='right', fill='y')
+        self._register_report('workspace', self.workspace_report)
+
+        ttk.Label(recipes, text=f'Create one of {len(project_recipes.RECIPES)} project files. Preview the exact path and content first. Existing files are never overwritten; review and customize starter content before using it.').pack(anchor='w')
+        recipe_form = ttk.Frame(recipes); recipe_form.pack(fill='x', pady=8)
+        self.recipe_root = field(recipe_form, 'Project folder', str(Path.home()), 0)
+        recipe_select = ttk.Frame(recipes); recipe_select.pack(fill='x')
+        ttk.Label(recipe_select, text='Recipe').pack(side='left')
+        self.recipe_key = tk.StringVar(value=next(iter(project_recipes.RECIPES)))
+        ttk.Combobox(recipe_select, textvariable=self.recipe_key, values=tuple(project_recipes.RECIPES), state='readonly', width=28).pack(side='left', padx=8)
+        self.recipe_project = tk.StringVar(value='My Project')
+        ttk.Label(recipe_select, text='Project name').pack(side='left')
+        ttk.Entry(recipe_select, textvariable=self.recipe_project, width=24).pack(side='left', padx=8)
+        self.recipe_summary = tk.StringVar(value='Project description.')
+        recipe_details = ttk.Frame(recipes); recipe_details.pack(fill='x', pady=6)
+        ttk.Label(recipe_details, text='Summary').pack(side='left')
+        ttk.Entry(recipe_details, textvariable=self.recipe_summary).pack(side='left', fill='x', expand=True, padx=8)
+        ttk.Button(recipe_details, text='Choose folder…', command=self.choose_recipe_root).pack(side='left')
+        recipe_actions = ttk.Frame(recipes); recipe_actions.pack(fill='x')
+        ttk.Button(recipe_actions, text='Preview', command=self.preview_recipe).pack(side='left')
+        ttk.Button(recipe_actions, text='Create file…', command=self.create_project_recipe).pack(side='left', padx=8)
+        self.recipe_status = tk.StringVar(value='No project recipe selected for preview.')
+        ttk.Label(recipes, textvariable=self.recipe_status, wraplength=850).pack(anchor='w', pady=6)
+        self.recipe_preview = text_box(recipes, 18)
+        self.recipe_preview.configure(state='disabled')
+
+    def choose_git_root(self):
+        folder = filedialog.askdirectory(parent=self.app.root, initialdir=self.git_root.get())
+        if folder:
+            self.git_root.set(folder)
+
+    def choose_recipe_root(self):
+        folder = filedialog.askdirectory(parent=self.app.root, initialdir=self.recipe_root.get())
+        if folder:
+            self.recipe_root.set(folder)
+
+    def preview_recipe(self):
+        try:
+            relative, data = project_recipes.render_recipe(self.recipe_key.get(), self.recipe_project.get(), self.recipe_summary.get())
+            self.recipe_preview.configure(state='normal')
+            self.recipe_preview.delete('1.0', 'end')
+            self.recipe_preview.insert('1.0', data.decode('utf-8'))
+            self.recipe_preview.configure(state='disabled')
+            self.recipe_status.set('Preview: ' + str(Path(self.recipe_root.get()).expanduser() / relative))
+        except Exception as exc:
+            messagebox.showerror('Recipe preview failed', str(exc), parent=self.app.root)
+
+    def create_project_recipe(self):
+        try:
+            target = project_recipes.create_recipe(self.recipe_root.get(), self.recipe_key.get(), self.recipe_project.get(), self.recipe_summary.get())
+            self.recipe_status.set('Created: ' + str(target))
+            self.preview_recipe()
+            self.recipe_status.set('Created: ' + str(target))
+        except Exception as exc:
+            messagebox.showerror('Could not create recipe', str(exc), parent=self.app.root)
+
+    def _make_report_controls(self, parent, key):
+        row = ttk.Frame(parent); row.pack(fill='x', pady=(2, 6))
+        query = tk.StringVar()
+        severity = tk.StringVar(value='All')
+        ttk.Label(row, text='Filter').pack(side='left')
+        ttk.Entry(row, textvariable=query).pack(side='left', fill='x', expand=True, padx=6)
+        ttk.Combobox(row, textvariable=severity, values=('All', 'Problems', 'Error', 'Review', 'OK', 'Info'), state='readonly', width=12).pack(side='left')
+        ttk.Button(row, text='Copy selected row', command=lambda k=key: self._copy_report_row(k)).pack(side='left', padx=6)
+        ttk.Button(row, text='Save JSON…', command=lambda k=key: self._save_report_json(k)).pack(side='left')
+        query.trace_add('write', lambda *_args, k=key: self._filter_report(k))
+        severity.trace_add('write', lambda *_args, k=key: self._filter_report(k))
+        self._report_controls[key] = (query, severity)
+        self._report_rows[key] = []
+
+    def _register_report(self, key, tree):
+        self._report_trees[key] = tree
+        for column in tree['columns']:
+            tree.heading(column, command=lambda k=key, c=column: self._sort_report(k, c))
+
+    def _filter_report(self, key):
+        tree = self._report_trees.get(key)
+        if tree is None:
+            return
+        query, severity = self._report_controls[key]
+        needle = query.get().strip().casefold()
+        for item in tree.get_children():
+            tree.delete(item)
+        for row in self._report_rows.get(key, []):
+            if key == 'git':
+                values = (row.status.upper(), row.title, row.detail)
+            elif key == 'project':
+                values = ('REVIEW', row.code, row.path, row.message)
+            elif key == 'release':
+                values = (row.status.upper(), row.title, row.detail)
+            else:
+                values = (row.status.upper(), row.code, row.detail)
+            searchable = [str(value) for value in values]
+            searchable.append(str(getattr(row, 'key', getattr(row, 'code', ''))))
+            if needle and needle not in ' '.join(searchable).casefold():
+                continue
+            status = str(values[0]).upper()
+            selected = severity.get()
+            if selected == 'Problems' and status not in ('ERROR', 'REVIEW', 'WARNING'):
+                continue
+            if selected in ('Error', 'Review', 'OK', 'Info') and status != selected.upper():
+                continue
+            tree.insert('', 'end', values=values)
+
+    def _sort_report(self, key, column):
+        tree = self._report_trees[key]
+        reverse = self._sort_reverse.get((key, column), False)
+        rows = [(tree.set(iid, column), iid) for iid in tree.get_children('')]
+        for index, (_value, iid) in enumerate(sorted(rows, key=lambda row: row[0].casefold(), reverse=reverse)):
+            tree.move(iid, '', index)
+        self._sort_reverse[(key, column)] = not reverse
+
+    def _copy_report_row(self, key):
+        tree = self._report_trees[key]
+        selected = tree.selection()
+        if not selected:
+            messagebox.showinfo('Select a report row', 'Choose a report row before copying it.', parent=self.app.root)
+            return
+        self.app.root.clipboard_clear()
+        self.app.root.clipboard_append('\t'.join(str(x) for x in tree.item(selected[0], 'values')))
+        self.app.record('Copied the selected local diagnostic row to the clipboard.')
+
+    def _save_report_json(self, key):
+        rows = self._report_rows.get(key, [])
+        if not rows:
+            messagebox.showinfo('No report yet', 'Run this audit before saving a report.', parent=self.app.root)
+            return
+        if not messagebox.askyesno('Save local report?', 'This report may contain local paths, filenames, and repository metadata. Review it before sharing.', parent=self.app.root, default='no'):
+            return
+        target = filedialog.asksaveasfilename(parent=self.app.root, title='Save diagnostics report',
+                                              defaultextension='.json', filetypes=[('JSON report', '*.json')])
+        if not target:
+            return
+        try:
+            Path(target).write_text(json.dumps([asdict(row) for row in rows], ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        except OSError as exc:
+            messagebox.showerror('Report could not be saved', str(exc), parent=self.app.root)
+            return
+        self.app.record('Saved diagnostics JSON report: ' + str(target))
+
+    def inspect_local_git(self):
+        root = self.git_root.get().strip()
+        if not root:
+            messagebox.showinfo('Choose a repository', 'Select a local Git working tree first.', parent=self.app.root)
+            return
+        for item in self.git_report.get_children():
+            self.git_report.delete(item)
+        self.git_status.set('Inspecting local Git metadata. No network requests are made…')
+
+        def done(rows):
+            self._report_rows['git'] = rows
+            self._filter_report('git')
+            self.git_status.set(f'{len(rows)} local checks completed. Review working-tree, sensitive-name, and conflict findings before publishing.')
+
+        def error(message):
+            self.git_status.set('Inspection incomplete: ' + str(message))
+
+        self.app.run('Inspecting local Git…', lambda: git_insights.inspect_repository(root), done, error)
+
+    def choose_project_root(self):
+        folder = filedialog.askdirectory(parent=self.app.root, initialdir=self.project_root.get())
+        if folder:
+            self.project_root.set(folder)
+
+    def audit_local_project(self):
+        root = self.project_root.get().strip()
+        if not root:
+            messagebox.showinfo('Choose a project', 'Select a local project folder first.', parent=self.app.root)
+            return
+        for item in self.project_report.get_children():
+            self.project_report.delete(item)
+        self.project_status.set('Auditing up to 10,000 files and 8 MiB of text. No code is executed…')
+
+        def done(rows):
+            self._report_rows['project'] = rows
+            self._filter_report('project')
+            self.project_status.set(f'{len(rows)} finding(s). A clean report covers only supported checks and bounded file content.')
+
+        def error(message):
+            self.project_status.set('Audit incomplete: ' + str(message))
+
+        self.app.run('Auditing project…', lambda: project_audit.audit_project(root), done, error)
+
+    def choose_release_folder(self):
+        folder = filedialog.askdirectory(parent=self.app.root, initialdir=self.release_folder.get())
+        if folder:
+            self.release_folder.set(folder)
+
+    def audit_release_folder(self):
+        folder = self.release_folder.get().strip()
+        if not folder:
+            messagebox.showinfo('Choose a folder', 'Select a release artifact folder first.', parent=self.app.root)
+            return
+        for item in self.release_audit_report.get_children(): self.release_audit_report.delete(item)
+        version = self.release_version.get().strip()
+        self.release_audit_status.set('Checking up to 500 regular artifacts. No files are executed or extracted…')
+
+        def done(rows):
+            self._report_rows['release'] = rows
+            self._filter_report('release')
+            self.release_audit_status.set(f'{len(rows)} artifact checks completed. Checksums establish byte agreement, not publisher identity or trust.')
+
+        def error(message): self.release_audit_status.set('Audit incomplete: ' + str(message))
+        self.app.run('Auditing release artifacts…', lambda: release_audit.audit_release(folder, version), done, error)
+
+    def create_release_manifest(self):
+        folder = self.release_folder.get().strip()
+        if not folder:
+            messagebox.showinfo('Choose a folder', 'Select a release artifact folder first.', parent=self.app.root)
+            return
+        target = filedialog.asksaveasfilename(parent=self.app.root, title='Create SHA-256 manifest',
+                                              initialdir=folder, initialfile='SHA256SUMS.txt',
+                                              defaultextension='.txt', filetypes=[('SHA-256 manifest', '*.txt *.sha256')])
+        if not target:
+            return
+        if Path(target).exists() and not messagebox.askyesno('Replace manifest?', f'Replace this checksum manifest?\n{target}', parent=self.app.root, default='no'):
+            return
+
+        def done(result):
+            path, count = result
+            self.release_audit_status.set(f'Wrote {count} artifact checksum(s) to {path}. Run Audit artifacts to verify them.')
+            self.app.record(f'Created release checksum manifest: {path}')
+
+        def error(message): self.release_audit_status.set('Manifest was not created: ' + str(message))
+        self.app.run('Creating checksum manifest…', lambda: release_audit.create_checksum_manifest(folder, target), done, error)
+
+    def audit_workspace_state(self):
+        folder = self.workspace_root.get().strip()
+        if not folder:
+            messagebox.showinfo('Choose a folder', 'Select the OctoShip state folder first.', parent=self.app.root)
+            return
+        for item in self.workspace_report.get_children(): self.workspace_report.delete(item)
+        self.workspace_status.set('Inspecting saved local queue state; no queued work will be resumed…')
+
+        def done(rows):
+            self._report_rows['workspace'] = rows
+            self._filter_report('workspace')
+            self.workspace_status.set(f'{len(rows)} local state checks completed. Review flagged rows before deleting or sharing state files.')
+
+        def error(message): self.workspace_status.set('Audit incomplete: ' + str(message))
+        self.app.run('Auditing OctoShip workspace…', lambda: workspace_audit.audit_workspace(folder), done, error)
 
     def load_dependabot_alerts(self):
         context = self.context()

@@ -60,6 +60,28 @@ state before its source changes were committed to the
 `feature/octoship-linux-1.8.1-installer-docs` branch. No 1.8.1 GitHub release
 was published; a source branch is not a release.
 
+## Local diagnostics feature wave — October 16, 2026
+
+The separate `feature/octoship-200-tools` source branch adds Local Git insights,
+Project Audit, Release Audit, and saved Workspace checks in Repository Tools,
+plus the offline `--doctor` terminal report. These diagnostics expose 214 named
+checks. Project Recipes adds 208 previewable create-new file generators, each
+with its own output path and no-overwrite behavior. Git, project, release inspection, and workspace checks are
+read-only; the Release Audit view also offers explicit generation of a
+user-selected SHA-256 manifest. The doctor creates missing XDG folders and a
+temporary file for local writability checks, while making no network requests.
+Their full key-to-code-to-test inventory, processing bounds,
+and behavior limits are documented in
+[the feature-wave inventory](octoship-feature-wave-200.md). The changes are
+source-preview additions and do not make a 1.8.1 release or update the published
+1.7.0 package.
+
+Verification for this feature branch: all 156 Linux unit tests passed, all Linux
+Python modules compiled, and the JSON environment-doctor command returned
+structured output. The GUI workflow suite (11), shipping suite (6), and smoke
+check passed under Xvfb. A standalone package rebuild was not run. No
+authenticated GitHub writes were made by the tools.
+
 ## Local install update — October 16, 2026
 
 - Added the read-only Dependabot alert panel to the local 1.8.1 source preview.

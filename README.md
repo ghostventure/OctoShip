@@ -36,6 +36,10 @@ not need a separate Python, Tcl/Tk, or GitHub CLI installation. The current
 published Linux download remains [version 1.7.0](https://github.com/ghostventure/OctoShip/releases/tag/linux-v1.7.0).
 See the [1.8.1 handoff](docs/linux-1.8.1-update.md) for scope, verification, and
 release limits, and the [Linux guide](linux/README.md) for additional options.
+The current feature branch also adds five local diagnostics tools with 214
+named diagnostic checks, plus 208 distinct project file generation workflows. The [feature inventory](docs/octoship-feature-wave-200.md)
+separates each check from each recipe and maps them to code and tests. These
+remain source-preview changes.
 
 ## Linux 1.7.0
 
