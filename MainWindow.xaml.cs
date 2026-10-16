@@ -33,6 +33,7 @@ public partial class MainWindow : Window
     private string? _pendingClipboardText;
     private CancellationTokenSource? _uploadCancellation;
     private CancellationTokenSource? _searchCancellation;
+    private CancellationTokenSource? _repositoryArchiveCancellation;
     private readonly SearchService _searchService = new();
     private readonly GitHubRepositoryService _repositoryService;
     private UploadQueueService? _uploadQueue;
@@ -91,7 +92,7 @@ public partial class MainWindow : Window
         BranchBox.TextChanged += (_, _) => UpdateNavigationContext();
         Closing += (_, _) => { if (_settingsLoaded) SaveSettings(); };
         Deactivated += (_, _) => { if (_settingsLoaded) SaveSettings(); };
-        Closed += (_, _) => { _searchCancellation?.Cancel(); _uploadCancellation?.Cancel(); _http.Dispose(); _updateHttp.Dispose(); _token = null; };
+        Closed += (_, _) => { _searchCancellation?.Cancel(); _uploadCancellation?.Cancel(); _repositoryArchiveCancellation?.Cancel(); _http.Dispose(); _updateHttp.Dispose(); _token = null; };
     }
 
     private readonly List<ResultItem> _results = new();
@@ -1120,6 +1121,8 @@ public partial class MainWindow : Window
             new("settings", "Open settings and tools", "Preferences, account, and diagnostics", "Ctrl+,"),
             new("activity", "Show transfer activity", "Open the local activity log", ""),
             new("export", "Export activity log", "Save the current log as a text file", "Ctrl+Shift+E"),
+            new("duplicates", "Find duplicate files", "Hash local files and report identical content", ""),
+            new("archive", "Export repository ZIP", "Download a selected branch archive without extracting it", ""),
             new("search", "Focus file search", "Move keyboard focus to the file search field", ""),
             new("folder", "Choose project folder", "Browse to a local folder", "")
         };
@@ -1140,6 +1143,8 @@ public partial class MainWindow : Window
             case "settings": ShowToolsPage_Click(this, new RoutedEventArgs()); break;
             case "activity": NavigateActivity_Click(this, new RoutedEventArgs()); break;
             case "export": ExportActivity_Click(this, new RoutedEventArgs()); break;
+            case "duplicates": FindDuplicates_Click(this, new RoutedEventArgs()); break;
+            case "archive": ExportRepositoryArchive_Click(this, new RoutedEventArgs()); break;
             case "search": BackToSearch_Click(this, new RoutedEventArgs()); SearchBox.Focus(); break;
             case "folder": Browse_Click(this, new RoutedEventArgs()); break;
             default:
@@ -1195,6 +1200,101 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) { SetStatus("Could not export activity: " + SafeMessage(ex), true); }
     }
+
+    private void FindDuplicates_Click(object sender, RoutedEventArgs e)
+    {
+        var folder = FolderBox.Text.Trim();
+        if (!Directory.Exists(folder))
+        {
+            SetStatus("Choose an existing project folder before finding duplicates.", true);
+            return;
+        }
+        new DuplicateFileFinderWindow(folder) { Owner = this }.ShowDialog();
+    }
+
+    private async void ExportRepositoryArchive_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_token)) { SetStatus("Connect a GitHub account before exporting a repository archive.", true); return; }
+        var repository = RepoPicker.Text.Trim();
+        var branch = BranchBox.Text.Trim();
+        try
+        {
+            RepositoryWorkflowService.ValidateRepository(repository);
+            RepositoryWorkflowService.ValidateBranch(branch);
+        }
+        catch (ArgumentException ex) { SetStatus(ex.Message, true); return; }
+
+        var safeName = Regex.Replace(repository.Replace('/', '-'), "[^A-Za-z0-9._-]", "_") + "-" +
+            Regex.Replace(branch, "[^A-Za-z0-9._-]+", "_") + ".zip";
+        using var dialog = new System.Windows.Forms.SaveFileDialog
+        {
+            Title = "Export GitHub repository archive", Filter = "ZIP archive (*.zip)|*.zip|All files (*.*)|*.*",
+            FileName = safeName, DefaultExt = "zip", AddExtension = true, OverwritePrompt = true
+        };
+        if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+
+        var targetPath = dialog.FileName;
+        var temporaryPath = targetPath + ".octoship-" + Guid.NewGuid().ToString("N") + ".tmp";
+        const long maxArchiveBytes = 1024L * 1024 * 1024;
+        _repositoryArchiveCancellation?.Dispose();
+        _repositoryArchiveCancellation = new CancellationTokenSource();
+        var cancellationToken = _repositoryArchiveCancellation.Token;
+        ExportRepositoryArchiveButton.IsEnabled = false;
+        CancelRepositoryArchiveButton.IsEnabled = true;
+        SetStatus($"Downloading {repository} at {branch} as a ZIP archive…");
+        try
+        {
+            var url = $"https://api.github.com/repos/{repository}/zipball/{Uri.EscapeDataString(branch)}";
+            using var response = await SendAsync(HttpMethod.Get, url, _token, cancellationToken: cancellationToken);
+            await EnsureSuccess(response);
+            if (response.Content.Headers.ContentLength is long length && length > maxArchiveBytes)
+                throw new InvalidOperationException("GitHub's archive exceeds the 1 GiB download limit.");
+
+            long received = 0;
+            var lastNotice = 0L;
+            await using (var output = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan))
+            await using (var input = await response.Content.ReadAsStreamAsync(cancellationToken))
+            {
+                var buffer = new byte[64 * 1024];
+                int read;
+                while ((read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
+                {
+                    if (received > maxArchiveBytes - read) throw new InvalidOperationException("GitHub's archive exceeded the 1 GiB download limit; the partial download was discarded.");
+                    await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    received += read;
+                    if (received - lastNotice >= 32L * 1024 * 1024)
+                    {
+                        lastNotice = received;
+                        SetStatus($"Downloading repository ZIP · {FormatSize(received)} received.");
+                    }
+                }
+                await output.FlushAsync(cancellationToken);
+            }
+
+            if (received < 4) throw new InvalidDataException("GitHub returned an empty or incomplete archive.");
+            await using (var verify = new FileStream(temporaryPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4, FileOptions.SequentialScan))
+            {
+                var signature = new byte[4];
+                var read = await verify.ReadAsync(signature.AsMemory(0, signature.Length));
+                if (read < 4 || signature[0] != (byte)'P' || signature[1] != (byte)'K')
+                    throw new InvalidDataException("GitHub's response was not a ZIP archive. The partial file was discarded.");
+            }
+            File.Move(temporaryPath, targetPath, true);
+            SetStatus($"Saved {repository} ({branch}) archive · {FormatSize(received)}. The ZIP was not extracted.");
+        }
+        catch (OperationCanceledException) { SetStatus("Repository archive download canceled; the partial archive was discarded."); }
+        catch (Exception ex) { SetStatus("Could not export repository archive: " + SafeMessage(ex), true); }
+        finally
+        {
+            try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); } catch { }
+            ExportRepositoryArchiveButton.IsEnabled = true;
+            CancelRepositoryArchiveButton.IsEnabled = false;
+            _repositoryArchiveCancellation?.Dispose();
+            _repositoryArchiveCancellation = null;
+        }
+    }
+
+    private void CancelRepositoryArchive_Click(object sender, RoutedEventArgs e) => _repositoryArchiveCancellation?.Cancel();
     private void UpdateNavigationContext()
     {
         if (NavigationContext is null) return;

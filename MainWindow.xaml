@@ -230,6 +230,7 @@
                                 <Button x:Name="RevealFileButton" Content="Show in folder" Padding="10,6" FontSize="11" Click="RevealFile_Click" IsEnabled="False" Margin="0,0,6,6" />
                                 <Button x:Name="CopyPathButton" Content="Copy path" Padding="10,6" FontSize="11" Click="CopyPath_Click" IsEnabled="False" Margin="0,0,6,6" />
                                 <Button x:Name="CopyHashButton" Content="Copy SHA-256" Padding="10,6" FontSize="11" Click="CopyHash_Click" IsEnabled="False" Margin="0,0,6,6" />
+                                <Button Content="Find duplicates" Padding="10,6" FontSize="11" Click="FindDuplicates_Click" Margin="0,0,6,6" ToolTip="Find byte-identical files without changing them" />
                             </WrapPanel>
                             <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsHitTestVisible="False" Margin="18">
                                 <StackPanel.Style>
@@ -424,6 +425,8 @@
                                     <TextBlock Text="Repositories and access" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,6" />
                                     <TextBlock Text="Browse repositories and folders, check API connectivity and rate limits, then apply a repository and folder to the upload form." Foreground="{DynamicResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16" />
                                     <Button Content="Browse repositories and folders" HorizontalAlignment="Left" Click="RepositoryTools_Click" />
+                                    <Button x:Name="ExportRepositoryArchiveButton" Content="Export repository ZIP" HorizontalAlignment="Left" Margin="0,4,0,0" Click="ExportRepositoryArchive_Click" ToolTip="Download a ZIP of the selected repository branch; does not extract files" />
+                                    <Button x:Name="CancelRepositoryArchiveButton" Content="Cancel archive download" HorizontalAlignment="Left" Margin="0,4,0,0" IsEnabled="False" Click="CancelRepositoryArchive_Click" />
                                     <Button Content="Prepare a release" HorizontalAlignment="Left" Margin="0,4,0,0" Click="ReleasePublisher_Click" />
                                     <TextBlock x:Name="ToolsAccountStatus" Text="Account status: checking" Foreground="#AAB8CB" FontSize="11" Margin="0,12,0,0" />
                                 </StackPanel>

@@ -1,6 +1,6 @@
 # OctoShip toolbox feature wave
 
-This source branch adds a focused local workflow layer to the Windows client. It is a development branch; it does not change or replace a published release.
+This source branch adds focused local workflow tools to the Windows client. It is a development branch; it does not change or replace a published release.
 
 ## Implemented in this branch
 
@@ -8,6 +8,8 @@ This source branch adds a focused local workflow layer to the Windows client. It
 - **Quick repository switching.** `Ctrl+K` opens a searchable command palette with saved favorites and recent repositories. Choosing a repository fills the current destination and known default branch; it does not publish or confirm account access.
 - **Command palette and keyboard navigation.** The palette exposes existing navigation and file-search actions. Shortcuts are `Ctrl+K` (palette), `Ctrl+1` (Files), `Ctrl+2` (Uploads), `Ctrl+3` (Repositories), `Ctrl+4` (Releases), `Ctrl+,` (Settings), and `Ctrl+Shift+E` (export activity). Bindings are fixed in this first implementation; users cannot remap them yet.
 - **Activity-log export.** Export saves the current in-memory transfer log, bounded to the app's existing 400-line window, to a user-selected UTF-8 text file. Common GitHub token patterns are redacted and the file warns that paths, repository names, and file names can be present. Review the export before sharing. The export is not a persistent or complete audit trail.
+- **Duplicate-file finder.** Scan a selected project folder for exact byte-identical files using a same-size prefilter and SHA-256. It skips linked folders/files and common generated/dependency folders, never deletes or edits files, and reports full local paths only in the result view or an explicitly saved report. The bounded scan visits up to 200,000 entries, considers up to 20,000 files, hashes files up to 256 MiB, and reads at most 1 GiB total; reaching any limit is reported as an incomplete scan.
+- **Repository archive export.** Save a ZIP archive of the selected GitHub repository branch through GitHub's archive endpoint. OctoShip streams to a temporary file, caps downloads at 1 GiB, supports cancellation, checks the ZIP signature, and moves the completed archive to the user-selected path. It does not extract files or mutate the repository. The result is the source archive returned by GitHub, not a release asset or reproducible build.
 
 ## Status of the other requested ideas
 
@@ -27,7 +29,7 @@ This source branch adds a focused local workflow layer to the Windows client. It
 | Large-file warnings | Existing file-size limits and large-file/LFS guidance; no new change in this branch. |
 | Secret detection | Existing bounded, redacted content scanner; heuristic and size/binary limits remain. |
 | License and privacy checks | Sensitive-name and privacy safeguards exist; license-compliance checking is deferred. |
-| Duplicate-file finder | Deferred. |
+| Duplicate-file finder | Implemented in this branch with bounded, read-only hashing and an optional report export. |
 | Change summary generator | Existing reviewed shipment comparison summarizes changed files; generated prose summaries are deferred. |
 | Commit-message helper | Editable commit fields exist; suggested messages/templates are deferred. |
 | Branch comparison | Existing repository comparison is present; a dedicated cross-branch comparison view is deferred. |
@@ -41,14 +43,14 @@ This source branch adds a focused local workflow layer to the Windows client. It
 | Workflow rerun controls | Deferred. |
 | Release asset manager | Existing draft release and reviewed asset upload/recovery; listing/deleting/replacing arbitrary assets is deferred. |
 | Download manager | Existing bounded release download checks and repository browsing; queued downloads and progress/history manager are deferred. |
-| Repository archive export | Deferred. |
+| Repository archive export | Implemented in this branch for the selected branch, saved as a ZIP and never extracted. |
 | Offline shipment queue | Existing persistent upload queue and offline preparation plans; plans refer to live local files and are not immutable content snapshots. |
 | Desktop notifications | Deferred. |
 | Activity-log export | Implemented in this branch, with the limits above. |
 
 ## Next implementation candidates
 
-Prioritize upload policy profiles, duplicate-content reports, repository archive export, an issue/PR template manager, and a read-only Actions monitor. Keep workflow reruns, revert operations, asset deletion, and any unattended publication behind explicit review because they change remote state.
+Prioritize upload policy profiles, an issue/PR template manager, and a read-only Actions monitor. Keep workflow reruns, revert operations, asset deletion, and any unattended publication behind explicit review because they change remote state.
 
 ## Verification boundary
 
