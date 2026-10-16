@@ -32,6 +32,12 @@ create-new project file recipes with preview and no-overwrite behavior. See the
 [feature inventory](../docs/octoship-feature-wave-200.md) for the separately
 numbered checks and recipes. These additions are source-preview features and do
 not change the published Linux release.
+The current mixed feature wave adds 100 more user-facing workflows: 33 local
+Git/repository actions, 33 offline project lifecycle workflows, and 34
+editor/workspace actions. See the [100-workflow inventory](../docs/octoship-feature-wave-100.md)
+for their separate implementation maps and verification boundaries. These are
+also source-preview changes and are not included in a newly built installer or
+published release.
 The download link below remains the published 1.7.0 release until a newer Linux
 release is published.
 
