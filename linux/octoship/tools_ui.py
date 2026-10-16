@@ -3,12 +3,13 @@ from pathlib import Path
 from dataclasses import asdict
 import json
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, simpledialog
 import webbrowser
 from .core import OctoShipError
 from .scanner import scan_bytes, check_cancel
 from . import workflows as flow
 from . import git_insights
+from . import git_operations
 from . import project_audit
 from . import release_audit
 from . import workspace_audit
@@ -121,6 +122,21 @@ class ToolsPanel:
         git_actions = ttk.Frame(local_git); git_actions.pack(fill='x')
         ttk.Button(git_actions, text='Choose repository…', command=self.choose_git_root).pack(side='left')
         ttk.Button(git_actions, text='Inspect local Git', command=self.inspect_local_git).pack(side='left', padx=8)
+        ops_row = ttk.Frame(local_git); ops_row.pack(fill='x', pady=(8, 2))
+        ttk.Label(ops_row, text='Change management action').pack(side='left')
+        self.git_operation = tk.StringVar(value=git_operations.ACTIONS[0].title)
+        self.git_operation_keys = {action.title: action.key for action in git_operations.ACTIONS}
+        self.git_operation_picker = ttk.Combobox(ops_row, textvariable=self.git_operation,
+            values=tuple(self.git_operation_keys), state='readonly', width=48)
+        self.git_operation_picker.pack(side='left', padx=8)
+        ttk.Button(ops_row, text='Run local inspection', command=self.run_git_operation).pack(side='left')
+        self.git_operation_output = text_box(local_git, 7)
+        self.git_operation_output.insert('1.0', 'Choose one of 100 local-only Git views. No remote is contacted and no files or refs are changed.')
+        self.git_operation_output.configure(state='disabled')
+        local_change_actions = ttk.Frame(local_git); local_change_actions.pack(fill='x', pady=(4, 8))
+        ttk.Button(local_change_actions, text='Create local branch…', command=self.create_local_branch).pack(side='left')
+        ttk.Button(local_change_actions, text='Stash working tree…', command=self.stash_local_changes).pack(side='left', padx=6)
+        ttk.Button(local_change_actions, text='Delete merged local branch…', command=self.delete_local_branch).pack(side='left')
         self.git_status = tk.StringVar(value='No repository inspection has run.')
         ttk.Label(local_git, textvariable=self.git_status, wraplength=850).pack(anchor='w', pady=6)
         self._make_report_controls(local_git, 'git')
@@ -343,6 +359,56 @@ class ToolsPanel:
             self.git_status.set('Inspection incomplete: ' + str(message))
 
         self.app.run('Inspecting local Git…', lambda: git_insights.inspect_repository(root), done, error)
+
+    def run_git_operation(self):
+        root = self.git_root.get().strip()
+        key = self.git_operation_keys.get(self.git_operation.get())
+        if not root or not key:
+            messagebox.showinfo('Choose an action', 'Select a local repository and Git action first.', parent=self.app.root)
+            return
+        action = git_operations.ACTION_BY_KEY[key]
+        def done(output):
+            self.git_operation_output.configure(state='normal')
+            self.git_operation_output.delete('1.0', 'end')
+            self.git_operation_output.insert('1.0', action.title + '\n\n' + output)
+            self.git_operation_output.configure(state='disabled')
+        def error(message):
+            self.git_operation_output.configure(state='normal')
+            self.git_operation_output.delete('1.0', 'end')
+            self.git_operation_output.insert('1.0', action.title + '\n\nInspection failed: ' + str(message))
+            self.git_operation_output.configure(state='disabled')
+        self.app.run('Running local Git inspection…', lambda: git_operations.run_action(root, key), done, error)
+
+    def _show_local_change_result(self, title, operation):
+        try:
+            result = operation()
+        except Exception as exc:
+            messagebox.showerror(title, str(exc), parent=self.app.root)
+            return
+        messagebox.showinfo(title, result, parent=self.app.root)
+
+    def create_local_branch(self):
+        root = self.git_root.get().strip()
+        name = simpledialog.askstring('Create local branch', 'New branch name:', parent=self.app.root)
+        if name is None: return
+        start = simpledialog.askstring('Create local branch', 'Start from commit or ref:', initialvalue='HEAD', parent=self.app.root)
+        if start is None: return
+        self._show_local_change_result('Local branch', lambda: git_operations.create_branch(root, name, start))
+
+    def stash_local_changes(self):
+        root = self.git_root.get().strip()
+        message = simpledialog.askstring('Stash working tree', 'Stash message:', parent=self.app.root)
+        if message is None: return
+        include_untracked = messagebox.askyesno('Include untracked files?', 'Include untracked files in this local stash?', parent=self.app.root, default='no')
+        if not messagebox.askyesno('Confirm local stash', 'Save the current working tree in a local Git stash?', parent=self.app.root, default='no'): return
+        self._show_local_change_result('Local stash', lambda: git_operations.stash_save(root, message, True, include_untracked))
+
+    def delete_local_branch(self):
+        root = self.git_root.get().strip()
+        name = simpledialog.askstring('Delete merged local branch', 'Branch name (only merged branches can be deleted):', parent=self.app.root)
+        if name is None: return
+        if not messagebox.askyesno('Confirm branch deletion', f'Delete local branch {name}? The branch must already be merged. No remote branch will be deleted.', parent=self.app.root, default='no'): return
+        self._show_local_change_result('Local branch', lambda: git_operations.delete_branch(root, name, True))
 
     def choose_project_root(self):
         folder = filedialog.askdirectory(parent=self.app.root, initialdir=self.project_root.get())
