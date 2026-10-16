@@ -67,6 +67,7 @@ public partial class MainWindow : Window
         _http = new HttpClient(new SessionLockHttpHandler(() => _token, () => _account)) { Timeout = TimeSpan.FromMinutes(3) };
         UniformUi.Prepare(this);
         InitializeComponent();
+        PreviewKeyDown += MainWindow_PreviewKeyDown;
         _repositoryService = new GitHubRepositoryService(_http);
         _loadingAccounts = false;
         ResultsList.ItemsSource = _results;
@@ -709,9 +710,19 @@ public partial class MainWindow : Window
     {
         if (GithubProjectFilter is null || GithubProjectsList is null) return;
         var query = GithubProjectFilter.Text.Trim();
-        var filtered = string.IsNullOrEmpty(query) ? _githubProjects : _githubProjects.Where(project =>
+        var favorites = new HashSet<string>(_appPreferences.FavoriteRepositories, StringComparer.OrdinalIgnoreCase);
+        var filtered = _githubProjects.Select(project => project with
+            {
+                IsFavorite = favorites.Contains(project.FullName),
+                GroupLabel = _appPreferences.RepositoryGroups.TryGetValue(project.FullName, out var group) ? group : ""
+            })
+            .Where(project => GithubFavoritesOnly.IsChecked != true || project.IsFavorite)
+            .Where(project => string.IsNullOrEmpty(query) ||
             project.FullName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0
-            || project.Description.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+            || project.Description.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0
+            || project.GroupLabel.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+            .OrderByDescending(project => project.IsFavorite)
+            .ThenBy(project => project.FullName, StringComparer.OrdinalIgnoreCase).ToList();
         GithubProjectsList.ItemsSource = filtered.ToArray();
         GithubProjectsList.SelectedItem = null;
         UseGithubProjectButton.IsEnabled = false;
@@ -722,12 +733,48 @@ public partial class MainWindow : Window
 
     private void GithubProjectFilter_TextChanged(object sender, TextChangedEventArgs e) => RefreshGithubProjectsList();
 
+    private void GithubProjectFilter_Changed(object sender, RoutedEventArgs e) => RefreshGithubProjectsList();
+
     private void GithubProjectsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var selected = GithubProjectsList.SelectedItem as GitHubProjectChoice;
         UseGithubProjectButton.IsEnabled = selected is not null;
         OpenGithubProjectButton.IsEnabled = selected is not null && Uri.TryCreate(selected.HtmlUrl, UriKind.Absolute, out var uri)
             && uri.Scheme == Uri.UriSchemeHttps && uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase);
+        ToggleRepositoryFavoriteButton.IsEnabled = selected is not null && !_appPreferences.PrivacyMode;
+        SaveRepositoryGroupButton.IsEnabled = selected is not null && !_appPreferences.PrivacyMode;
+        if (selected is not null)
+        {
+            ToggleRepositoryFavoriteButton.Content = _appPreferences.FavoriteRepositories.Contains(selected.FullName, StringComparer.OrdinalIgnoreCase) ? "Remove favorite" : "Add favorite";
+            RepositoryGroupBox.Text = _appPreferences.RepositoryGroups.TryGetValue(selected.FullName, out var group) ? group : "";
+        }
+    }
+
+    private void ToggleRepositoryFavorite_Click(object sender, RoutedEventArgs e)
+    {
+        if (GithubProjectsList.SelectedItem is not GitHubProjectChoice project || _appPreferences.PrivacyMode) return;
+        var favorites = _appPreferences.FavoriteRepositories.ToList();
+        var existing = favorites.FindIndex(value => string.Equals(value, project.FullName, StringComparison.OrdinalIgnoreCase));
+        if (existing >= 0) favorites.RemoveAt(existing); else favorites.Insert(0, project.FullName);
+        _appPreferences = _appPreferences with { FavoriteRepositories = favorites };
+        SaveSettings(); RefreshGithubProjectsList();
+        GithubProjectStatus.Text = existing >= 0 ? $"Removed {project.FullName} from favorites." : $"Added {project.FullName} to favorites.";
+    }
+
+    private void SaveRepositoryGroup_Click(object sender, RoutedEventArgs e)
+    {
+        if (GithubProjectsList.SelectedItem is not GitHubProjectChoice project || _appPreferences.PrivacyMode) return;
+        var label = RepositoryGroupBox.Text.Trim();
+        if (label.Length > 60 || label.Any(char.IsControl))
+        {
+            GithubProjectStatus.Text = "Group names must be 60 characters or fewer and cannot contain control characters.";
+            return;
+        }
+        var groups = new Dictionary<string, string>(_appPreferences.RepositoryGroups, StringComparer.OrdinalIgnoreCase);
+        if (label.Length == 0) groups.Remove(project.FullName); else groups[project.FullName] = label;
+        _appPreferences = _appPreferences with { RepositoryGroups = groups };
+        SaveSettings(); RefreshGithubProjectsList();
+        GithubProjectStatus.Text = label.Length == 0 ? $"Cleared the group for {project.FullName}." : $"Saved group '{label}' for {project.FullName}. Search the group name to find its repositories.";
     }
 
     private void UseGithubProject_Click(object sender, RoutedEventArgs e)
@@ -1061,6 +1108,93 @@ public partial class MainWindow : Window
     private void NavigateRepositories_Click(object sender, RoutedEventArgs e) { ShowToolsPage(); ToolsTabs.SelectedIndex = 0; }
     private void NavigateAccount_Click(object sender, RoutedEventArgs e) { ShowToolsPage(); ToolsTabs.SelectedIndex = 2; }
     private void NavigateActivity_Click(object sender, RoutedEventArgs e) { TerminalExpander.IsExpanded = true; TransferTerminal.Focus(); }
+
+    private void CommandPalette_Click(object sender, RoutedEventArgs e)
+    {
+        var commands = new List<PaletteCommand>
+        {
+            new("files", "Open file search", "Search local project files", "Ctrl+1"),
+            new("uploads", "Open uploads workbench", "Review a shipment or delivery plan", "Ctrl+2"),
+            new("repositories", "Browse repositories", "Find and select an upload destination", "Ctrl+3"),
+            new("releases", "Prepare a release", "Review release details and assets", "Ctrl+4"),
+            new("settings", "Open settings and tools", "Preferences, account, and diagnostics", "Ctrl+,"),
+            new("activity", "Show transfer activity", "Open the local activity log", ""),
+            new("export", "Export activity log", "Save the current log as a text file", "Ctrl+Shift+E"),
+            new("search", "Focus file search", "Move keyboard focus to the file search field", ""),
+            new("folder", "Choose project folder", "Browse to a local folder", "")
+        };
+        foreach (var name in _appPreferences.FavoriteRepositories.Concat(_appPreferences.RecentRepositories).Distinct(StringComparer.OrdinalIgnoreCase).Take(30))
+            commands.Add(new PaletteCommand("repository:" + name, "Switch repository · " + name, "Select this saved repository as the current upload destination", ""));
+        var palette = new CommandPaletteWindow(commands) { Owner = this };
+        if (palette.ShowDialog() == true && palette.SelectedCommandId is string command) RunPaletteCommand(command);
+    }
+
+    private void RunPaletteCommand(string command)
+    {
+        switch (command)
+        {
+            case "files": BackToSearch_Click(this, new RoutedEventArgs()); break;
+            case "uploads": ShippingWorkbench_Click(this, new RoutedEventArgs()); break;
+            case "repositories": NavigateRepositories_Click(this, new RoutedEventArgs()); break;
+            case "releases": ReleasePublisher_Click(this, new RoutedEventArgs()); break;
+            case "settings": ShowToolsPage_Click(this, new RoutedEventArgs()); break;
+            case "activity": NavigateActivity_Click(this, new RoutedEventArgs()); break;
+            case "export": ExportActivity_Click(this, new RoutedEventArgs()); break;
+            case "search": BackToSearch_Click(this, new RoutedEventArgs()); SearchBox.Focus(); break;
+            case "folder": Browse_Click(this, new RoutedEventArgs()); break;
+            default:
+                if (command.StartsWith("repository:", StringComparison.Ordinal))
+                {
+                    var repository = command.Substring("repository:".Length);
+                    if (RepositoryPattern.IsMatch(repository))
+                    {
+                        RepoPicker.Text = repository;
+                        var known = _githubProjects.FirstOrDefault(item => string.Equals(item.FullName, repository, StringComparison.OrdinalIgnoreCase));
+                        if (known is not null && !_branchManuallyEdited) BranchBox.Text = known.DefaultBranch;
+                        UpdateNavigationContext();
+                        SetStatus($"Selected {repository}. Confirm the account and branch before publishing.");
+                    }
+                }
+                break;
+        }
+    }
+
+    private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0 && e.Key == Key.K)
+        { e.Handled = true; CommandPalette_Click(this, new RoutedEventArgs()); return; }
+        if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == (ModifierKeys.Control | ModifierKeys.Shift) && e.Key == Key.E)
+        { e.Handled = true; ExportActivity_Click(this, new RoutedEventArgs()); return; }
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+        {
+            var command = e.Key switch { Key.D1 or Key.NumPad1 => "files", Key.D2 or Key.NumPad2 => "uploads", Key.D3 or Key.NumPad3 => "repositories", Key.D4 or Key.NumPad4 => "releases", Key.OemComma => "settings", _ => "" };
+            if (command.Length > 0) { e.Handled = true; RunPaletteCommand(command); }
+        }
+    }
+
+    private void ExportActivity_Click(object sender, RoutedEventArgs e)
+    {
+        if (_transferLog.Count == 0)
+        {
+            SetStatus("There is no transfer activity to export yet.");
+            return;
+        }
+        var dialog = new System.Windows.Forms.SaveFileDialog
+        {
+            Title = "Export OctoShip activity",
+            Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
+            FileName = "OctoShip-activity-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + ".txt",
+            OverwritePrompt = true
+        };
+        if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+        try
+        {
+            var lines = _transferLog.Select(line => Regex.Replace(line, @"(?i)(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})", "[REDACTED TOKEN]")).ToArray();
+            File.WriteAllLines(dialog.FileName, new[] { "OctoShip activity log", "Exported: " + DateTimeOffset.Now.ToString("O"), "This local log can contain file names, repository names, and paths. Review it before sharing.", "" }.Concat(lines), new UTF8Encoding(false));
+            SetStatus("Activity log exported. Review it for private file or repository names before sharing.");
+        }
+        catch (Exception ex) { SetStatus("Could not export activity: " + SafeMessage(ex), true); }
+    }
     private void UpdateNavigationContext()
     {
         if (NavigationContext is null) return;
@@ -2003,15 +2137,16 @@ public partial class MainWindow : Window
         public override string ToString() => FullName;
     }
 
-    private sealed record GitHubProjectChoice(string FullName, string Description, string DefaultBranch, bool IsPrivate, string? UpdatedAt, string? HtmlUrl)
+    private sealed record GitHubProjectChoice(string FullName, string Description, string DefaultBranch, bool IsPrivate, string? UpdatedAt, string? HtmlUrl, bool IsFavorite = false, string GroupLabel = "")
     {
         public string VisibilityLabel => IsPrivate ? "PRIVATE" : "PUBLIC";
+        public string FavoriteLabel => IsFavorite ? "★ FAVORITE" : "";
         public string Details
         {
             get
             {
                 var updated = DateTimeOffset.TryParse(UpdatedAt, out var date) ? date.ToLocalTime().ToString("yyyy-MM-dd") : "date unavailable";
-                return $"Default branch: {DefaultBranch}   ·   Updated: {updated}";
+                return $"Default branch: {DefaultBranch}   ·   Updated: {updated}" + (string.IsNullOrWhiteSpace(GroupLabel) ? "" : "   ·   Group: " + GroupLabel);
             }
         }
     }

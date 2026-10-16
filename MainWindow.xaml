@@ -14,6 +14,8 @@
                     <Button Content="Releases" Click="ReleasePublisher_Click" />
                     <Button Content="Activity" Click="NavigateActivity_Click" />
                     <Button Content="Account &amp; settings" Click="NavigateAccount_Click" />
+                    <Button Content="Commands · Ctrl+K" Click="CommandPalette_Click" ToolTip="Search OctoShip actions" />
+                    <Button Content="Export activity" Click="ExportActivity_Click" ToolTip="Save the current activity log; it may contain private file paths and repository names" />
                 </WrapPanel>
                 <TextBlock x:Name="NavigationContext" Text="Account: not connected   ·   No repository selected" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
             </StackPanel>
@@ -358,6 +360,7 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="220" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <DockPanel>
                                         <Button x:Name="GithubProjectRefreshButton" DockPanel.Dock="Right" Content="Refresh projects" Padding="10,6" Click="LoadGithubProjects_Click" />
@@ -376,7 +379,10 @@
                                         <Button x:Name="UseGithubProjectButton" Grid.Column="1" Content="Use selected project" Padding="10,6" Margin="7,0,0,0" IsEnabled="False" Click="UseGithubProject_Click" />
                                         <Button x:Name="OpenGithubProjectButton" Grid.Column="2" Content="Open on GitHub" Padding="10,6" Margin="7,0,0,0" IsEnabled="False" Click="OpenGithubProject_Click" />
                                     </Grid>
-                                    <TextBlock x:Name="GithubProjectStatus" Grid.Row="2" Text="Connect an account, then refresh to list its existing repositories." Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,0,0,7" />
+                                    <DockPanel Grid.Row="2" Margin="0,0,0,7">
+                                        <CheckBox x:Name="GithubFavoritesOnly" DockPanel.Dock="Right" Content="Favorites only" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Checked="GithubProjectFilter_Changed" Unchecked="GithubProjectFilter_Changed" />
+                                        <TextBlock x:Name="GithubProjectStatus" Text="Connect an account, then refresh to list its existing repositories." Foreground="{DynamicResource Muted}" FontSize="11" />
+                                    </DockPanel>
                                     <ListBox x:Name="GithubProjectsList" Grid.Row="3" Height="220" SelectionChanged="GithubProjectsList_SelectionChanged" ToolTip="Select an existing repository to use as the upload destination">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
@@ -390,11 +396,20 @@
                                                         <TextBlock Text="{Binding Description}" Foreground="#91A0B7" FontSize="10" TextTrimming="CharacterEllipsis" />
                                                         <TextBlock Text="{Binding Details}" Foreground="#71839C" FontSize="9" Margin="0,3,0,0" />
                                                     </StackPanel>
-                                                    <TextBlock Grid.Column="1" Text="{Binding VisibilityLabel}" Foreground="#60D7D1" FontSize="9" FontWeight="Bold" VerticalAlignment="Top" Margin="8,0,0,0" />
+                                                    <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                                        <TextBlock Text="{Binding FavoriteLabel}" Foreground="#60D7D1" FontSize="9" FontWeight="Bold" HorizontalAlignment="Right" />
+                                                        <TextBlock Text="{Binding VisibilityLabel}" Foreground="#60D7D1" FontSize="9" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,3,0,0" />
+                                                    </StackPanel>
                                                 </Grid>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
+                                    <Grid Grid.Row="4" Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <Button x:Name="ToggleRepositoryFavoriteButton" Content="Add favorite" IsEnabled="False" Click="ToggleRepositoryFavorite_Click" Padding="9,5" />
+                                        <TextBox x:Name="RepositoryGroupBox" Grid.Column="1" Margin="7,0" ToolTip="Optional group name, such as Client or Personal" />
+                                        <Button x:Name="SaveRepositoryGroupButton" Grid.Column="2" Content="Save group" IsEnabled="False" Click="SaveRepositoryGroup_Click" Padding="9,5" />
+                                    </Grid>
                                 </Grid>
                             </Border>
                         </StackPanel>

@@ -85,3 +85,5 @@ The primary OctoShip identity is the original scalable vector logo in `branding/
 ## Additional development workflows
 
 Use **Prepare & inspect** for offline mapping, selective changes, account/visibility bindings and project/release inspection. See [SHIPPING-PREPARATION.md](SHIPPING-PREPARATION.md) for features 13–28 and boundaries. **Ship project & delivery checks** covers the first twelve additions; see [SHIPPING-WORKBENCH.md](SHIPPING-WORKBENCH.md). These are development-source additions, not a statement that an updated public installer has been released.
+
+The toolbox branch also adds repository favorites/groups, a searchable command palette with keyboard shortcuts, and activity-log export. See the [feature wave handoff](docs/toolbox-feature-wave.md) for scope, privacy behavior, and the status of the other requested ideas. These source changes are not in a published release.

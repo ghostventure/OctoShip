@@ -41,6 +41,10 @@ public static class OctoCatPreferencesService
         SearchHistory = CleanList(value.SearchHistory, 12, 300),
         Destinations = CleanList(value.Destinations, 12, 2048),
         RecentRepositories = CleanList(value.RecentRepositories, 20, 200),
+        FavoriteRepositories = value.PrivacyMode ? Array.Empty<string>() : CleanList(value.FavoriteRepositories, 100, 200).Where(IsRepository).ToArray(),
+        RepositoryGroups = value.PrivacyMode ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) : (value.RepositoryGroups ?? new Dictionary<string, string>())
+            .Where(pair => IsRepository(pair.Key) && IsSafeGroupName(pair.Value)).Take(200)
+            .ToDictionary(pair => pair.Key.Trim(), pair => pair.Value.Trim(), StringComparer.OrdinalIgnoreCase),
         DefaultUploadFolders = (value.DefaultUploadFolders ?? new Dictionary<string, string>())
             .Where(pair => IsRepository(pair.Key) && IsSafeRepoFolder(pair.Value))
             .Take(100).ToDictionary(pair => pair.Key, pair => pair.Value.Trim('/'), StringComparer.OrdinalIgnoreCase),
@@ -88,6 +92,7 @@ public static class OctoCatPreferencesService
         return parts.Length == 2 && SafeSegment(parts[0]) && SafeSegment(parts[1]);
     }
     private static bool IsSafeRepoFolder(string value) => value is not null && value.Length <= 1024 && !value.StartsWith('/') && !value.Contains('\\') && !value.Any(char.IsControl) && (value.Length == 0 || value.Split('/').All(segment => SafeSegment(segment)));
+    private static bool IsSafeGroupName(string value) => !string.IsNullOrWhiteSpace(value) && value.Trim().Length <= 60 && !value.Any(char.IsControl);
     private static bool SafeSegment(string segment) => segment.Length is > 0 and <= 100 && segment is not "." and not ".." && segment.All(c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.');
     private static void WriteAtomic(string path, string content)
     {
@@ -159,6 +164,8 @@ public sealed record OctoCatPreferences
     public IReadOnlyList<string> SearchHistory { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> Destinations { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> RecentRepositories { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> FavoriteRepositories { get; init; } = Array.Empty<string>();
+    public Dictionary<string, string> RepositoryGroups { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> DefaultUploadFolders { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public bool PrivacyMode { get; init; }
     public OctoCatUpdateChannel UpdateChannel { get; init; } = OctoCatUpdateChannel.Stable;
