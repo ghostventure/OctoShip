@@ -3,22 +3,28 @@
 [Published Linux 1.7.0 downloads](https://github.com/ghostventure/OctoShip/releases/tag/linux-v1.7.0)
 · [Full release handoff and checksums](../../docs/linux-1.7.0-handoff.md)
 
-`python3 linux/packaging/build-standalone.py` builds the x86_64 distribution.
+`./linux/packaging/install-local.sh` builds the current Linux source and starts its
+installer in one step. Run it from the repository root; it resolves the repository
+path from the script location. Add `--install` to install without opening the
+graphical installer.
+
+To build artifacts without starting an installer, run
+`python3 linux/packaging/build-standalone.py` from the repository root.
 The builder needs Python 3.12+, `dpkg-deb`, and internet access on its first run.
 It does not use the build host's Python runtime or copy host credentials/settings.
 All upstream downloads are pinned by URL/version and SHA-256 in `bundle-lock.json`;
 verified downloads are cached under ignored `dist/linux/bundle-cache`.
 
-Current source builds version **1.8.0**, a source preview. The published release
-linked above is still 1.7.0. Substitute 1.8.0 in the example filenames below for
-current builds.
+Current source builds version **1.8.1**, a source preview. The published release
+linked above is still 1.7.0. The examples below name the current preview artifacts;
+the build and install scripts read the version from the source automatically.
 
 Outputs under `dist/linux`:
 
-- `OctoShip-1.7.0-linux-x86_64.run`: offline graphical/per-user installer.
-- `octoship_1.7.0-1_amd64.deb`: system-wide bundled Debian package.
-- `octoship-1.7.0-linux-x86_64-bundled.tar.gz`: portable bundle.
-- `OctoShip-1.7.0-SHA256SUMS.txt`: SHA-256 checksums for those artifacts.
+- `OctoShip-1.8.1-linux-x86_64.run`: offline graphical/per-user installer.
+- `octoship_1.8.1-1_amd64.deb`: system-wide bundled Debian package.
+- `octoship-1.8.1-linux-x86_64-bundled.tar.gz`: portable bundle.
+- `OctoShip-1.8.1-SHA256SUMS.txt`: SHA-256 checksums for those artifacts.
 
 The separate `build-deb.sh` retains the older source-package approach; its `all`
 architecture package requires distro Python/Tk/gh. Distribute the **amd64** package
@@ -48,11 +54,11 @@ headlessly with `--install`. A desktop terminal/browser is used for GitHub sign-
 ## Installation and authentication
 
 ```sh
-sh OctoShip-1.7.0-linux-x86_64.run
+sh OctoShip-1.8.1-linux-x86_64.run
 # Or install without the graphical installer:
-sh OctoShip-1.7.0-linux-x86_64.run --install
+sh OctoShip-1.8.1-linux-x86_64.run --install
 # Optional custom prefix, without menu entries:
-sh OctoShip-1.7.0-linux-x86_64.run --install --prefix "$HOME/Apps/OctoShip" --no-desktop
+sh OctoShip-1.8.1-linux-x86_64.run --install --prefix "$HOME/Apps/OctoShip" --no-desktop
 ```
 
 The default prefix is `$XDG_DATA_HOME/octoship` or `~/.local/share/octoship`.
@@ -65,7 +71,7 @@ credential storage. Authentication still needs internet access.
 For Debian/Ubuntu/Kali, the alternative bundled package can be installed with:
 
 ```sh
-sudo apt install ./octoship_1.7.0-1_amd64.deb
+sudo apt install ./octoship_1.8.1-1_amd64.deb
 ```
 
 It installs under `/opt/octoship` and declares `libc6 (>= 2.17)`, `libpam0g`,
@@ -95,7 +101,7 @@ are verification tools, not runtime requirements for the installer.
 
 ```sh
 xvfb-run -a python3 linux/tests/verify_bundle.py \
-  dist/linux/OctoShip-1.7.0-linux-x86_64.run /path/to/debian-12-rootfs
+  dist/linux/OctoShip-1.8.1-linux-x86_64.run /path/to/debian-12-rootfs
 ```
 
 It installs to a path containing spaces, runs bundled diagnostics and GUI smoke,

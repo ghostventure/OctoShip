@@ -7,6 +7,7 @@ from pathlib import Path
 import platform
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import urllib.request
@@ -43,7 +44,10 @@ def extract(archive, destination):
 
 
 def build():
+    if sys.version_info < (3, 12): raise SystemExit('The standalone builder requires Python 3.12 or newer.')
+    if platform.system() != 'Linux': raise SystemExit('Run this builder on Linux.')
     if platform.machine() not in ('x86_64', 'amd64'): raise SystemExit('This builder targets Linux x86_64.')
+    if shutil.which('dpkg-deb') is None: raise SystemExit('Install dpkg-deb (for example, the dpkg package) to build the bundled .deb.')
     lock = json.loads((HERE / 'bundle-lock.json').read_text())
     cache = OUTPUT / 'bundle-cache'; cache.mkdir(parents=True, exist_ok=True)
     archives = {key: download(value, cache) for key, value in lock.items() if isinstance(value, dict)}

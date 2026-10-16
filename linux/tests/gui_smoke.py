@@ -4,6 +4,7 @@ import tempfile
 import time
 import tkinter as tk
 from tkinter import ttk
+from unittest.mock import patch
 from test_core import LocalGitHub
 from octoship.app import App
 
@@ -47,7 +48,18 @@ try:
         assert fixture.files['demo.txt'][0] == path.read_bytes()
         assert app.status.get() == '1 uploaded, 0 failed.'
         assert len(fixture.writes) == 1
+        app.show_files([path])
+        app.tree.selection_set('0')
+        app.update_editor_buttons()
+        root.update()
+        assert 'disabled' not in app.open_file_code_button.state()
+        with patch('octoship.app.open_in_vscode') as open_code:
+            app.open_selected_code()
+            open_code.assert_called_once_with(path)
+            app.folder.set(temporary)
+            app.open_folder_code()
+            open_code.assert_called_with(temporary)
         root.destroy()
-        print('PASS: native GUI review, explicit confirm, real HTTP upload, result status (loopback only).')
+        print('PASS: GUI review/confirm/upload (loopback only) and optional VS Code file/folder launch wiring.')
 finally:
     fixture.close()

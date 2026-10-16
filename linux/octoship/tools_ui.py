@@ -2,6 +2,7 @@
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+import webbrowser
 from .core import OctoShipError
 from .scanner import scan_bytes, check_cancel
 from . import workflows as flow
@@ -30,8 +31,8 @@ class ToolsPanel:
         self.assets_ready = True
         self.tabs = ttk.Notebook(parent)
         self.tabs.pack(fill='both', expand=True)
-        compare, branches, pulls, releases = [ttk.Frame(self.tabs, padding=16) for _ in range(4)]
-        for tab, name in zip((compare, branches, pulls, releases), ('Compare folders', 'Branches', 'Pull requests', 'Releases')):
+        compare, branches, pulls, releases, security = [ttk.Frame(self.tabs, padding=16) for _ in range(5)]
+        for tab, name in zip((compare, branches, pulls, releases, security), ('Compare folders', 'Branches', 'Pull requests', 'Releases', 'Dependencies')):
             self.tabs.add(tab, text=name)
         ttk.Label(compare, text='Compare local bytes against one fixed GitHub commit. This does not change either folder.').pack(anchor='w')
         form = ttk.Frame(compare); form.pack(fill='x', pady=8)
@@ -78,6 +79,73 @@ class ToolsPanel:
         ttk.Button(recovery, text='Load / refresh draft', command=self.load_release).grid(row=0, column=2, padx=8)
         self.release_status = tk.StringVar(value='No draft loaded. Draft ID can be recovered from GitHub’s release API.')
         ttk.Label(releases, textvariable=self.release_status, wraplength=850).pack(anchor='w', pady=4)
+
+        ttk.Label(security, text='Read-only Dependabot alerts for the selected repository. No alerts are dismissed or changed here.').pack(anchor='w')
+        security_actions = ttk.Frame(security); security_actions.pack(fill='x', pady=(10, 4))
+        self.security_refresh = ttk.Button(security_actions, text='Load open alerts', command=self.load_dependabot_alerts)
+        self.security_refresh.pack(side='left')
+        self.security_open = ttk.Button(security_actions, text='Open GitHub security page', command=self.open_security_page)
+        self.security_open.pack(side='left', padx=8)
+        self.security_status = tk.StringVar(value='Connect to GitHub and select a repository, then load its open Dependabot alerts.')
+        ttk.Label(security, textvariable=self.security_status, wraplength=850).pack(anchor='w', pady=(4, 8))
+        alert_columns = ('severity', 'package', 'patched', 'manifest')
+        self.security_alerts = ttk.Treeview(security, columns=alert_columns, show='headings', height=14)
+        for key, title, width in (
+            ('severity', 'SEVERITY', 100),
+            ('package', 'PACKAGE', 220),
+            ('patched', 'FIRST FIXED VERSION', 180),
+            ('manifest', 'MANIFEST', 360),
+        ):
+            self.security_alerts.heading(key, text=title)
+            self.security_alerts.column(key, width=width, minwidth=90, stretch=(key == 'manifest'))
+        alert_scroll = ttk.Scrollbar(security, orient='vertical', command=self.security_alerts.yview)
+        self.security_alerts.configure(yscrollcommand=alert_scroll.set)
+        self.security_alerts.pack(side='left', fill='both', expand=True)
+        alert_scroll.pack(side='right', fill='y')
+        self.security_alert_repo = None
+
+    def load_dependabot_alerts(self):
+        context = self.context()
+        if not context:
+            return
+        api, repo, _branch = context
+        self.security_alert_repo = repo
+        self.security_status.set(f'Loading open Dependabot alerts for {repo}…')
+        for item in self.security_alerts.get_children():
+            self.security_alerts.delete(item)
+
+        def done(alerts):
+            for alert in alerts:
+                vulnerability = alert.get('security_vulnerability') or {}
+                dependency = alert.get('dependency') or {}
+                package = dependency.get('package') or {}
+                fixed = (vulnerability.get('first_patched_version') or {}).get('identifier') or 'No fix listed'
+                self.security_alerts.insert('', 'end', values=(
+                    str(vulnerability.get('severity') or 'unknown').title(),
+                    str(package.get('name') or 'Unknown package'),
+                    str(fixed),
+                    str(dependency.get('manifest_path') or 'Unknown manifest'),
+                ))
+            if alerts:
+                self.security_status.set(f'{len(alerts)} open alert(s) returned by GitHub for {repo}. Select an alert and open GitHub for full advisory details.')
+            else:
+                self.security_status.set(f'GitHub returned no open Dependabot alerts for {repo}.')
+
+        def error(message):
+            self.security_status.set('Could not load alerts. If GitHub returned 403 or 404, check Dependabot alerts availability and read permission.')
+
+        self.app.run('Loading Dependabot alerts…', lambda: api.dependabot_alerts(repo), done, error)
+
+    def open_security_page(self):
+        repo = self.security_alert_repo or self.app.repo.get().strip()
+        try:
+            path = self.app.api.repo_path(repo) if self.app.api else None
+            if not path:
+                raise OctoShipError('Connect to GitHub first.')
+        except OctoShipError as exc:
+            messagebox.showerror('Repository', str(exc), parent=self.app.root)
+            return
+        webbrowser.open('https://github.com/' + repo + '/security/dependabot')
 
     def context(self):
         if self.app.busy: return None

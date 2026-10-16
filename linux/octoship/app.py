@@ -11,6 +11,8 @@ from tkinter import ttk, filedialog, messagebox
 import webbrowser
 from . import __version__
 from .core import GitHub, OctoShipError, search_files, plan_upload, read_file, sensitive, login_instructions
+from .content_types import detect_content_kind, extension_mismatch, is_known_binary
+from .editor import open_in_vscode
 from .scanner import scan_bytes
 from .queue_store import QueueStore
 from . import workflows as flow
@@ -110,6 +112,7 @@ class App:
         search = ttk.LabelFrame(upload_page, text='FIND LOCAL FILES', padding=10); search.grid(row=0, column=0, sticky='ew', pady=(0, 8))
         ttk.Entry(search, textvariable=self.folder).grid(row=0, column=0, columnspan=3, sticky='ew')
         ttk.Button(search, text='Choose folder', command=self.choose_folder).grid(row=0, column=3, padx=(8, 0))
+        ttk.Button(search, text='Open folder in VS Code', command=self.open_folder_code).grid(row=0, column=4, padx=(8, 0))
         ttk.Entry(search, textvariable=self.query).grid(row=1, column=0, sticky='ew', pady=(8, 0))
         ttk.Checkbutton(search, text='Search contents', variable=self.contents).grid(row=1, column=1, padx=8, pady=(8, 0))
         ttk.Checkbutton(search, text='Hidden files', variable=self.hidden).grid(row=1, column=2, pady=(8, 0))
@@ -117,8 +120,10 @@ class App:
         search.columnconfigure(0, weight=1)
         row = ttk.Frame(upload_page); row.grid(row=1, column=0, sticky='ew', pady=(2,8))
         ttk.Button(row, text='Add files…', command=self.add_files).pack(side='left')
-        ttk.Button(row, text='Select all', command=lambda: self.tree.selection_set(self.tree.get_children())).pack(side='left', padx=6)
+        ttk.Button(row, text='Select all', command=self.select_all).pack(side='left', padx=6)
         ttk.Button(row, text='Preview selected', command=self.preview).pack(side='left')
+        self.open_file_code_button = ttk.Button(row, text='Open in VS Code', command=self.open_selected_code, state='disabled')
+        self.open_file_code_button.pack(side='left', padx=6)
         ttk.Button(row, text='Clear', style='Ghost.TButton', command=self.clear).pack(side='right')
         self.file_count=tk.StringVar(value='0 files')
         ttk.Label(row,textvariable=self.file_count,style='Muted.TLabel').pack(side='right',padx=12)
@@ -129,6 +134,7 @@ class App:
         scrollbar = ttk.Scrollbar(table, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
         self.tree.pack(side='left', fill='both', expand=True); scrollbar.pack(side='right', fill='y')
+        self.tree.bind('<<TreeviewSelect>>', self.update_editor_buttons)
         self.tree.bind('<Double-1>', lambda e: self.preview())
         self.tree.tag_configure('even',background=theme.SURFACE)
         self.tree.tag_configure('odd',background='#1d212b')
@@ -288,6 +294,7 @@ class App:
             except OSError: size = 'Unavailable'
             self.tree.insert('', 'end', iid=str(i), values=(str(path), size, 'Blocked' if sensitive(path) else 'Ready'),tags=('odd' if i%2 else 'even',))
         self.file_count.set(f'{len(self.files)} files')
+        self.update_editor_buttons()
         if self.files: self.empty_state.place_forget()
         else: self.empty_state.place(relx=.5,rely=.5,y=18,anchor='center')
         self.record(f'{len(files)} files listed (maximum 5,000 search results). Select files to upload.')
@@ -311,15 +318,47 @@ class App:
     def selected(self):
         return [self.files[int(i)] for i in self.tree.selection()]
 
+    def select_all(self):
+        self.tree.selection_set(self.tree.get_children())
+        self.update_editor_buttons()
+
+    def update_editor_buttons(self, event=None):
+        if hasattr(self, 'open_file_code_button'):
+            self.open_file_code_button.configure(state='normal' if len(self.tree.selection()) == 1 else 'disabled')
+
+    def open_selected_code(self):
+        files = self.selected()
+        if len(files) != 1:
+            messagebox.showinfo('Open in VS Code', 'Select one file first.', parent=self.root)
+            return
+        try:
+            open_in_vscode(files[0])
+            self.record('Opened ' + files[0].name + ' in VS Code.')
+        except (OctoShipError, OSError) as exc:
+            messagebox.showerror('Open in VS Code', str(exc), parent=self.root)
+
+    def open_folder_code(self):
+        try:
+            open_in_vscode(self.folder.get())
+            self.record('Opened the selected folder in VS Code.')
+        except (OctoShipError, OSError) as exc:
+            messagebox.showerror('Open folder in VS Code', str(exc), parent=self.root)
+
     def preview(self):
         files = self.selected()
         if not files: return
         try: data = read_file(files[0])
         except OctoShipError as exc: messagebox.showerror('Preview', str(exc)); return
         win = tk.Toplevel(self.root); win.title(files[0].name); win.geometry('800x550')
-        ttk.Label(win, text=f'{files[0].name}\n{len(data):,} bytes\nSHA-256: {hashlib.sha256(data).hexdigest()}', padding=12).pack(fill='x')
+        kind = detect_content_kind(data[:8192])
+        mismatch = extension_mismatch(files[0].name, kind)
+        details = f'{files[0].name}\n{len(data):,} bytes · detected {kind}\nSHA-256: {hashlib.sha256(data).hexdigest()}'
+        if mismatch:
+            details += '\nWarning: ' + mismatch
+        ttk.Label(win, text=details, padding=12, wraplength=760).pack(fill='x')
         text = tk.Text(win, wrap='word'); text.pack(fill='both', expand=True)
-        preview = data[:65536].decode('utf-8', errors='replace') if b'\0' not in data[:8192] else '[Binary file — contents are not displayed]'
+        preview = ('[Binary ' + kind + ' — contents are not displayed]'
+                   if is_known_binary(kind) else data[:65536].decode('utf-8', errors='replace'))
         text.insert('1.0', scan_bytes(data).summary + '\n\n' + preview); text.configure(state='disabled')
 
     def toggle_pause(self):

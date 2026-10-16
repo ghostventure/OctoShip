@@ -1,4 +1,4 @@
-# OctoShip for Linux 1.8.0 (source preview)
+# OctoShip for Linux 1.8.1 (source preview)
 
 [Download the published release](https://github.com/ghostventure/OctoShip/releases/tag/linux-v1.7.0)
 · [Release, installation and maintainer handoff](../docs/linux-1.7.0-handoff.md)
@@ -17,16 +17,37 @@ and expandable upload settings. Existing upload and shipping tools remain availa
 The launcher prefers distro Python/Tk for smooth desktop fonts and retains its
 complete bundled runtime as an offline fallback.
 See the [GUI refresh handoff](../docs/linux-1.8.0-gui-refresh.md).
-The download link below remains the published 1.7.0 release until 1.8.0 is released.
+Version 1.8.1 adds file signature and extension checks in previews, GitHub
+rate-limit retry guidance, and optional VS Code opening for a selected file or
+search folder. The current source preview also includes a read-only Dependencies
+tab for open Dependabot alerts on the selected repository. Alert access requires
+the GitHub account/token to have Dependabot alerts read permission and the feature
+to be enabled for that repository; access failures are not reported as zero alerts.
+See the [1.8.1 update handoff](../docs/linux-1.8.1-update.md).
+The download link below remains the published 1.7.0 release until a newer Linux
+release is published.
 
 ## Install or run
 
 The **self-contained installer** includes Python, Tcl/Tk, GitHub CLI, and certificate
-data. The destination computer does not need to install those separately:
+data. To build the current source preview and open its installer in one step, run
+this from the repository checkout:
 
 ```sh
-sh OctoShip-1.7.0-linux-x86_64.run
+./linux/packaging/install-local.sh
 ```
+
+Add `--install` to install from a terminal without opening the graphical installer:
+
+```sh
+./linux/packaging/install-local.sh --install
+```
+
+Building requires an x86_64 Linux build host, Python 3.12+, `dpkg-deb`, and internet
+access the first time (verified upstream downloads are cached). The generated
+installer bundles Python, Tcl/Tk, GitHub CLI, and certificate data; the destination
+computer does not need to install those separately. To install an already-built
+current preview, use `sh dist/linux/OctoShip-1.8.1-linux-x86_64.run`.
 
 Choose **OctoShip GitHub Sign-in** from the application menu to sign in, then open
 OctoShip and connect. The installer works offline; GitHub authentication and remote

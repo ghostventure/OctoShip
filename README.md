@@ -2,25 +2,45 @@
 
 ![OctoShip for GitHub logo](branding/octoship-primary.svg)
 
-**Windows source candidate: 1.6.1-preview.15 (not yet published).** The latest public Windows preview is 1.6.1-preview.14; the latest stable release is 1.6.0 (at last release check). Fresh profiles start disconnected and do not preselect an account already saved in Git Credential Manager; existing profiles retain their account choice. The preview.15 workflow is configured to attest the Windows package and SBOM, but that release workflow has not completed successfully, so no preview.15 attestation or release is available yet. The updater verifies GitHub's SHA-256 asset digest. See [security and release verification](SECURITY-OPERATIONS.md) and the [P1 implementation and installation handoff](P1-HANDOFF.md). The app is not Authenticode-signed. Linux is unchanged by this Windows pass.
+**Windows source candidate: 1.6.1-preview.15 (not yet published).** The latest public Windows preview is 1.6.1-preview.14; the latest stable release is 1.6.0 (at last release check). Fresh profiles start disconnected and do not preselect an account already saved in Git Credential Manager; existing profiles retain their account choice. The preview.15 workflow is configured to attest the Windows package and SBOM, but that release workflow has not completed successfully, so no preview.15 attestation or release is available yet. The updater verifies GitHub's SHA-256 asset digest. See [security and release verification](SECURITY-OPERATIONS.md) and the [P1 implementation and installation handoff](P1-HANDOFF.md). The app is not Authenticode-signed. Linux receives selected portable workflow improvements in the separate 1.8.1 source preview below.
 
 The Windows 1.6.0-preview.2 build now retains account/workspace preferences and locks after 30 minutes of inactivity, with Windows Hello or Windows account password unlocking. See [account retention and session protection](ACCOUNT-SESSION.md) for behavior and verification boundaries.
 
 OctoShip for GitHub finds local files and sends them to GitHub. The original Windows desktop client is in the repository root. A native Linux client is now available in [linux/](linux/README.md), with a desktop launcher, Debian package builder, and tested GitHub upload backend.
 
-## Linux 1.8.0 GUI preview
+## Linux 1.8.1 update preview
 
 The current Linux source includes a modern charcoal/violet interface, responsive
 sidebar navigation, rounded controls, smoother system fonts, and expandable upload
-settings. The installed preview passed 86 backend and 15 GUI workflow tests, plus
-offline installer verification. See the [GUI refresh documentation](docs/linux-1.8.0-gui-refresh.md)
-for build instructions, runtime selection, checksums, and rollback details.
-The packaged stable download remains Linux 1.7.0 below.
+settings. Version 1.8.1 ports recent Windows-side workflow improvements to the
+native Linux client. It is a **source preview**, not a published release.
+
+To build the standalone installer and open it, clone this repository on an x86_64
+Linux machine with Python 3.12+, `dpkg-deb`, and an internet connection for the
+first-time download of verified build components:
+
+```sh
+git clone -b feature/octoship-linux-1.8.1-installer-docs https://github.com/ghostventure/OctoShip.git
+cd OctoShip
+./linux/packaging/install-local.sh
+```
+
+Add `--install` to install from a terminal without opening the graphical installer:
+
+```sh
+./linux/packaging/install-local.sh --install
+```
+
+The installer bundles its runtime dependencies, so the destination computer does
+not need a separate Python, Tcl/Tk, or GitHub CLI installation. The current
+published Linux download remains [version 1.7.0](https://github.com/ghostventure/OctoShip/releases/tag/linux-v1.7.0).
+See the [1.8.1 handoff](docs/linux-1.8.1-update.md) for scope, verification, and
+release limits, and the [Linux guide](linux/README.md) for additional options.
 
 ## Linux 1.7.0
 
-**Published:** [Download Linux 1.7.0](https://github.com/ghostventure/OctoShip/releases/tag/linux-v1.7.0)
-(marked Latest on 2026-10-11). [Complete release and maintainer handoff](docs/linux-1.7.0-handoff.md).
+**Published:** [Download Linux 1.7.0](https://github.com/ghostventure/OctoShip/releases/tag/linux-v1.7.0).
+[Complete release and maintainer handoff](docs/linux-1.7.0-handoff.md).
 
 The native [Linux client](linux/README.md) now ports the latest Windows shipping
 workbench, offline preparation and selective publishing, inspection and delivery

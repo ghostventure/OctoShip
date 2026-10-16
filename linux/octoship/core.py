@@ -9,6 +9,9 @@ import re
 import stat
 import subprocess
 import shlex
+import math
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from . import __version__
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
@@ -33,7 +36,7 @@ class OctoShipError(Exception):
     pass
 
 class ApiError(OctoShipError):
-    def __init__(self, status, headers=None):
+    def __init__(self, status, headers=None, now=None):
         self.status = status
         headers = headers or {}
         self.evidence = {key: headers.get(key) for key in ("X-RateLimit-Remaining", "X-RateLimit-Reset") if headers.get(key) is not None}
@@ -43,8 +46,53 @@ class ApiError(OctoShipError):
                     404: 'Repository, branch, or file not found.',
                     409: 'Remote file changed. Review the upload again.',
                     422: 'GitHub rejected the change. Check branch protection and file path.'}
+        guidance = _rate_limit_guidance(status, headers, now)
+        if guidance:
+            messages[status] = 'GitHub rate limit reached. ' + guidance
         evidence = ' Evidence: ' + json.dumps(self.evidence) if self.evidence else ''
         super().__init__(messages.get(status, f'GitHub returned HTTP {status}.') + evidence)
+
+
+def _rate_limit_guidance(status, headers, now=None):
+    remaining = str(headers.get('X-RateLimit-Remaining', '')).strip()
+    if status != 429 and not (status == 403 and remaining == '0'):
+        return None
+    current = now or datetime.now(timezone.utc)
+    retry_at = None
+    retry_after = str(headers.get('Retry-After', '')).strip()
+    if retry_after:
+        try:
+            seconds = int(retry_after)
+            if seconds >= 0:
+                retry_at = current + timedelta(seconds=seconds)
+        except ValueError:
+            try:
+                parsed = parsedate_to_datetime(retry_after)
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                retry_at = parsed
+            except (TypeError, ValueError, OverflowError):
+                pass
+    try:
+        reset = int(headers.get('X-RateLimit-Reset', ''))
+        if 0 < reset < 253402300799:
+            reset_at = datetime.fromtimestamp(reset, timezone.utc) + timedelta(seconds=5)
+            if retry_at is None or reset_at > retry_at:
+                retry_at = reset_at
+    except (TypeError, ValueError, OverflowError, OSError):
+        pass
+    if retry_at is None:
+        return "Wait for GitHub's rate limit to reset before retrying."
+    seconds = (retry_at - current).total_seconds()
+    if seconds <= 0:
+        return "GitHub's reported retry time has passed; retry the request."
+    if seconds < 60:
+        return 'Retry in less than a minute.'
+    minutes = math.ceil(seconds / 60)
+    if minutes < 60:
+        return f'Retry in about {minutes} minute{"s" if minutes != 1 else ""}.'
+    hours = math.ceil(seconds / 3600)
+    return f'Retry in about {hours} hour{"s" if hours != 1 else ""}.'
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -166,6 +214,25 @@ class GitHub:
 
     def repositories(self):
         return self.pages('/user/repos?sort=updated&affiliation=owner,collaborator,organization_member')
+
+    def dependabot_alerts(self, repo):
+        """Return open Dependabot alerts; this operation is read-only."""
+        path = self.repo_path(repo) + '/dependabot/alerts?state=open'
+        try:
+            result = self.pages(path)
+        except ApiError as exc:
+            if exc.status == 403 and not exc.evidence.get('X-RateLimit-Remaining') == '0':
+                raise OctoShipError(
+                    'GitHub denied access to Dependabot alerts. Check that alerts are enabled and the connected token has Dependabot alerts: read permission.'
+                ) from None
+            if exc.status == 404:
+                raise OctoShipError(
+                    'Dependabot alerts are unavailable for this repository, or the connected account cannot access them.'
+                ) from None
+            raise
+        if not isinstance(result, list) or any(not isinstance(item, dict) for item in result):
+            raise OctoShipError('GitHub returned an unexpected Dependabot alert response.')
+        return result
 
     def repo_path(self, repo):
         if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repo) or any(p in ('.', '..') for p in repo.split('/')):
