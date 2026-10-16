@@ -12,8 +12,9 @@ templates in the separate lifecycle playbook.
 | Editor and workspace tools | 34 | [Workspace/editor inventory](octoship-workspace-editor-34.md) |
 | **Total** | **100** | |
 
-These additions are integrated into the Linux source workbench on this feature
-branch. They are not included in a newly built installer or published release.
-No tests, package build, GUI launch, or release verification was performed for
-this feature wave. The individual inventories identify implementation paths
-and the remaining scope for each area.
+These additions are integrated into the Linux source workbench and were included
+in a locally built 1.8.1 installer and per-user installation. SHA-256 checks
+passed for the `.run`, `.deb`, and bundled tarball. The installed app was not
+launched interactively, no tests were run for this feature wave, and no release
+was published. The individual inventories identify implementation paths and
+the remaining scope for each area.

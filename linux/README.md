@@ -36,8 +36,8 @@ The current mixed feature wave adds 100 more user-facing workflows: 33 local
 Git/repository actions, 33 offline project lifecycle workflows, and 34
 editor/workspace actions. See the [100-workflow inventory](../docs/octoship-feature-wave-100.md)
 for their separate implementation maps and verification boundaries. These are
-also source-preview changes and are not included in a newly built installer or
-published release.
+source-preview changes included in the locally built and installed 1.8.1 bundle.
+They are not included in a published release.
 The download link below remains the published 1.7.0 release until a newer Linux
 release is published.
 
