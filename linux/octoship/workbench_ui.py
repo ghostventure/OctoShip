@@ -9,6 +9,7 @@ from .core import OctoShipError
 from .storage import load_json, save_json, state_root
 from .tools_ui import field, text_box
 from . import workflows as flow
+from .lifecycle_ui import LifecyclePanel
 
 
 class WorkbenchPanel:
@@ -16,7 +17,7 @@ class WorkbenchPanel:
         self.app = app; self.plan = None; self.selective = None; self.reviewed = None
         self.tabs = ttk.Notebook(parent); self.tabs.pack(fill='both', expand=True)
         pages = []; self.viewports = []
-        for name in ('Ship project', 'Prepare & map', 'Inspect', 'Delivery checks', 'Display & privacy'):
+        for name in ('Ship project', 'Prepare & map', 'Inspect', 'Delivery checks', 'Display & privacy', 'Project lifecycle'):
             outer = ttk.Frame(self.tabs); self.tabs.add(outer, text=name)
             canvas = tk.Canvas(outer, highlightthickness=0, borderwidth=0)
             scroll = ttk.Scrollbar(outer, orient='vertical', command=canvas.yview)
@@ -30,7 +31,8 @@ class WorkbenchPanel:
                 c.configure(scrollregion=c.bbox('all'))
             canvas.bind('<Configure>',resize); page.bind('<Configure>',resize)
             pages.append(page); self.viewports.append(canvas)
-        project, prepare, inspection, delivery, display = pages
+        project, prepare, inspection, delivery, display, lifecycle_page = pages
+        self.lifecycle = LifecyclePanel(app, lifecycle_page)
         form = ttk.Frame(project); form.pack(fill='x')
         self.folder = field(form, 'Project folder', '', 0)
         self.destination = field(form, 'Repository folder', '', 1)
