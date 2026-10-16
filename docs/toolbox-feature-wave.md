@@ -54,6 +54,12 @@ This source branch adds focused local workflow tools to the Windows client. It i
 
 Prioritize a read-only Actions monitor, tag manager, and workflow-file editor. Keep workflow reruns, revert operations, asset deletion, and any unattended publication behind explicit review because they change remote state.
 
+## Account center update
+
+The Account & settings profile now has an explicit **Refresh GitHub account overview** action. When connected, it fetches the active identity, public/private repository totals (when supplied by GitHub), account repository storage usage (when supplied), up to the first 100 organization memberships, and the core API quota/reset time. It verifies that the returned login matches the selected account and discards results if the active account changes while the refresh is running. The panel does not run automatically; refreshed values remain in the view only, are not added to preferences or exports, and do not include credentials. Organization counts are labeled as first-page-only when 100 entries are returned. This is read-only and relies on the currently connected token's permissions.
+
+Still deferred for account expansion: an account activity feed, profile editing, permission/scope introspection that accurately covers fine-grained tokens, organization-wide billing/seat visibility, and cross-account comparison. OctoShip cannot change GitHub identity details or token permissions through this view.
+
 ## Verification boundary
 
 This branch was prepared from source and documents local behavior only. The available development host does not have the project's .NET 10 Windows SDK/runtime, so a Windows build, WPF rendering check, packaged installation, and interactive GitHub account verification have not been established here. No test suite was added or run for this change.

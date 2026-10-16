@@ -1086,6 +1086,76 @@ public partial class MainWindow : Window
         ProfilePrivacy.Text = _appPreferences.PrivacyMode ? "On" : "Off";
     }
 
+    private async void RefreshAccountOverview_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_token) || string.IsNullOrWhiteSpace(_account))
+        {
+            AccountOverviewStatus.Text = "Connect a GitHub account first. No account information was requested.";
+            return;
+        }
+
+        var expectedAccount = _account;
+        var accessToken = _token;
+        RefreshAccountOverviewButton.IsEnabled = false;
+        AccountOverviewStatus.Text = "Refreshing identity, organization membership, repository totals, and API quota…";
+        try
+        {
+            using var userResponse = await SendAsync(HttpMethod.Get, "https://api.github.com/user", accessToken);
+            await EnsureSuccess(userResponse);
+            using var user = await JsonDocument.ParseAsync(await userResponse.Content.ReadAsStreamAsync());
+            var login = JsonString(user.RootElement, "login");
+            if (!string.Equals(login, expectedAccount, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("GitHub returned a different account than the active OctoShip session. Refresh stopped.");
+
+            var displayName = JsonString(user.RootElement, "name");
+            var userType = JsonString(user.RootElement, "type");
+            var publicRepos = JsonInt(user.RootElement, "public_repos");
+            var privateRepos = JsonInt(user.RootElement, "total_private_repos");
+            var diskUsage = JsonInt(user.RootElement, "disk_usage");
+
+            using var orgResponse = await SendAsync(HttpMethod.Get, "https://api.github.com/user/orgs?per_page=100&page=1", accessToken);
+            await EnsureSuccess(orgResponse);
+            using var organizations = await JsonDocument.ParseAsync(await orgResponse.Content.ReadAsStreamAsync());
+            var orgCount = organizations.RootElement.ValueKind == JsonValueKind.Array ? organizations.RootElement.GetArrayLength() : 0;
+            var orgNote = orgCount == 100 ? " (first page; more may exist)" : "";
+
+            using var quotaResponse = await SendAsync(HttpMethod.Get, "https://api.github.com/rate_limit", accessToken);
+            await EnsureSuccess(quotaResponse);
+            using var quota = await JsonDocument.ParseAsync(await quotaResponse.Content.ReadAsStreamAsync());
+            var core = quota.RootElement.GetProperty("resources").GetProperty("core");
+            var remaining = JsonInt(core, "remaining");
+            var limit = JsonInt(core, "limit");
+            var resetUnix = JsonLong(core, "reset") ?? throw new JsonException("GitHub did not include the quota reset time.");
+            var reset = DateTimeOffset.FromUnixTimeSeconds(resetUnix).ToLocalTime();
+
+            if (!string.Equals(_account, expectedAccount, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("The active account changed during refresh. Discarded the earlier account's results.");
+            var name = string.IsNullOrWhiteSpace(displayName) ? login : $"{displayName} (@{login})";
+            var repoSummary = privateRepos is null
+                ? $"{publicRepos?.ToString() ?? "Unknown"} public repositories; private totals unavailable to this token."
+                : $"{publicRepos?.ToString() ?? "Unknown"} public + {privateRepos.Value:N0} private repositories.";
+            var storageSummary = diskUsage is null ? "Storage usage unavailable." : $"GitHub reports {diskUsage.Value:N0} KB of account repository storage.";
+            AccountOverviewStatus.Text = $"{name} · {userType ?? "GitHub account"}\n{repoSummary} {storageSummary}\n{orgCount} organization memberships{orgNote}.\nCore API quota: {remaining:N0}/{limit:N0} requests remain; resets {reset:g}.\nRefreshed {DateTimeOffset.Now:g}.";
+        }
+        catch (Exception ex)
+        {
+            AccountOverviewStatus.Text = "Account overview could not be refreshed. " + SafeMessage(ex);
+        }
+        finally
+        {
+            RefreshAccountOverviewButton.IsEnabled = true;
+        }
+    }
+
+    private static string? JsonString(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+
+    private static int? JsonInt(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var value) && value.TryGetInt32(out var number) ? number : null;
+
+    private static long? JsonLong(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var value) && value.TryGetInt64(out var number) ? number : null;
+
     private void LockAccount_Click(object sender, RoutedEventArgs e)
     {
         SaveSettings();
