@@ -52,7 +52,7 @@ This source branch adds focused local workflow tools to the Windows client. It i
 
 ## Next implementation candidates
 
-Prioritize upload policy profiles, an issue/PR template manager, and a read-only Actions monitor. Keep workflow reruns, revert operations, asset deletion, and any unattended publication behind explicit review because they change remote state.
+Prioritize a read-only Actions monitor, tag manager, and workflow-file editor. Keep workflow reruns, revert operations, asset deletion, and any unattended publication behind explicit review because they change remote state.
 
 ## Verification boundary
 
