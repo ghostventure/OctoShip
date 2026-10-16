@@ -2,6 +2,8 @@
 from pathlib import Path
 from dataclasses import asdict
 import json
+import os
+import subprocess
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import webbrowser
@@ -14,6 +16,7 @@ from . import project_audit
 from . import release_audit
 from . import workspace_audit
 from . import project_recipes
+from . import editor_workspace as editorflow
 
 
 def field(parent, label, value='', row=0):
@@ -43,9 +46,10 @@ class ToolsPanel:
         self._sort_reverse = {}
         self.tabs = ttk.Notebook(parent)
         self.tabs.pack(fill='both', expand=True)
-        compare, branches, pulls, releases, security, local_git, project, artifacts, workspace, recipes = [ttk.Frame(self.tabs, padding=16) for _ in range(10)]
-        for tab, name in zip((compare, branches, pulls, releases, security, local_git, project, artifacts, workspace, recipes), ('Compare', 'Branches', 'Pulls', 'Releases', 'Alerts', 'Local Git', 'Project', 'Artifacts', 'Workspace', 'Recipes')):
+        compare, branches, pulls, releases, security, local_git, project, artifacts, workspace, recipes, editors = [ttk.Frame(self.tabs, padding=16) for _ in range(11)]
+        for tab, name in zip((compare, branches, pulls, releases, security, local_git, project, artifacts, workspace, recipes, editors), ('Compare', 'Branches', 'Pulls', 'Releases', 'Alerts', 'Local Git', 'Project', 'Artifacts', 'Workspace', 'Recipes', 'Editors')):
             self.tabs.add(tab, text=name)
+        self._build_editor_panel(editors)
         ttk.Label(compare, text='Compare local bytes against one fixed GitHub commit. This does not change either folder.').pack(anchor='w')
         form = ttk.Frame(compare); form.pack(fill='x', pady=8)
         self.local = field(form, 'Local folder', str(Path.home()), 0)
@@ -226,6 +230,349 @@ class ToolsPanel:
         ttk.Label(recipes, textvariable=self.recipe_status, wraplength=850).pack(anchor='w', pady=6)
         self.recipe_preview = text_box(recipes, 18)
         self.recipe_preview.configure(state='disabled')
+
+    def _build_editor_panel(self, parent):
+        canvas = tk.Canvas(parent, highlightthickness=0, borderwidth=0)
+        scroll = ttk.Scrollbar(parent, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=scroll.set)
+        canvas.pack(side='left', fill='both', expand=True)
+        scroll.pack(side='right', fill='y')
+        content = ttk.Frame(canvas, padding=(4, 4))
+        content_id = canvas.create_window((0, 0), window=content, anchor='nw')
+        content.bind('<Configure>', lambda _event: canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.bind('<Configure>', lambda event: canvas.itemconfigure(content_id, width=event.width))
+        canvas.bind('<MouseWheel>', lambda event: canvas.yview_scroll(int(-event.delta / 120), 'units'))
+        canvas.bind('<Button-4>', lambda _event: canvas.yview_scroll(-1, 'units'))
+        canvas.bind('<Button-5>', lambda _event: canvas.yview_scroll(1, 'units'))
+        parent = content
+        ttk.Label(parent, text='Editor profiles, accessibility controls, and workspace context are local. CLI actions are launched without a shell.').pack(anchor='w')
+        row = ttk.Frame(parent); row.pack(fill='x', pady=8)
+        ttk.Label(row, text='Editor').pack(side='left')
+        self.editor_id = tk.StringVar(value='code')
+        ttk.Combobox(row, textvariable=self.editor_id, values=tuple(editorflow.EDITORS), state='readonly', width=18).pack(side='left', padx=8)
+        ttk.Button(row, text='Detect installed editors', command=self.detect_editors).pack(side='left')
+        workspace_row = ttk.Frame(parent); workspace_row.pack(fill='x', pady=4)
+        self.editor_workspace_root = field(workspace_row, 'Workspace folder', str(Path.home()), 0)
+        data_dir = ttk.Frame(parent); data_dir.pack(fill='x', pady=(0, 6))
+        self.editor_data_root = tk.StringVar(value=str(Path.home() / '.local/share/octoship/editor-data'))
+        ttk.Label(data_dir, text='Isolated editor data/extensions folder').pack(side='left')
+        ttk.Entry(data_dir, textvariable=self.editor_data_root).pack(side='left', fill='x', expand=True, padx=8)
+        ttk.Button(data_dir, text='Choose existing folder…', command=self.choose_editor_data_root).pack(side='left')
+        actions = ttk.Frame(parent); actions.pack(fill='x', pady=4)
+        self.editor_action = tk.StringVar(value='open')
+        action_names = editorflow.EDITOR_COMMAND_FEATURES
+        ttk.Label(actions, text='Editor action').pack(side='left')
+        ttk.Combobox(actions, textvariable=self.editor_action, values=action_names, state='readonly', width=27).pack(side='left', padx=8)
+        self.editor_extension = tk.StringVar()
+        ttk.Label(actions, text='Extension ID').pack(side='left')
+        ttk.Entry(actions, textvariable=self.editor_extension, width=24).pack(side='left', padx=4)
+        self.editor_action_value = tk.StringVar()
+        ttk.Label(actions, text='Profile / value').pack(side='left')
+        ttk.Entry(actions, textvariable=self.editor_action_value, width=20).pack(side='left', padx=4)
+        self.editor_action_paths = []
+        ttk.Button(actions, text='Choose file(s)…', command=self.choose_editor_action_paths).pack(side='left', padx=4)
+        ttk.Button(actions, text='Run action…', command=self.run_editor_action).pack(side='left', padx=4)
+        profiles = ttk.Frame(parent); profiles.pack(fill='x', pady=4)
+        self.editor_profile = tk.StringVar()
+        ttk.Label(profiles, text='Local profile').pack(side='left')
+        ttk.Entry(profiles, textvariable=self.editor_profile, width=24).pack(side='left', padx=8)
+        ttk.Button(profiles, text='Save current', command=self.save_editor_profile).pack(side='left')
+        ttk.Button(profiles, text='List', command=self.list_editor_profiles).pack(side='left', padx=4)
+        ttk.Button(profiles, text='Preview', command=self.preview_editor_profile).pack(side='left')
+        ttk.Button(profiles, text='Activate…', command=self.activate_editor_profile).pack(side='left', padx=4)
+        ttk.Button(profiles, text='Remove…', command=self.remove_editor_profile).pack(side='left')
+        local = ttk.Frame(parent); local.pack(fill='x', pady=4)
+        ttk.Button(local, text='Inspect workspace metadata', command=self.inspect_editor_workspace).pack(side='left')
+        ttk.Button(local, text='Back up settings', command=self.backup_editor_settings).pack(side='left', padx=6)
+        ttk.Button(local, text='Restore settings backup…', command=self.restore_editor_settings).pack(side='left')
+        ttk.Button(local, text='Export portable settings…', command=self.export_editor_snapshot).pack(side='left', padx=6)
+        ttk.Button(local, text='Import portable settings…', command=self.import_editor_snapshot).pack(side='left')
+        ttk.Button(local, text='Preview accessibility preset', command=self.preview_editor_accessibility).pack(side='left')
+        ttk.Button(local, text='Apply accessibility preset…', command=self.apply_editor_accessibility).pack(side='left', padx=6)
+        configs = ttk.Frame(parent); configs.pack(fill='x', pady=4)
+        ttk.Label(configs, text='Workspace config').pack(side='left')
+        self.workspace_config_kind = tk.StringVar(value='settings')
+        ttk.Combobox(configs, textvariable=self.workspace_config_kind, values=tuple(editorflow.WORKSPACE_CONFIGS) + ('code-workspace',), state='readonly', width=20).pack(side='left', padx=8)
+        ttk.Button(configs, text='Validate selected config', command=self.validate_editor_workspace_config).pack(side='left')
+        ttk.Button(configs, text='Open config in editor', command=self.open_editor_workspace_config).pack(side='left', padx=6)
+        shell = ttk.Frame(parent); shell.pack(fill='x', pady=4)
+        ttk.Button(shell, text='Detect terminal shells', command=self.detect_terminal_shells).pack(side='left')
+        self.terminal_shell = tk.StringVar()
+        self.terminal_shell_picker = ttk.Combobox(shell, textvariable=self.terminal_shell, state='readonly', width=24)
+        self.terminal_shell_picker.pack(side='left', padx=8)
+        self.terminal_default = tk.BooleanVar(value=False)
+        ttk.Checkbutton(shell, text='Set as default', variable=self.terminal_default).pack(side='left')
+        ttk.Button(shell, text='Preview terminal profile', command=self.preview_terminal_profile).pack(side='left', padx=6)
+        ttk.Button(shell, text='Add profile…', command=self.add_terminal_profile).pack(side='left')
+        ttk.Button(shell, text='Remove profile…', command=self.remove_terminal_profile).pack(side='left', padx=6)
+        ttk.Button(shell, text='Set default…', command=self.set_default_terminal).pack(side='left')
+        extensions = ttk.Frame(parent); extensions.pack(fill='x', pady=4)
+        ttk.Button(extensions, text='Compare workspace recommendations', command=self.compare_editor_recommendations).pack(side='left')
+        self.recommended_extension = tk.StringVar()
+        ttk.Entry(extensions, textvariable=self.recommended_extension, width=30).pack(side='left', padx=6)
+        ttk.Button(extensions, text='Install recommended…', command=self.install_editor_recommendation).pack(side='left')
+        ttk.Label(parent, text='Accessibility settings available: ' + ', '.join(x.label for x in editorflow.ACCESSIBILITY_OPTIONS), wraplength=880).pack(anchor='w', pady=5)
+        accessibility = ttk.Frame(parent); accessibility.pack(fill='x', pady=3)
+        self.editor_accessibility_key = tk.StringVar(value=editorflow.ACCESSIBILITY_OPTIONS[0].key)
+        ttk.Label(accessibility, text='Single setting').pack(side='left')
+        ttk.Combobox(accessibility, textvariable=self.editor_accessibility_key, values=tuple(x.key for x in editorflow.ACCESSIBILITY_OPTIONS), state='readonly', width=42).pack(side='left', padx=8)
+        ttk.Button(accessibility, text='Enable setting', command=lambda: self.set_editor_accessibility(True)).pack(side='left')
+        ttk.Button(accessibility, text='Reset setting', command=lambda: self.set_editor_accessibility(False)).pack(side='left', padx=5)
+        self.editor_status = tk.StringVar(value='No editor action has run.')
+        ttk.Label(parent, textvariable=self.editor_status, wraplength=880).pack(anchor='w', pady=4)
+        self.editor_report = text_box(parent, 12)
+
+    def _editor_report(self, value):
+        self.editor_report.configure(state='normal'); self.editor_report.delete('1.0','end')
+        self.editor_report.insert('1.0', value if isinstance(value, str) else json.dumps(value, indent=2, ensure_ascii=False, default=str))
+        self.editor_report.configure(state='disabled')
+
+    def detect_editors(self):
+        found = editorflow.installed_editors()
+        self.editor_status.set(f'Detected {len(found)} installed editor(s).')
+        self._editor_report(found)
+
+    def choose_editor_data_root(self):
+        folder = filedialog.askdirectory(parent=self.app.root, initialdir=str(Path(self.editor_data_root.get()).expanduser().parent))
+        if folder: self.editor_data_root.set(folder)
+
+    def run_editor_action(self):
+        action = self.editor_action.get(); path = self.editor_workspace_root.get().strip()
+        if action in ('new-instance', 'extensions-dir'):
+            path = self.editor_data_root.get().strip()
+        folder_actions = ('open','new-window','reuse-window','wait','disable-gpu','log-startup','add-folder','new-instance','extensions-dir','skip-recent','profile-create','profile-open')
+        paths = [path] if path and Path(path).exists() and action in folder_actions else []
+        if action in ('diff','merge','goto'): paths = list(self.editor_action_paths)
+        extension = self.editor_extension.get().strip() or None
+        extra = (self.editor_action_value.get().strip(),) if self.editor_action_value.get().strip() else ()
+        if action in ('install-extension','uninstall-extension','extensions-update') and not messagebox.askyesno('Confirm extension change', f'{action.replace("-", " ").title()} {extension or "the selected extension set"}? This contacts the editor extension service.', parent=self.app.root): return
+        try:
+            if action == 'extensions-list':
+                profile = self.editor_action_value.get().strip() or None
+                self.app.run('Reading installed editor extensions…', lambda: editorflow.extension_list(self.editor_id.get(), profile, False), lambda result: self._show_editor_cli_report(action, '\n'.join(result)))
+                return
+            if action == 'extensions-list-versions':
+                profile = self.editor_action_value.get().strip() or None
+                self.app.run('Reading installed editor extension versions…', lambda: editorflow.extension_list(self.editor_id.get(), profile, True), lambda result: self._show_editor_cli_report(action, '\n'.join(result)))
+                return
+            if action in ('install-extension','uninstall-extension'):
+                profile = self.editor_action_value.get().strip() or None
+                if action == 'install-extension' and extension and extension.lower().endswith('.vsix'):
+                    argv = editorflow.install_local_vsix(extension, self.editor_id.get(), profile)
+                else:
+                    argv = editorflow.extension_cli_plan(action, extension, self.editor_id.get(), profile)
+                process = subprocess.Popen(argv, shell=False, close_fds=True)
+                self.editor_status.set(f'Started {action} (process {process.pid}).')
+                return
+            if action in ('profile-list','show-versions','show-help','status'):
+                self.app.run(f'Reading editor {action}…', lambda: editorflow.editor_cli_report(self.editor_id.get(), action), lambda result: self._show_editor_cli_report(action, result))
+                return
+            process = editorflow.run_editor_action(self.editor_id.get(), action, paths=paths, extension=extension, extra=extra)
+            self.editor_status.set(f'Started {action} for {self.editor_id.get()} (process {process.pid}).')
+            self._editor_report({'command_started': action, 'editor': self.editor_id.get(), 'pid': process.pid})
+        except Exception as exc: messagebox.showerror('Editor action failed', str(exc), parent=self.app.root)
+
+    def choose_editor_action_paths(self):
+        action = self.editor_action.get()
+        if action not in ('diff', 'merge', 'goto'):
+            self.editor_status.set('Choose Diff, Merge, or Go-to-line to pick action files.')
+            return
+        selected = filedialog.askopenfilenames(parent=self.app.root, title=f'Choose file(s) for {action}', initialdir=self.editor_workspace_root.get())
+        if selected:
+            self.editor_action_paths = list(selected)
+            required = {'diff': 2, 'merge': 4, 'goto': 1}[action]
+            self.editor_status.set(f'Selected {len(selected)} file(s); {action} requires {required}.')
+
+    def _show_editor_cli_report(self, action, output):
+        self.editor_status.set(f'Editor {action} result.')
+        self._editor_report(output or '(No results.)')
+
+    def save_editor_profile(self):
+        try:
+            path = editorflow.save_profile(self.editor_profile.get(), self.editor_id.get())
+            self.editor_status.set('Saved settings profile: ' + str(path))
+        except Exception as exc: messagebox.showerror('Profile save failed', str(exc), parent=self.app.root)
+
+    def list_editor_profiles(self):
+        rows = [p.name for p in editorflow.list_profiles()]
+        self.editor_status.set(f'{len(rows)} local profile(s).'); self._editor_report(rows)
+
+    def preview_editor_profile(self):
+        try:
+            settings, diff = editorflow.preview_profile(self.editor_profile.get(), self.editor_id.get())
+            self.editor_status.set('Profile preview only; settings have not changed.'); self._editor_report(diff or json.dumps(settings, indent=2))
+        except Exception as exc: messagebox.showerror('Profile preview failed', str(exc), parent=self.app.root)
+
+    def activate_editor_profile(self):
+        if not messagebox.askyesno('Activate editor profile', 'Replace this editor’s current settings with the selected local profile?', parent=self.app.root): return
+        try:
+            path = editorflow.activate_profile(self.editor_profile.get(), self.editor_id.get())
+            self.editor_status.set('Activated profile. Current settings path: ' + str(path))
+        except Exception as exc: messagebox.showerror('Profile activation failed', str(exc), parent=self.app.root)
+
+    def remove_editor_profile(self):
+        if not messagebox.askyesno('Remove local profile', 'Permanently remove the selected local settings snapshot?', parent=self.app.root): return
+        try: self.editor_status.set('Removed: ' + str(editorflow.remove_profile(self.editor_profile.get())))
+        except Exception as exc: messagebox.showerror('Profile removal failed', str(exc), parent=self.app.root)
+
+    def inspect_editor_workspace(self):
+        try:
+            data = editorflow.workspace_metadata(self.editor_workspace_root.get())
+            self.editor_status.set(f'Inspected {len(data)} workspace editor file(s); none were executed.')
+            self._editor_report(data)
+        except Exception as exc: messagebox.showerror('Workspace inspection failed', str(exc), parent=self.app.root)
+
+    def validate_editor_workspace_config(self):
+        try:
+            report = editorflow.validate_workspace_config(self.editor_workspace_root.get(), self.workspace_config_kind.get())
+            self.editor_status.set('Workspace config is valid; it was read without executing tasks.')
+            self._editor_report(report)
+        except Exception as exc: messagebox.showerror('Workspace config validation failed', str(exc), parent=self.app.root)
+
+    def open_editor_workspace_config(self):
+        try:
+            process = editorflow.open_workspace_config(self.editor_workspace_root.get(), self.workspace_config_kind.get(), self.editor_id.get())
+            self.editor_status.set(f'Opened workspace config in {self.editor_id.get()} (process {process.pid}).')
+        except Exception as exc: messagebox.showerror('Could not open workspace config', str(exc), parent=self.app.root)
+
+    def backup_editor_settings(self):
+        try: self.editor_status.set('Settings backup saved: ' + str(editorflow.backup_settings(self.editor_id.get())))
+        except Exception as exc: messagebox.showerror('Settings backup failed', str(exc), parent=self.app.root)
+
+    def restore_editor_settings(self):
+        path = filedialog.askopenfilename(parent=self.app.root, title='Choose settings backup', filetypes=[('JSON settings', '*.json'), ('All files', '*')])
+        if not path: return
+        if not messagebox.askyesno('Restore editor settings', 'Replace current editor settings with this backup?', parent=self.app.root): return
+        try: self.editor_status.set('Restored settings: ' + str(editorflow.restore_settings(self.editor_id.get(), path)))
+        except Exception as exc: messagebox.showerror('Settings restore failed', str(exc), parent=self.app.root)
+
+    def export_editor_snapshot(self):
+        path = filedialog.asksaveasfilename(parent=self.app.root, title='Export portable editor settings', defaultextension='.json', filetypes=[('OctoShip editor settings', '*.json')])
+        if not path: return
+        try:
+            snapshot = editorflow.settings_snapshot(self.editor_id.get())
+            target = Path(path)
+            fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+                json.dump(snapshot, stream, ensure_ascii=False, indent=2); stream.write('\n')
+            self.editor_status.set('Exported credential-filtered settings: ' + str(target))
+        except Exception as exc: messagebox.showerror('Settings export failed', str(exc), parent=self.app.root)
+
+    def import_editor_snapshot(self):
+        path = filedialog.askopenfilename(parent=self.app.root, title='Choose portable editor settings', filetypes=[('OctoShip editor settings', '*.json'), ('All files', '*')])
+        if not path: return
+        try:
+            with open(path, 'r', encoding='utf-8') as stream: snapshot = json.load(stream)
+            if not isinstance(snapshot, dict) or not isinstance(snapshot.get('files'), dict): raise ValueError('File is not an OctoShip settings export.')
+            if not messagebox.askyesno('Import portable settings', f'Import {len(snapshot["files"])} editor configuration file(s)? Existing files with matching names will be replaced.', parent=self.app.root): return
+            imported = editorflow.import_settings_snapshot(self.editor_id.get(), snapshot)
+            self.editor_status.set('Imported files: ' + ', '.join(imported))
+        except Exception as exc: messagebox.showerror('Settings import failed', str(exc), parent=self.app.root)
+
+    def preview_editor_accessibility(self):
+        try:
+            _, _, diff = editorflow.accessibility_preview(self.editor_id.get())
+            self.editor_status.set('Accessibility preset preview only; settings have not changed.')
+            self._editor_report(diff or 'All supported accessibility settings are already enabled.')
+        except Exception as exc: messagebox.showerror('Accessibility preview failed', str(exc), parent=self.app.root)
+
+    def apply_editor_accessibility(self):
+        if not messagebox.askyesno('Apply accessibility settings', 'Apply the listed settings to this editor? Existing unrelated settings are preserved.', parent=self.app.root): return
+        try: self.editor_status.set('Applied accessibility preferences: ' + str(editorflow.apply_accessibility_preset(self.editor_id.get())))
+        except Exception as exc: messagebox.showerror('Accessibility update failed', str(exc), parent=self.app.root)
+
+    def set_editor_accessibility(self, enabled):
+        try:
+            path = editorflow.set_accessibility_option(self.editor_id.get(), self.editor_accessibility_key.get(), enabled)
+            self.editor_status.set(('Enabled ' if enabled else 'Reset ') + self.editor_accessibility_key.get() + ': ' + str(path))
+        except Exception as exc: messagebox.showerror('Accessibility setting failed', str(exc), parent=self.app.root)
+
+    def detect_terminal_shells(self):
+        profiles = editorflow.available_terminal_profiles()
+        self.terminal_profiles = {row['name']: row for row in profiles}
+        self.terminal_shell_picker.configure(values=tuple(self.terminal_profiles))
+        if profiles and self.terminal_shell.get() not in self.terminal_profiles:
+            self.terminal_shell.set(profiles[0]['name'])
+        self.editor_status.set(f'Detected {len(profiles)} supported terminal shell(s).')
+        self._editor_report(profiles)
+
+    def preview_terminal_profile(self):
+        profile = getattr(self, 'terminal_profiles', {}).get(self.terminal_shell.get())
+        if not profile:
+            self.editor_status.set('Detect installed terminal shells and select one first.')
+            return
+        try:
+            _, settings = editorflow.read_settings(self.editor_id.get())
+            preview = dict(settings)
+            editorflow.add_terminal_profile(preview, profile, self.terminal_default.get())
+            self.editor_status.set('Terminal profile preview only; settings have not changed.')
+            self._editor_report(editorflow.settings_diff(settings, preview))
+        except Exception as exc: messagebox.showerror('Terminal profile preview failed', str(exc), parent=self.app.root)
+
+    def add_terminal_profile(self):
+        profile = getattr(self, 'terminal_profiles', {}).get(self.terminal_shell.get())
+        if not profile:
+            self.editor_status.set('Detect installed terminal shells and select one first.')
+            return
+        if not messagebox.askyesno('Add terminal profile', 'Add this detected shell to editor settings?' + (' Set it as the default terminal?' if self.terminal_default.get() else ''), parent=self.app.root): return
+        try:
+            _, settings = editorflow.read_settings(self.editor_id.get())
+            editorflow.add_terminal_profile(settings, profile, self.terminal_default.get())
+            path = editorflow.write_settings(self.editor_id.get(), settings)
+            self.editor_status.set('Added terminal profile: ' + str(path))
+        except Exception as exc: messagebox.showerror('Terminal profile update failed', str(exc), parent=self.app.root)
+
+    def remove_terminal_profile(self):
+        try:
+            _, settings = editorflow.read_settings(self.editor_id.get())
+            profiles = settings.get('terminal.integrated.profiles.linux', {})
+            if not isinstance(profiles, dict) or not profiles:
+                self.editor_status.set('No terminal profiles are configured.')
+                return
+            name = self.terminal_shell.get()
+            if name not in profiles:
+                name = next(iter(profiles))
+            if not messagebox.askyesno('Remove terminal profile', f'Remove {name} from editor settings?', parent=self.app.root): return
+            editorflow.remove_terminal_profile(settings, name)
+            path = editorflow.write_settings(self.editor_id.get(), settings)
+            self.editor_status.set('Removed terminal profile: ' + str(path))
+        except Exception as exc: messagebox.showerror('Terminal profile removal failed', str(exc), parent=self.app.root)
+
+    def set_default_terminal(self):
+        try:
+            _, settings = editorflow.read_settings(self.editor_id.get())
+            profiles = settings.get('terminal.integrated.profiles.linux', {})
+            if not isinstance(profiles, dict) or not profiles:
+                self.editor_status.set('Add a terminal profile before setting a default.')
+                return
+            name = self.terminal_shell.get()
+            if name not in profiles:
+                name = next(iter(profiles))
+            if not messagebox.askyesno('Set default terminal', f'Use {name} for new integrated terminals?', parent=self.app.root): return
+            editorflow.set_default_terminal_profile(settings, name)
+            path = editorflow.write_settings(self.editor_id.get(), settings)
+            self.editor_status.set(f'Default terminal is now {name}: {path}')
+        except Exception as exc: messagebox.showerror('Default terminal update failed', str(exc), parent=self.app.root)
+
+    def compare_editor_recommendations(self):
+        root = self.editor_workspace_root.get()
+        profile = self.editor_action_value.get().strip() or None
+        def work():
+            installed = editorflow.extension_list(self.editor_id.get(), profile, False)
+            return editorflow.compare_workspace_extensions(root, installed)
+        self.app.run('Comparing workspace extension recommendations…', work,
+                     lambda result: (self.editor_status.set(f'{len(result["missing"])} recommended extension(s) are missing.'), self._editor_report(result)))
+
+    def install_editor_recommendation(self):
+        identifier = self.recommended_extension.get().strip()
+        if not identifier:
+            self.editor_status.set('Enter one exact recommendation ID first.')
+            return
+        if not messagebox.askyesno('Install recommended extension', f'Install {identifier} from the editor extension service?', parent=self.app.root): return
+        try:
+            process = editorflow.install_recommended_extension(self.editor_workspace_root.get(), identifier, self.editor_id.get(), self.editor_action_value.get().strip() or None)
+            self.editor_status.set(f'Started installation of {identifier} (process {process.pid}).')
+        except Exception as exc: messagebox.showerror('Could not install recommended extension', str(exc), parent=self.app.root)
 
     def choose_git_root(self):
         folder = filedialog.askdirectory(parent=self.app.root, initialdir=self.git_root.get())
