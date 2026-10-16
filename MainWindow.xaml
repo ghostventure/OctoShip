@@ -283,6 +283,11 @@
                                 <TextBox x:Name="CommitMessageBox" Margin="0" Text="Upload via OctoShip" MaxLength="250" />
                             </StackPanel>
                             </Grid>
+                            <DockPanel Margin="0,0,0,10">
+                                <Button DockPanel.Dock="Right" Content="Manage" Padding="8,5" Margin="6,0,0,0" Click="ManageUploadPolicies_Click" ToolTip="Create local include, exclude, and file-size constraints" />
+                                <TextBlock DockPanel.Dock="Left" Text="UPLOAD POLICY" Style="{DynamicResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox x:Name="UploadPolicyPicker" ToolTip="Choose local rules for the next single-file or reviewed folder-batch upload" SelectionChanged="UploadPolicyPicker_SelectionChanged" />
+                            </DockPanel>
                             <TabControl x:Name="UploadModeTabs">
                                 <TabItem Header="Selected file">
                                     <StackPanel>
@@ -427,6 +432,7 @@
                                     <Button Content="Browse repositories and folders" HorizontalAlignment="Left" Click="RepositoryTools_Click" />
                                     <Button x:Name="ExportRepositoryArchiveButton" Content="Export repository ZIP" HorizontalAlignment="Left" Margin="0,4,0,0" Click="ExportRepositoryArchive_Click" ToolTip="Download a ZIP of the selected repository branch; does not extract files" />
                                     <Button x:Name="CancelRepositoryArchiveButton" Content="Cancel archive download" HorizontalAlignment="Left" Margin="0,4,0,0" IsEnabled="False" Click="CancelRepositoryArchive_Click" />
+                                    <Button Content="Manage local issue / PR templates" HorizontalAlignment="Left" Margin="0,4,0,0" Click="ManageRepositoryTemplates_Click" ToolTip="Edit Markdown templates in the selected local project's .github folder" />
                                     <Button Content="Prepare a release" HorizontalAlignment="Left" Margin="0,4,0,0" Click="ReleasePublisher_Click" />
                                     <TextBlock x:Name="ToolsAccountStatus" Text="Account status: checking" Foreground="#AAB8CB" FontSize="11" Margin="0,12,0,0" />
                                 </StackPanel>

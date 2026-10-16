@@ -45,6 +45,8 @@ public static class OctoCatPreferencesService
         RepositoryGroups = value.PrivacyMode ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) : (value.RepositoryGroups ?? new Dictionary<string, string>())
             .Where(pair => IsRepository(pair.Key) && IsSafeGroupName(pair.Value)).Take(200)
             .ToDictionary(pair => pair.Key.Trim(), pair => pair.Value.Trim(), StringComparer.OrdinalIgnoreCase),
+        UploadPolicyProfiles = UploadPolicyProfileService.Normalize(value.UploadPolicyProfiles),
+        ActiveUploadPolicyProfile = NormalizeActiveUploadPolicy(value.ActiveUploadPolicyProfile, value.UploadPolicyProfiles),
         DefaultUploadFolders = (value.DefaultUploadFolders ?? new Dictionary<string, string>())
             .Where(pair => IsRepository(pair.Key) && IsSafeRepoFolder(pair.Value))
             .Take(100).ToDictionary(pair => pair.Key, pair => pair.Value.Trim('/'), StringComparer.OrdinalIgnoreCase),
@@ -93,6 +95,9 @@ public static class OctoCatPreferencesService
     }
     private static bool IsSafeRepoFolder(string value) => value is not null && value.Length <= 1024 && !value.StartsWith('/') && !value.Contains('\\') && !value.Any(char.IsControl) && (value.Length == 0 || value.Split('/').All(segment => SafeSegment(segment)));
     private static bool IsSafeGroupName(string value) => !string.IsNullOrWhiteSpace(value) && value.Trim().Length <= 60 && !value.Any(char.IsControl);
+    private static string? NormalizeActiveUploadPolicy(string? active, IEnumerable<UploadPolicyProfile>? profiles) =>
+        string.IsNullOrWhiteSpace(active) ? null : UploadPolicyProfileService.Normalize(profiles)
+            .FirstOrDefault(profile => string.Equals(profile.Name, active.Trim(), StringComparison.OrdinalIgnoreCase))?.Name;
     private static bool SafeSegment(string segment) => segment.Length is > 0 and <= 100 && segment is not "." and not ".." && segment.All(c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.');
     private static void WriteAtomic(string path, string content)
     {
@@ -166,6 +171,8 @@ public sealed record OctoCatPreferences
     public IReadOnlyList<string> RecentRepositories { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> FavoriteRepositories { get; init; } = Array.Empty<string>();
     public Dictionary<string, string> RepositoryGroups { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyList<UploadPolicyProfile> UploadPolicyProfiles { get; init; } = Array.Empty<UploadPolicyProfile>();
+    public string? ActiveUploadPolicyProfile { get; init; }
     public Dictionary<string, string> DefaultUploadFolders { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public bool PrivacyMode { get; init; }
     public OctoCatUpdateChannel UpdateChannel { get; init; } = OctoCatUpdateChannel.Stable;

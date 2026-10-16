@@ -10,6 +10,8 @@ This source branch adds focused local workflow tools to the Windows client. It i
 - **Activity-log export.** Export saves the current in-memory transfer log, bounded to the app's existing 400-line window, to a user-selected UTF-8 text file. Common GitHub token patterns are redacted and the file warns that paths, repository names, and file names can be present. Review the export before sharing. The export is not a persistent or complete audit trail.
 - **Duplicate-file finder.** Scan a selected project folder for exact byte-identical files using a same-size prefilter and SHA-256. It skips linked folders/files and common generated/dependency folders, never deletes or edits files, and reports full local paths only in the result view or an explicitly saved report. The bounded scan visits up to 200,000 entries, considers up to 20,000 files, hashes files up to 256 MiB, and reads at most 1 GiB total; reaching any limit is reported as an incomplete scan.
 - **Repository archive export.** Save a ZIP archive of the selected GitHub repository branch through GitHub's archive endpoint. OctoShip streams to a temporary file, caps downloads at 1 GiB, supports cancellation, checks the ZIP signature, and moves the completed archive to the user-selected path. It does not extract files or mutate the repository. The result is the source archive returned by GitHub, not a release asset or reproducible build.
+- **Upload policy profiles.** Create credential-free local named profiles with relative destination include/exclude globs and a per-file size cap (up to the app's 50 MiB upload limit). A blank include list allows all destinations; exclusions win. Patterns use OctoShip's existing `*`/`?` matching on the destination path and filename. Select a profile in the main upload panel; no profile is active by default. Single-file review blocks a mismatch; reviewed folder batches offer to continue with only allowed files and leave blocked files queued. Rules are checked again at upload time against the selected destination and captured file size. Profiles are local preferences and do not replace GitHub rules or permissions. The separate Ship project workbench is not profile-aware yet.
+- **Local issue and pull-request template manager.** Browse a local project, list/edit existing Markdown templates, and create new issue/PR Markdown templates under `.github`. It skips linked paths and files above 1 MiB, saves atomically, and never calls GitHub. YAML issue forms, deletion, previews, and remote template management remain deferred. Review the working-tree diff and use the normal upload workflow if you later want to publish the files.
 
 ## Status of the other requested ideas
 
@@ -24,7 +26,7 @@ This source branch adds focused local workflow tools to the Windows client. It i
 | Command palette | Implemented in this branch. |
 | Custom keyboard shortcuts | Fixed navigation shortcuts added; shortcut remapping and conflict UI deferred. |
 | Shipment presets | Named destination presets and shipment recipes exist; typed, project-variable shipment presets are not implemented. |
-| Upload policy profiles | Deferred. |
+| Upload policy profiles | Implemented in this branch for the main single-file and reviewed folder-batch upload flows. The separate Ship project workbench is not yet profile-aware. |
 | Ignore-file editor | Workbench exclusion rules exist; a standalone `.gitignore` editor and impact report are deferred. |
 | Large-file warnings | Existing file-size limits and large-file/LFS guidance; no new change in this branch. |
 | Secret detection | Existing bounded, redacted content scanner; heuristic and size/binary limits remain. |
@@ -37,8 +39,8 @@ This source branch adds focused local workflow tools to the Windows client. It i
 | Batch revert helper | Deferred. |
 | Repository settings viewer | Existing account/repository diagnostics expose selected metadata; broader settings coverage is deferred. |
 | Team access viewer | Deferred; current access diagnostics do not enumerate all collaborators. |
-| Issue templates manager | Deferred. |
-| PR template manager | Deferred. |
+| Issue templates manager | Local Markdown create/edit is implemented in this branch; YAML forms, deletion, and remote management are deferred. |
+| PR template manager | Local Markdown create/edit is implemented in this branch; deletion and remote management are deferred. |
 | Workflow file editor | Deferred. |
 | Workflow rerun controls | Deferred. |
 | Release asset manager | Existing draft release and reviewed asset upload/recovery; listing/deleting/replacing arbitrary assets is deferred. |

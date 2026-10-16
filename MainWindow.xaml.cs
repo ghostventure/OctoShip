@@ -25,6 +25,7 @@ namespace FileToGitHub;
 public partial class MainWindow : Window
 {
     private const long MaxUploadBytes = 50L * 1024 * 1024;
+    private const string NoUploadPolicyOption = "— No profile —";
     private const string DefaultUpdateRepository = "ghostventure/OctoShip";
     private static readonly Regex RepositoryPattern = new("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", RegexOptions.Compiled);
     private readonly HttpClient _http;
@@ -49,6 +50,7 @@ public partial class MainWindow : Window
     private bool _requireWindowsAuthentication = true;
     private string? _preferredAccount;
     private bool _settingsLoaded;
+    private bool _loadingPolicyPicker;
     private string _updateRepository = DefaultUpdateRepository;
     private bool _checkingForUpdates;
     private string? _pendingUpdateScript;
@@ -397,6 +399,7 @@ public partial class MainWindow : Window
         if (_namedPresets.Count == 0) _namedPresets = _destinationHistory.Select(value => new DestinationPreset(value, value)).ToList();
         SearchBox.ItemsSource = _searchHistory;
         DestinationPicker.ItemsSource = _namedPresets.Select(x => x.Label == x.Value ? x.Value : x.Label + "  ·  " + x.Value).ToList();
+        RefreshUploadPolicyPicker();
         if (!_appPreferences.PrivacyMode && !string.IsNullOrWhiteSpace(saved.LastFolder) && Directory.Exists(saved.LastFolder)) FolderBox.Text = saved.LastFolder;
         RestoreWorkspaceSettings();
         AutoConnectCheckBox.IsChecked = _autoConnect;
@@ -1123,6 +1126,8 @@ public partial class MainWindow : Window
             new("export", "Export activity log", "Save the current log as a text file", "Ctrl+Shift+E"),
             new("duplicates", "Find duplicate files", "Hash local files and report identical content", ""),
             new("archive", "Export repository ZIP", "Download a selected branch archive without extracting it", ""),
+            new("policies", "Manage upload policy profiles", "Save local include, exclude, and per-file size limits", ""),
+            new("templates", "Manage local issue / PR templates", "Edit Markdown templates in the selected project", ""),
             new("search", "Focus file search", "Move keyboard focus to the file search field", ""),
             new("folder", "Choose project folder", "Browse to a local folder", "")
         };
@@ -1145,6 +1150,8 @@ public partial class MainWindow : Window
             case "export": ExportActivity_Click(this, new RoutedEventArgs()); break;
             case "duplicates": FindDuplicates_Click(this, new RoutedEventArgs()); break;
             case "archive": ExportRepositoryArchive_Click(this, new RoutedEventArgs()); break;
+            case "policies": ManageUploadPolicies_Click(this, new RoutedEventArgs()); break;
+            case "templates": ManageRepositoryTemplates_Click(this, new RoutedEventArgs()); break;
             case "search": BackToSearch_Click(this, new RoutedEventArgs()); SearchBox.Focus(); break;
             case "folder": Browse_Click(this, new RoutedEventArgs()); break;
             default:
@@ -1210,6 +1217,63 @@ public partial class MainWindow : Window
             return;
         }
         new DuplicateFileFinderWindow(folder) { Owner = this }.ShowDialog();
+    }
+
+    private void ManageUploadPolicies_Click(object sender, RoutedEventArgs e)
+    {
+        var editor = new UploadPolicyProfilesWindow(_appPreferences.UploadPolicyProfiles) { Owner = this };
+        if (editor.ShowDialog() != true) return;
+        _appPreferences = OctoCatPreferencesService.Normalize(_appPreferences with { UploadPolicyProfiles = editor.Profiles });
+        SaveSettings(); RefreshUploadPolicyPicker();
+        SetStatus("Local upload policy profiles saved. Select one in the upload panel to enforce it during review.");
+    }
+
+    private void UploadPolicyPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_settingsLoaded || _loadingPolicyPicker) return;
+        var selected = UploadPolicyPicker.SelectedItem as string;
+        if (string.Equals(selected, NoUploadPolicyOption, StringComparison.Ordinal)) selected = null;
+        _appPreferences = _appPreferences with { ActiveUploadPolicyProfile = selected };
+        SaveSettings();
+        SetStatus(selected is null ? "No upload policy profile is active." : $"Upload profile '{selected}' is active for single-file and reviewed folder-batch uploads.");
+    }
+
+    private void RefreshUploadPolicyPicker()
+    {
+        if (UploadPolicyPicker is null) return;
+        _loadingPolicyPicker = true;
+        UploadPolicyPicker.ItemsSource = new[] { NoUploadPolicyOption }.Concat(_appPreferences.UploadPolicyProfiles.Select(profile => profile.Name)).ToArray();
+        UploadPolicyPicker.SelectedItem = _appPreferences.ActiveUploadPolicyProfile ?? NoUploadPolicyOption;
+        _loadingPolicyPicker = false;
+    }
+
+    private UploadPolicyProfile? ActiveUploadPolicy() => _appPreferences.UploadPolicyProfiles.FirstOrDefault(profile =>
+        string.Equals(profile.Name, _appPreferences.ActiveUploadPolicyProfile, StringComparison.OrdinalIgnoreCase));
+
+    private UploadQueueItem[]? ApplyUploadPolicyToBatch(UploadQueueItem[] items, UploadPolicyProfile? profile)
+    {
+        if (profile is null) return items;
+        var checkedItems = items.Select(item => (Item: item, Issue: UploadPolicyProfileService.Check(profile, item.DestinationPath, item.CapturedLength))).ToArray();
+        var blocked = checkedItems.Where(item => item.Issue is not null).ToArray();
+        if (blocked.Length == 0) return items;
+        var allowed = checkedItems.Where(item => item.Issue is null).Select(item => item.Item).ToArray();
+        if (allowed.Length == 0)
+        {
+            SetStatus($"Upload profile '{profile.Name}' blocks all {blocked.Length} queued file(s). Edit the paths or choose another profile.", true);
+            return null;
+        }
+        var details = string.Join("\n", blocked.Take(8).Select(item => $"{Path.GetFileName(item.Item.SourcePath)} → {item.Item.DestinationPath}: {item.Issue}"));
+        if (OctoShipDialog.Show(this,
+                $"Profile '{profile.Name}' blocks {blocked.Length} queued file(s). Continue review with the {allowed.Length} allowed file(s) only? Blocked files will remain queued.\n\n{details}{(blocked.Length > 8 ? "\n…" : "")}",
+                "Upload profile review", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return null;
+        SetStatus($"Continuing review with {allowed.Length} file(s) allowed by '{profile.Name}'. Blocked files remain queued.");
+        return allowed;
+    }
+
+    private void ManageRepositoryTemplates_Click(object sender, RoutedEventArgs e)
+    {
+        var folder = Directory.Exists(FolderBox.Text) ? FolderBox.Text : "";
+        new RepositoryTemplateManagerWindow(folder) { Owner = this }.ShowDialog();
     }
 
     private async void ExportRepositoryArchive_Click(object sender, RoutedEventArgs e)
@@ -1735,14 +1799,18 @@ public partial class MainWindow : Window
         if (branch.Length == 0 || branch.Length > 255 || branch.Any(char.IsControl)) { SetStatus("Enter a valid branch name.", true); return; }
         if (!IsSafePath(targetPath)) { SetStatus("Enter a repository path such as uploads/report.pdf.", true); return; }
         if (commitMessage.Length is < 1 or > 250) { SetStatus("Enter a commit message between 1 and 250 characters.", true); return; }
+        var uploadPolicy = ActiveUploadPolicy();
         try
         {
             if (selected.HasChangedOnDisk()) { SetStatus("This file changed since the search. Search again and review the current version before uploading.", true); return; }
             var info = new FileInfo(selected.FullPath);
             if (!info.Exists || info.Length > MaxUploadBytes) { SetStatus("The selected file is missing or larger than 50 MB.", true); return; }
+            var policyIssue = uploadPolicy is null ? null : UploadPolicyProfileService.Check(uploadPolicy, targetPath, info.Length);
+            if (policyIssue is not null) { SetStatus($"Upload profile '{uploadPolicy!.Name}' blocks this file: {policyIssue}", true); return; }
             var destination = $"https://github.com/{repository}/blob/{Uri.EscapeDataString(branch)}/{string.Join("/", targetPath.Split('/').Select(Uri.EscapeDataString))}";
             var networkNotice = GetNetworkNotice();
-            var prompt = $"Send this file to GitHub?\n\nAccount: {_account}\nRepository: {repository}\nBranch: {branch}\nPath: {targetPath}\nCommit message: {commitMessage}\nLocal file: {selected.FullPath}\nSize: {FormatSize(info.Length)}\n\n{networkNotice}\n\nGitHub will record a commit on this branch.";
+            var prompt = $"Send this file to GitHub?\n\nAccount: {_account}\nRepository: {repository}\nBranch: {branch}\nPath: {targetPath}\nCommit message: {commitMessage}\nLocal file: {selected.FullPath}\nSize: {FormatSize(info.Length)}\n" +
+                (uploadPolicy is null ? "" : $"Active upload profile: {uploadPolicy.Name}\n") + $"\n{networkNotice}\n\nGitHub will record a commit on this branch.";
             if (OctoShipDialog.Show(this, prompt, "Review upload", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             LogTransfer($"Starting upload: {Path.GetFileName(selected.FullPath)} → {repository}/{targetPath} ({FormatSize(info.Length)}). {networkNotice}");
             if (LooksSensitive(selected.Name) || LooksSensitive(Path.GetFileName(targetPath)))
@@ -1792,6 +1860,8 @@ public partial class MainWindow : Window
             var bytes = await ReadStableFileAsync(selected.FullPath, selected.Size, selected.LastWriteTimeUtc, token);
             await ValidateUploadContentAsync(selected.FullPath, bytes, token);
             if (bytes.LongLength > MaxUploadBytes) throw new InvalidOperationException("The file grew larger than the 50 MB upload limit. Nothing was sent.");
+            policyIssue = uploadPolicy is null ? null : UploadPolicyProfileService.Check(uploadPolicy, targetPath, bytes.LongLength);
+            if (policyIssue is not null) throw new InvalidOperationException($"Upload profile '{uploadPolicy!.Name}' blocks this file: {policyIssue}");
             LogTransfer($"Sending {Path.GetFileName(selected.FullPath)} to {repository}/{targetPath} · {FormatSize(bytes.Length)} via {DetectNetwork().Name}.");
             SetStatus("Uploading 0%…");
             UploadProgress.IsIndeterminate = false;
@@ -1884,6 +1954,14 @@ public partial class MainWindow : Window
         { SetStatus("Check the repository, branch, destination folder, and commit message before uploading.", true); return; }
         var items = _uploadQueue.Items.Where(item => item.State is UploadQueueItemState.Queued or UploadQueueItemState.Failed).ToArray();
         if (items.Length == 0) return;
+        var uploadPolicy = ActiveUploadPolicy();
+        var policyBlocked = uploadPolicy is null ? Array.Empty<UploadQueueItem>() : items.Where(item =>
+            UploadPolicyProfileService.Check(uploadPolicy, item.DestinationPath, item.CapturedLength) is not null).ToArray();
+        if (policyBlocked.Length > 0)
+        {
+            SetStatus($"Upload profile '{uploadPolicy!.Name}' blocks {policyBlocked.Length} queued file(s). Narrow the folder selection or choose another profile before using this upload path.", true);
+            return;
+        }
         var identity = repository.Split('/', 2);
         var cancellation = new CancellationTokenSource();
         _uploadCancellation = cancellation;
@@ -1919,12 +1997,15 @@ public partial class MainWindow : Window
             if (total == 0) { SetStatus("Every queued destination already exists and was set to skip. Nothing was uploaded."); return; }
             var destinations = string.Join("\n", _uploadQueue.Items.Where(item => item.State != UploadQueueItemState.Skipped).Take(8).Select(item => item.DestinationPath));
             if (total > 8) destinations += "\n…";
-            var confirm = OctoShipDialog.Show(this, $"Upload {total} file(s) to {repository} on {branch}?\n\nAccount: {_account}\nDestination paths:\n{destinations}\nCommit message: {message}\nEach file creates a separate GitHub commit.", "Review folder batch", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            var profileLabel = uploadPolicy is null ? "" : $"\nActive upload profile: {uploadPolicy.Name}";
+            var confirm = OctoShipDialog.Show(this, $"Upload {total} file(s) to {repository} on {branch}?\n\nAccount: {_account}\nDestination paths:\n{destinations}\nCommit message: {message}{profileLabel}\nEach file creates a separate GitHub commit.", "Review folder batch", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (confirm != MessageBoxResult.Yes) return;
             UploadProgress.IsIndeterminate = false;
             await _uploadQueue.RunAsync(async (item, itemProgress, ct) =>
             {
                 var targetPath = item.DestinationPath;
+                var profileIssue = uploadPolicy is null ? null : UploadPolicyProfileService.Check(uploadPolicy, targetPath, item.CapturedLength);
+                if (profileIssue is not null) throw new InvalidOperationException($"Upload profile '{uploadPolicy!.Name}' blocks this file: {profileIssue}");
                 if (LooksSensitive(Path.GetFileName(item.SourcePath)) && Dispatcher.Invoke(() => OctoShipDialog.Show(this,
                     $"{Path.GetFileName(item.SourcePath)} may contain credentials or private keys. It can remain in repository history after deletion. Upload this file?",
                     "Possible secret file", MessageBoxButton.YesNo, MessageBoxImage.Warning)) != MessageBoxResult.Yes)
@@ -1933,6 +2014,8 @@ public partial class MainWindow : Window
                 var bytes = await ReadStableFileAsync(item.SourcePath, item.CapturedLength, item.CapturedLastWriteTimeUtc, ct);
                 await ValidateUploadContentAsync(item.SourcePath, bytes, ct);
                 if (bytes.LongLength > MaxUploadBytes) throw new InvalidOperationException("The file grew larger than 50 MB after queueing.");
+                profileIssue = uploadPolicy is null ? null : UploadPolicyProfileService.Check(uploadPolicy, targetPath, bytes.LongLength);
+                if (profileIssue is not null) throw new InvalidOperationException($"Upload profile '{uploadPolicy!.Name}' blocks this file: {profileIssue}");
                 var encoded = string.Join("/", targetPath.Split('/').Select(Uri.EscapeDataString));
                 using var content = new UploadJsonContent(bytes, message, branch, _queueExistingShas.GetValueOrDefault(targetPath), new Progress<double>(value =>
                 {
@@ -1978,6 +2061,10 @@ public partial class MainWindow : Window
         if (!RepositoryPattern.IsMatch(repository) || branch.Length == 0 || message.Length is < 1 or > 250) { SetStatus("Check the repository, branch, and commit message.", true); return; }
         var sourceItems = restoreOnly ? Array.Empty<UploadQueueItem>() : _uploadQueue!.Items.Where(x => x.State is UploadQueueItemState.Queued or UploadQueueItemState.Failed).ToArray();
         if (!restoreOnly && sourceItems.Length == 0) return;
+        var uploadPolicy = ActiveUploadPolicy();
+        var policyFilteredItems = ApplyUploadPolicyToBatch(sourceItems, uploadPolicy);
+        if (policyFilteredItems is null) return;
+        sourceItems = policyFilteredItems;
         using var cts = new CancellationTokenSource();
         _uploadCancellation = cts; CancelUploadButton.Visibility = Visibility.Visible; CancelUploadButton.IsEnabled = true;
         SetBusy(true, "Checking repository and destination conflicts…");
@@ -2008,6 +2095,8 @@ public partial class MainWindow : Window
             LogTransfer($"Starting {planned.Count} file(s) to {repository}/{folder} via {DetectNetwork().Name}. {transferNotice}");
             var dialog = new BatchUploadWindow(planned, repository, branch, message, async (file, progress, ct) =>
             {
+                var profileIssue = uploadPolicy is null ? null : UploadPolicyProfileService.Check(uploadPolicy, file.DestinationPath, file.Size);
+                if (profileIssue is not null) throw new InvalidOperationException($"Upload profile '{uploadPolicy!.Name}' blocks this file: {profileIssue}");
                 if (new FileSafetyRules(_sensitivePatterns.Length == 0 ? null : _sensitivePatterns).Match(file.SourcePath).Count > 0 &&
                     Dispatcher.Invoke(() => OctoShipDialog.Show(this, $"{Path.GetFileName(file.SourcePath)} matches a sensitive-file rule. It may contain credentials and remain in Git history. Upload it?", "Sensitive file warning", MessageBoxButton.YesNo, MessageBoxImage.Warning)) != MessageBoxResult.Yes)
                     throw new OperationCanceledException("Upload declined for a sensitive file.", ct);
@@ -2015,6 +2104,8 @@ public partial class MainWindow : Window
                 if (file.CapturedLastWriteTimeUtc is not DateTime captured) throw new InvalidOperationException("Review the source file again before uploading.");
                 var bytes = await ReadStableFileAsync(file.SourcePath, file.Size, captured, ct);
                 await ValidateUploadContentAsync(file.SourcePath, bytes, ct);
+                profileIssue = uploadPolicy is null ? null : UploadPolicyProfileService.Check(uploadPolicy, file.DestinationPath, bytes.LongLength);
+                if (profileIssue is not null) throw new InvalidOperationException($"Upload profile '{uploadPolicy!.Name}' blocks this file: {profileIssue}");
                 var encodedPath = string.Join("/", file.DestinationPath.Split('/').Select(Uri.EscapeDataString));
                 var target = await _repositoryService.GetTargetFileAsync(parts[0], parts[1], branch, file.DestinationPath, _token!, ct);
                 if (target.Exists && OctoShipDialog.Show(this, $"Replace the current GitHub file at {file.DestinationPath}?", "Review destination", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
@@ -2038,6 +2129,8 @@ public partial class MainWindow : Window
                 foreach (var file in files)
                 {
                     ct.ThrowIfCancellationRequested();
+                    var profileIssue = uploadPolicy is null ? null : UploadPolicyProfileService.Check(uploadPolicy, file.DestinationPath, file.Size);
+                    if (profileIssue is not null) throw new InvalidOperationException($"Upload profile '{uploadPolicy!.Name}' blocks this file: {profileIssue}");
                     if ((LooksSensitive(file.SourcePath) || LooksSensitive(file.DestinationPath)) && OctoShipDialog.Show(this,
                         $"{Path.GetFileName(file.SourcePath)} matches a sensitive-file rule. Include it in this commit?", "Sensitive file warning", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                         throw new OperationCanceledException("Sensitive file declined.", ct);
@@ -2049,7 +2142,21 @@ public partial class MainWindow : Window
                     "Review batch replacements", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                     throw new OperationCanceledException("Batch replacement declined.", ct);
                 return await service.UploadAsync(parts[0], parts[1], branch, _token!, files, batchMessage,
-                    expectedHead, progress, ct, ValidateUploadContentAsync);
+                    expectedHead, progress, ct, async (sourcePath, bytes, validationToken) =>
+                    {
+                        if (uploadPolicy is not null)
+                        {
+                            var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+                            var matchingFiles = files.Where(file => string.Equals(Path.GetFullPath(file.SourcePath), Path.GetFullPath(sourcePath), comparison)).ToArray();
+                            if (matchingFiles.Length == 0) throw new InvalidOperationException("The reviewed source no longer matches the active upload profile plan.");
+                            foreach (var file in matchingFiles)
+                            {
+                                var issue = UploadPolicyProfileService.Check(uploadPolicy, file.DestinationPath, bytes.LongLength);
+                                if (issue is not null) throw new InvalidOperationException($"Upload profile '{uploadPolicy.Name}' blocks this file: {issue}");
+                            }
+                        }
+                        await ValidateUploadContentAsync(sourcePath, bytes, validationToken);
+                    });
             }, transferNotice: transferNotice, persistQueue: !_appPreferences.PrivacyMode) { Owner = this };
             _ = dialog.ShowDialog();
             if (dialog.FinalResults is { } results)
