@@ -669,10 +669,32 @@ def import_settings_snapshot(editor, snapshot, env=None):
         if key.endswith('.json') and not isinstance(parsed, (dict, list)):
             raise OctoShipError(f'{key} must contain a JSON object or array.')
     target = user_data_dir(editor, env)
+    destinations = [(target / key, key) for key in files]
+
+    # Checking only the leaf file is not enough: a `snippets` directory (or
+    # the editor's User directory itself) can be a symlink to an arbitrary
+    # location.  Preflight every destination and all existing parent
+    # directories before creating anything or replacing any files.
+    for path, _ in destinations:
+        parent = path.parent
+        chain = list(reversed((parent, *parent.parents)))
+        for directory in chain:
+            if directory.is_symlink():
+                raise OctoShipError('Settings import destination cannot contain symbolic links; nothing was imported.')
+            if directory.exists() and not directory.is_dir():
+                raise OctoShipError('Settings import destination contains a non-folder path; nothing was imported.')
+        if path.is_symlink():
+            raise OctoShipError('Settings import destination cannot contain symbolic links; nothing was imported.')
+        if path.exists() and not path.is_file():
+            raise OctoShipError('Settings import destination must be a regular file; nothing was imported.')
+    for path, _ in destinations:
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        # Recheck after mkdir so a changed path fails closed before file writes.
+        if path.parent.is_symlink() or not path.parent.is_dir():
+            raise OctoShipError('Settings import destination changed during preparation; nothing was imported.')
     for key, content in files.items():
         path = target / key
         if path.exists(): _regular_file(path, must_exist=True)
-        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         fd, temp = tempfile.mkstemp(prefix='.octoship-import-', dir=path.parent)
         try:
             os.fchmod(fd, 0o600)

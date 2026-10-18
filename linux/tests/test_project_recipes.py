@@ -44,6 +44,12 @@ class ProjectRecipeTests(unittest.TestCase):
         self.assertIn(b'# Demo App', data)
         self.assertIn(b'Useful helper', data)
 
+    def test_pyproject_escapes_user_summary_as_toml_string(self):
+        summary = 'A "quoted" line\nnext'
+        _path, data = project_recipes.render_recipe('python_pyproject', 'Demo App', summary)
+        self.assertIn(b'description = "A \\"quoted\\" line\\nnext"', data)
+        self.assertNotIn(b'description = "A "quoted" line\nnext"', data)
+
     def test_create_is_atomic_and_refuses_overwrite(self):
         with tempfile.TemporaryDirectory() as folder:
             path = project_recipes.create_recipe(folder, 'readme', 'Demo')

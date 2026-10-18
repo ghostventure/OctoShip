@@ -71,6 +71,44 @@ class GitOperationsTests(unittest.TestCase):
         with self.assertRaises(ops.GitOperationError):
             ops.create_branch(self.root, 'feature/bad', '--help')
 
+    def test_switch_branch_requires_confirmation_and_a_clean_worktree(self):
+        self.git('branch', 'feature/switch')
+        current = self.git('branch', '--show-current')
+        with self.assertRaisesRegex(ops.GitOperationError, 'Confirm'):
+            ops.switch_branch(self.root, 'feature/switch')
+        with self.assertRaisesRegex(ops.GitOperationError, 'does not exist'):
+            ops.switch_branch(self.root, 'feature/missing', True)
+        (self.root / 'untracked.txt').write_text('keep me\n')
+        with self.assertRaisesRegex(ops.GitOperationError, 'untracked changes'):
+            ops.switch_branch(self.root, 'feature/switch', True)
+        self.assertEqual(self.git('branch', '--show-current'), current)
+        self.assertTrue((self.root / 'untracked.txt').exists())
+        (self.root / 'untracked.txt').unlink()
+        result = ops.switch_branch(self.root, 'feature/switch', True)
+        self.assertIn('No remote was contacted', result)
+        self.assertEqual(self.git('branch', '--show-current'), 'feature/switch')
+
+    def test_switch_branch_disables_post_checkout_hooks(self):
+        base = self.git('branch', '--show-current')
+        self.git('branch', 'feature/hook-check')
+        self.git('switch', 'feature/hook-check')
+        (self.root / 'new.txt').write_text('target branch\n')
+        self.git('add', 'new.txt')
+        self.git('commit', '-qm', 'target branch')
+        self.git('switch', base)
+        hooks = self.root / '.git' / 'test-hooks'
+        hooks.mkdir()
+        marker = hooks / 'hook-ran.txt'
+        hook = hooks / 'post-checkout'
+        hook.write_text(f'#!/bin/sh\ntouch "{marker}"\n')
+        hook.chmod(0o755)
+        self.git('config', 'core.hooksPath', str(hooks))
+
+        ops.switch_branch(self.root, 'feature/hook-check', True)
+
+        self.assertFalse(marker.exists())
+        self.assertTrue((self.root / 'new.txt').exists())
+
     def test_delete_requires_confirmation_and_only_deletes_merged_local_branch(self):
         ops.create_branch(self.root, 'feature/merged')
         with self.assertRaises(ops.GitOperationError):

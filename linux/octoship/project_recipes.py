@@ -1,8 +1,9 @@
 """Create common project-maintenance files without executing project code."""
-from pathlib import Path
+import json
 import os
 import re
 import tempfile
+from pathlib import Path
 
 from .core import OctoShipError
 
@@ -41,7 +42,7 @@ RECIPES = {
 }
 
 RECIPES.update({
-    "python_pyproject": ("pyproject.toml", "[project]\nname = \"{slug}\"\nversion = \"0.1.0\"\ndescription = \"{summary}\"\nrequires-python = \">=3.10\"\n\n[build-system]\nrequires = [\"setuptools>=68\"]\nbuild-backend = \"setuptools.build_meta\"\n"),
+    "python_pyproject": ("pyproject.toml", "[project]\nname = \"{slug}\"\nversion = \"0.1.0\"\ndescription = {summary_toml}\nrequires-python = \">=3.10\"\n\n[build-system]\nrequires = [\"setuptools>=68\"]\nbuild-backend = \"setuptools.build_meta\"\n"),
     "python_pytest": ("pytest.ini", "[pytest]\ntestpaths = tests\naddopts = -ra\n"),
     "python_ruff": ("ruff.toml", "line-length = 100\ntarget-version = \"py310\"\n\n[lint]\nselect = [\"E\", \"F\", \"I\"]\n"),
     "python_mypy": ("mypy.ini", "[mypy]\npython_version = 3.10\nwarn_unused_configs = True\nwarn_return_any = True\n"),
@@ -239,6 +240,9 @@ def render_recipe(key, project="My Project", summary="Project description.", own
     safe_name = re.sub(r"[^A-Za-z0-9._-]+", "-", values["project"]).strip(".-").lower() or "project"
     path = path.replace("{project}", safe_name)
     values["slug"] = safe_name
+    # TOML descriptions must be quoted and escaped; ordinary recipes should
+    # continue to receive the user's summary verbatim.
+    values["summary_toml"] = json.dumps(values["summary"], ensure_ascii=False)
     for key, value in values.items():
         template = template.replace("{" + key + "}", value)
     return path, template.encode("utf-8")

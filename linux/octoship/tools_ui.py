@@ -138,6 +138,7 @@ class ToolsPanel:
         self.git_operation_output.insert('1.0', 'Choose one of 100 local-only Git views. No remote is contacted and no files or refs are changed.')
         self.git_operation_output.configure(state='disabled')
         local_change_actions = ttk.Frame(local_git); local_change_actions.pack(fill='x', pady=(4, 8))
+        ttk.Button(local_change_actions, text='Switch local branch…', command=self.switch_local_branch).pack(side='left')
         ttk.Button(local_change_actions, text='Create local branch…', command=self.create_local_branch).pack(side='left')
         ttk.Button(local_change_actions, text='Stash working tree…', command=self.stash_local_changes).pack(side='left', padx=6)
         ttk.Button(local_change_actions, text='Delete merged local branch…', command=self.delete_local_branch).pack(side='left')
@@ -741,6 +742,21 @@ class ToolsPanel:
         start = simpledialog.askstring('Create local branch', 'Start from commit or ref:', initialvalue='HEAD', parent=self.app.root)
         if start is None: return
         self._show_local_change_result('Local branch', lambda: git_operations.create_branch(root, name, start))
+
+    def switch_local_branch(self):
+        root = self.git_root.get().strip()
+        name = simpledialog.askstring('Switch local branch', 'Existing local branch name:', parent=self.app.root)
+        if name is None: return
+        if not messagebox.askyesno(
+            'Confirm local branch switch',
+            f'Switch to local branch {name}? This is blocked while tracked or untracked changes exist. '
+            'No remote will be contacted and post-checkout hooks are disabled. Git may run configured '
+            'checkout filters for the target branch, so continue only with a repository you trust.',
+            parent=self.app.root,
+            default='no',
+        ):
+            return
+        self._show_local_change_result('Local branch', lambda: git_operations.switch_branch(root, name, True))
 
     def stash_local_changes(self):
         root = self.git_root.get().strip()

@@ -15,7 +15,11 @@ import zipfile
 
 HERE = Path(__file__).resolve().parent
 SOURCE = HERE.parent
-OUTPUT = SOURCE.parent / 'dist/linux'
+OUTPUT = (
+    Path(os.environ['OCTOSHIP_BUILD_OUTPUT']).expanduser().resolve()
+    if os.environ.get('OCTOSHIP_BUILD_OUTPUT')
+    else SOURCE.parent / 'dist/linux'
+)
 
 
 def digest(path):

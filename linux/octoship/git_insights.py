@@ -53,6 +53,34 @@ def _has_upstream(root: Path) -> bool:
     return result.returncode == 0
 
 
+def _status_counts(status: str) -> tuple[int, int, int, int]:
+    """Count paths from porcelain-v2 -z output without treating rename paths as entries.
+
+    In NUL-delimited porcelain formats, rename and copy records contain a second
+    NUL-delimited source pathname. That pathname is payload, not another status
+    record. Porcelain v2 gives each record an explicit type marker, making it
+    possible to skip that payload reliably even when filenames contain spaces.
+    """
+    staged = unstaged = untracked = conflicts = 0
+    skip_source_path = False
+    for record in status.split('\0'):
+        if not record:
+            continue
+        if skip_source_path:
+            skip_source_path = False
+            continue
+        if record.startswith(('1 ', '2 ', 'u ')):
+            fields = record.split(' ', 2)
+            xy = fields[1]
+            staged += xy[0] != '.'
+            unstaged += xy[1] != '.'
+            conflicts += record.startswith('u ')
+            skip_source_path = record.startswith('2 ')
+        elif record.startswith('? '):
+            untracked += 1
+    return staged, unstaged, untracked, conflicts
+
+
 def inspect_repository(path: str | Path) -> list[Insight]:
     """Return a stable 40-row local health report; never contacts a remote."""
     root = Path(path).expanduser().resolve()
@@ -64,16 +92,12 @@ def inspect_repository(path: str | Path) -> list[Insight]:
     try:
         status = subprocess.run(['git', '-C', str(root), '--no-optional-locks', '-c',
                                  'core.fsmonitor=false', '-c', 'core.untrackedCache=false',
-                                 'status', '--porcelain=v1', '-z', '--untracked-files=all'],
+                                 'status', '--porcelain=v2', '-z', '--untracked-files=all'],
                                 check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                 timeout=8).stdout.decode('utf-8', errors='replace')
     except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
         raise RepositoryError('Git status inspection failed or exceeded its 8-second limit.') from None
-    entries = [item for item in status.split('\0') if item]
-    staged = sum(len(item) > 1 and item[0] not in ' ?' for item in entries)
-    unstaged = sum(len(item) > 1 and item[1] not in ' ?' for item in entries)
-    untracked = sum(item.startswith('??') for item in entries)
-    conflicts = sum(item[:2] in {'DD', 'AU', 'UD', 'UA', 'DU', 'AA', 'UU'} for item in entries)
+    staged, unstaged, untracked, conflicts = _status_counts(status)
     upstream = _git(root, 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}') if _has_upstream(root) else ''
     counts = _git(root, 'rev-list', '--left-right', '--count', 'HEAD...@{upstream}') if upstream else ''
     ahead, behind = (map(int, counts.split()) if counts else (0, 0))
@@ -175,7 +199,8 @@ def inspect_repository(path: str | Path) -> list[Insight]:
         Insight('credential_helper', 'Credential helper configured', 'info', 'Yes' if 'credential.helper' in config_keys else 'No'),
         Insight('signing', 'Commit signing configured', 'info', 'Yes' if any(k.endswith('.sign') and v == 'true' for line in config if '=' in line for k, v in [line.split('=', 1)]) else 'No'),
         Insight('ignored_count', 'Ignored untracked path count', 'info', str(len(ignored))),
-        Insight('clean', 'Working tree clean', 'ok' if not entries else 'review', 'Yes' if not entries else 'No'),
+        Insight('clean', 'Working tree clean', 'ok' if not any((staged, unstaged, untracked, conflicts)) else 'review',
+                'Yes' if not any((staged, unstaged, untracked, conflicts)) else 'No'),
     ]
     assert len(report) == 40
     return report

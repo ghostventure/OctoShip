@@ -196,6 +196,37 @@ class EditorWorkspaceTests(unittest.TestCase):
         with self.assertRaises(OctoShipError): ew.import_settings_snapshot('code', bundle, self.env)
         self.assertFalse((self.home / '.config/escape.json').exists())
 
+    def test_import_rejects_symlinked_snippets_directory_before_any_write(self):
+        user = ew.user_data_dir('code', self.env)
+        snippets = user / 'snippets'
+        outside = self.home / 'outside-snippets'
+        outside.mkdir()
+        snippets.symlink_to(outside, target_is_directory=True)
+        bundle = {
+            'format': 1,
+            'editor': 'code',
+            'files': {
+                'settings.json': '{"safe": true}',
+                'snippets/python.json': '{"Print": {"prefix": "p"}}',
+            },
+        }
+        with self.assertRaisesRegex(OctoShipError, 'symbolic links'):
+            ew.import_settings_snapshot('code', bundle, self.env)
+        self.assertEqual(json.loads(self.settings.read_text()), {'editor.fontSize': 12, 'custom.keep': True})
+        self.assertEqual(list(outside.iterdir()), [])
+
+    def test_import_rejects_symlinked_editor_user_directory(self):
+        user = ew.user_data_dir('code', self.env)
+        self.settings.unlink()
+        user.rmdir()
+        outside = self.home / 'outside-user-data'
+        outside.mkdir()
+        user.symlink_to(outside, target_is_directory=True)
+        bundle = {'format': 1, 'editor': 'code', 'files': {'settings.json': '{"safe": true}'}}
+        with self.assertRaisesRegex(OctoShipError, 'symbolic links'):
+            ew.import_settings_snapshot('code', bundle, self.env)
+        self.assertEqual(list(outside.iterdir()), [])
+
     def test_settings_symlinks_and_invalid_json_are_rejected(self):
         self.settings.unlink(); self.settings.symlink_to(self.home / 'victim')
         with self.assertRaises(OctoShipError): ew.read_settings('code', self.env)

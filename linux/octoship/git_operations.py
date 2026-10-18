@@ -232,6 +232,41 @@ def create_branch(path, name, start='HEAD'):
     return f'Created local branch {name} at {resolved[:12]}. No remote was contacted.'
 
 
+def switch_branch(path, name, confirmed=False):
+    """Switch to an existing local branch only from a clean worktree.
+
+    Checkout hooks are disabled. Git may still run a configured smudge/process
+    filter for the target tree, so callers must disclose that before confirming.
+    """
+    root = _root(path)
+    _branch_name(name)
+    if confirmed is not True:
+        raise GitOperationError('Confirm switching the local branch explicitly.')
+    _git(root, 'check-ref-format', '--branch', name)
+    current = _git(root, 'branch', '--show-current')
+    if current == name:
+        raise GitOperationError('That branch is already checked out.')
+    if _git(root, 'status', '--porcelain=v1', '--untracked-files=all'):
+        raise GitOperationError('Switching is blocked while tracked or untracked changes exist. Commit or stash them first.')
+    try:
+        _git(root, 'show-ref', '--verify', '--quiet', f'refs/heads/{name}')
+    except GitOperationError:
+        raise GitOperationError('That local branch does not exist. Remote branches are not fetched or switched.') from None
+
+    env = {**os.environ, 'GIT_TERMINAL_PROMPT': '0', 'GIT_CONFIG_NOSYSTEM': '1'}
+    try:
+        proc = subprocess.run(
+            ['git', '-C', str(root), '-c', 'core.hooksPath=/dev/null', 'switch', '--no-guess', name],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15, check=False, text=True, env=env,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise GitOperationError('Git could not switch branches within the 15-second limit.') from None
+    if proc.returncode:
+        detail = proc.stderr.strip()[:700]
+        raise GitOperationError('Git could not switch to that branch.' + (f' {detail}' if detail else ''))
+    return f'Switched to local branch {name}. No remote was contacted; post-checkout hooks were disabled.'
+
+
 def delete_branch(path, name, confirmed=False):
     root = _root(path); _branch_name(name)
     if confirmed is not True:

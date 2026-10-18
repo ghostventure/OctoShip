@@ -6,6 +6,7 @@ project code, contact GitHub, or deploy anything.
 from __future__ import annotations
 
 import csv
+import copy
 from datetime import date
 from datetime import timedelta
 import json
@@ -667,6 +668,25 @@ def transition_task(plan, task_id, status, reason=""):
         if incomplete: raise OctoShipError("Complete dependencies first: " + ", ".join(incomplete))
     update_task(plan, task_id, status=status, blocked_reason=reason if status == "blocked" else "")
     return task
+
+
+def update_task_workflow(plan, task_id, status, reason="", **changes):
+    """Atomically save task details and apply its guarded status transition.
+
+    The desktop editor changes metadata and status together. Validate both on a
+    private candidate first so a rejected date, duration, or dependency check
+    cannot leave the task half-updated in memory.
+    """
+    if "status" in changes:
+        raise OctoShipError("Set task status through the status argument.")
+    candidate = copy.deepcopy(plan)
+    transition_task(candidate, task_id, status, reason)
+    update_task(candidate, task_id, **changes)
+    updated = _find_task(candidate, task_id)
+    original = _find_task(plan, task_id)
+    original.clear()
+    original.update(updated)
+    return original
 
 
 def bulk_update_tasks(plan, task_ids, **changes):

@@ -36,7 +36,9 @@ def environment_report(environ=None, run=subprocess.run, which=shutil.which, sys
     try:
         state.mkdir(mode=0o700, parents=True, exist_ok=True)
         mode = state.stat().st_mode & 0o777
-        rows.append(_row('Private state folder', mode & 0o077 == 0, f'{state} · mode {mode:04o}', 'warning'))
+        # Do not include the absolute path: XDG_STATE_HOME often contains a
+        # username or a customer-specific mount point, and reports may be shared.
+        rows.append(_row('Private state folder', mode & 0o077 == 0, f'Folder permissions are {mode:04o}.', 'warning'))
     except OSError:
         rows.append(_row('Private state folder', False, 'Unable to create or inspect the OctoShip state folder.', 'error'))
     try:

@@ -1,8 +1,8 @@
 # Linux local Git workflows
 
-This inventory tracks 33 independently usable local repository outcomes exposed in the Tools → Local Git screen. Read-only views run fixed Git argument lists without a shell and do not contact remotes. Local changes that update refs or the index have separate explicit confirmation. None of these workflows pushes, fetches, or writes to a remote.
+This inventory tracks 34 independently usable local repository outcomes exposed in the Tools → Local Git screen. Read-only views run fixed Git argument lists without a shell and do not contact remotes. Local changes that update refs or the index have separate explicit confirmation. None of these workflows pushes, fetches, or writes to a remote.
 
-## 33 implemented outcomes
+## 34 implemented outcomes
 
 1. **Inspect concise working-tree and current-branch state** — `status_short` in `linux/octoship/git_operations.py`.
 2. **Inspect full porcelain-v2 status for automation-oriented diagnosis** — `status_porcelain`.
@@ -37,9 +37,10 @@ This inventory tracks 33 independently usable local repository outcomes exposed 
 31. **Create a local branch from a reviewed commit/ref** — `create_branch`, surfaced by `ToolsPanel.create_local_branch` in `linux/octoship/tools_ui.py`.
 32. **Save current local edits to a named stash, optionally including untracked files** — `stash_save`, surfaced by `ToolsPanel.stash_local_changes`.
 33. **Delete a merged local branch after an explicit confirmation** — `delete_branch`, surfaced by `ToolsPanel.delete_local_branch`.
+34. **Switch to an existing local branch from a clean worktree** — `switch_branch`, surfaced by `ToolsPanel.switch_local_branch`. The action requires confirmation, rejects tracked or untracked changes, disables post-checkout hooks, and never contacts a remote. Git checkout filters may still run and are disclosed before confirmation.
 
-The inspection outcomes are selected from the fixed-action picker in `ToolsPanel.run_git_operation`; each reports a different repository fact or review result. The local branch and stash actions are distinct state-changing workflows. Branch deletion is constrained by Git's merged-branch deletion rule and refuses the current branch. Branch creation and stash save require a valid local repository; stash save and deletion also require affirmative confirmation.
+The inspection outcomes are selected from the fixed-action picker in `ToolsPanel.run_git_operation`; each reports a different repository fact or review result. The local branch, stash, and switch actions are distinct state-changing workflows. Branch deletion is constrained by Git's merged-branch deletion rule and refuses the current branch. Branch creation, branch switching, stash save, and deletion require affirmative confirmation. Branch switching also refuses tracked or untracked changes.
 
 ## Partial or not included
 
-The feature wave does not provide local commit creation, branch switching/merging, stash apply/drop, worktree creation/removal, cherry-pick, conflict resolution, LFS object management, clone, or any remote publication operation. The 100-entry inspection catalog is broader than this 33-outcome inventory; entries outside this list are not claimed here as additional independently validated workflows.
+The feature wave does not provide local commit creation, branch merging, stash apply/drop, worktree creation/removal, cherry-pick, conflict resolution, LFS object management, clone, or any remote publication operation. The 100-entry inspection catalog is broader than this 34-outcome inventory; entries outside this list are not claimed here as additional independently validated workflows.

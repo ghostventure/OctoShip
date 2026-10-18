@@ -155,6 +155,28 @@ class GuiWorkflows(unittest.TestCase):
         self.assertTrue(self.app.last_url.endswith('/pull/1'))
         self.assertEqual(self.errors, [])
 
+    def test_local_git_branch_switch_button(self):
+        local_root = self.path.parent / 'local-repository'
+        local_root.mkdir()
+        def git(*args):
+            return subprocess.run(['git', '-C', str(local_root), *args], check=True,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout.strip()
+        git('init', '-q')
+        git('config', 'user.name', 'GUI Test')
+        git('config', 'user.email', 'gui@example.invalid')
+        (local_root / 'README.md').write_text('initial\n')
+        git('add', 'README.md')
+        git('commit', '-qm', 'initial')
+        git('branch', 'feature/gui')
+        tools = self.app.tools
+        tools.git_root.set(str(local_root))
+        with patch('octoship.tools_ui.simpledialog.askstring', return_value='feature/gui'):
+            tools.switch_local_branch()
+        self.assertEqual(git('branch', '--show-current'), 'feature/gui')
+        self.assertEqual(len(self.errors), 1)
+        self.assertEqual(self.errors[0][0], 'Local branch')
+        self.assertIn('Switched to local branch feature/gui', self.errors[0][1])
+
     def test_draft_asset_review_and_separate_publish(self):
         tools = self.app.tools
         self.assertTrue(tools.publish_button.instate(['disabled']))

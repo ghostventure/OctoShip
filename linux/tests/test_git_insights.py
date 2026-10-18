@@ -47,6 +47,14 @@ class GitInsightsTests(unittest.TestCase):
         self.assertEqual(rows['clean'].status, 'review')
         self.assertEqual(rows['clean'].detail, 'No')
 
+    def test_staged_rename_counts_one_path_and_ignores_source_path_payload(self):
+        self.git('mv', 'src/main.py', 'src/renamed main.py')
+        rows = self.rows()
+        self.assertEqual(rows['staged'].detail, '1')
+        self.assertEqual(rows['unstaged'].detail, '0')
+        self.assertEqual(rows['untracked'].detail, '0')
+        self.assertEqual(rows['clean'].detail, 'No')
+
     def test_repository_capabilities_and_file_advisories(self):
         rows = self.rows()
         self.assertEqual(rows['readme'].detail, 'Yes')

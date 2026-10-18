@@ -202,6 +202,23 @@ class LifecycleTests(unittest.TestCase):
         lifecycle.transition_task(plan, "planning-01", "done")
         lifecycle.transition_task(plan, "planning-02", "done")
 
+    def test_task_editor_update_is_atomic_when_metadata_or_transition_fails(self):
+        plan = lifecycle.new_plan("Atomic editor", ["planning-01", "planning-02"])
+        lifecycle.add_dependency(plan, "planning-02", "planning-01")
+        task = plan["tasks"][1]
+        before = dict(task)
+
+        with self.assertRaises(OctoShipError):
+            lifecycle.update_task_workflow(plan, "planning-02", "doing", due="not-a-date")
+        self.assertEqual(task, before)
+
+        with self.assertRaises(OctoShipError):
+            lifecycle.update_task_workflow(plan, "planning-02", "done", owner="Pat")
+        self.assertEqual(task, before)
+
+        result = lifecycle.update_task_workflow(plan, "planning-02", "blocked", "Waiting on review", owner="Pat")
+        self.assertEqual((result["status"], result["blocked_reason"], result["owner"]), ("blocked", "Waiting on review", "Pat"))
+
     def test_bulk_updates_validate_before_mutation(self):
         plan = lifecycle.new_plan("Bulk", ["planning-01", "planning-02"])
         self.assertEqual(lifecycle.bulk_update_tasks(plan, ["planning-01", "planning-02"], owner="Pat"), ["planning-01", "planning-02"])

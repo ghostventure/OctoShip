@@ -471,8 +471,7 @@ class LifecyclePanel:
         if not self.plan or not self.tasks.selection(): return
         try:
             task_id = self.tasks.selection()[0]
-            lifecycle.transition_task(self.plan, task_id, self.status.get(), self.blocked_reason.get())
-            lifecycle.update_task(self.plan, task_id, priority=self.priority.get(), owner=self.owner.get(), start=self.start.get(), due=self.due.get(), duration=self.duration.get(), notes=self.notes.get(), evidence=self.evidence.get())
+            lifecycle.update_task_workflow(self.plan, task_id, self.status.get(), self.blocked_reason.get(), priority=self.priority.get(), owner=self.owner.get(), start=self.start.get(), due=self.due.get(), duration=self.duration.get(), notes=self.notes.get(), evidence=self.evidence.get())
             self.refresh_tasks()
         except Exception as exc:
             messagebox.showerror("Update task", str(exc), parent=self.app.root)

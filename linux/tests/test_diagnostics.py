@@ -10,16 +10,19 @@ class EnvironmentReportTests(unittest.TestCase):
     def test_report_is_offline_and_omits_credential_values(self):
         with tempfile.TemporaryDirectory() as folder:
             home = Path(folder)
+            private_mount = home / 'private-customer-mount'
             report = environment_report(
-                environ={'HOME': str(home), 'XDG_STATE_HOME': str(home / 'state'), 'GH_TOKEN': 'must-not-appear'},
+                environ={'HOME': str(home), 'XDG_STATE_HOME': str(private_mount), 'GH_TOKEN': 'must-not-appear'},
                 which=lambda name: None,
             )
             self.assertEqual(report['network_requests'], 0)
             self.assertFalse(report['credentials_collected'])
             self.assertGreaterEqual(len(report['checks']), 20)
-            self.assertTrue((home / 'state' / 'octoship').is_dir())
+            self.assertTrue((private_mount / 'octoship').is_dir())
             self.assertNotIn('must-not-appear', format_report(report))
             self.assertNotIn('must-not-appear', format_report(report, 'json'))
+            self.assertNotIn(str(private_mount), format_report(report))
+            self.assertNotIn(str(private_mount), format_report(report, 'json'))
 
     def test_json_and_text_formats(self):
         report = {'summary': 'ready', 'checks': [], 'network_requests': 0, 'credentials_collected': False}

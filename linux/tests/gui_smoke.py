@@ -59,7 +59,7 @@ try:
             app.folder.set(temporary)
             app.open_folder_code()
             open_code.assert_called_with(temporary)
-        root.destroy()
+        app.close()
         print('PASS: GUI review/confirm/upload (loopback only) and optional VS Code file/folder launch wiring.')
 finally:
     fixture.close()

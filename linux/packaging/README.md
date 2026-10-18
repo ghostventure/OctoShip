@@ -13,7 +13,9 @@ To build artifacts without starting an installer, run
 The builder needs Python 3.12+, `dpkg-deb`, and internet access on its first run.
 It does not use the build host's Python runtime or copy host credentials/settings.
 All upstream downloads are pinned by URL/version and SHA-256 in `bundle-lock.json`;
-verified downloads are cached under ignored `dist/linux/bundle-cache`.
+verified downloads are cached under ignored `dist/linux/bundle-cache`. Set
+`OCTOSHIP_BUILD_OUTPUT` to use a separate writable output directory when the
+repository filesystem has limited space; the default remains `dist/linux`.
 
 Current source builds version **1.8.1**, a source preview. The published release
 linked above is still 1.7.0. The examples below name the current preview artifacts;
