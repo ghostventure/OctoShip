@@ -46,6 +46,8 @@ jobs:
         run: ./scripts/Install-InnoSetup.ps1
       - name: Test and prepare the versioned Windows package
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: ./scripts/Publish-WindowsRelease.ps1 -PrepareRelease
       - id: version
         name: Read package version
