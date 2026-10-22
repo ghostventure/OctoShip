@@ -27,6 +27,13 @@
                 <TextBlock Text="Ignore patterns" VerticalAlignment="Center" Margin="14,4,4,4"/>
                 <TextBox x:Name="IgnoreBox" Width="200" ToolTip="Comma or semicolon separated filename patterns, for example *.tmp, build/**"/>
                 <Button x:Name="ApplyRulesButton" Content="Apply rules" Click="ApplyRules_Click"/>
+                <TextBlock Text="Select path" VerticalAlignment="Center" Margin="14,4,4,4"/>
+                <TextBox x:Name="SelectPatternBox" Width="140" ToolTip="Glob, for example docs/** or *.md"/>
+                <Button x:Name="SelectByRuleButton" Content="Select matches" Click="SelectByRule_Click"/>
+                <ComboBox x:Name="QueueFilterBox" Width="115" Margin="10,0,0,0" SelectionChanged="QueueFilterBox_SelectionChanged" ToolTip="Filter visible queue rows">
+                    <ComboBoxItem Content="All files" IsSelected="True"/><ComboBoxItem Content="Ready"/><ComboBoxItem Content="Skipped"/><ComboBoxItem Content="Uploaded"/><ComboBoxItem Content="Needs attention"/>
+                </ComboBox>
+                <Button x:Name="DestinationTreeButton" Content="Destination tree" Click="DestinationTree_Click"/>
             </WrapPanel>
         </Border>
         <DataGrid x:Name="QueueGrid" Grid.Row="2" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False"
@@ -57,7 +64,8 @@
                 <Button x:Name="RemoveButtonControl" Content="Remove selected" Click="Remove_Click"/>
                 <Button x:Name="MoveUpButtonControl" Content="Move up" Click="MoveUp_Click"/>
                 <Button x:Name="MoveDownButtonControl" Content="Move down" Click="MoveDown_Click"/>
-                <Button x:Name="RetryButton" Content="Retry failed" Click="Retry_Click" IsEnabled="False"/>
+                <Button x:Name="RetryButton" Content="Resolve / retry" Click="Retry_Click" IsEnabled="False"/>
+                <Button x:Name="RefreshSourceButton" Content="Review changed source" Click="RefreshSource_Click" IsEnabled="False"/>
                 <Button x:Name="PauseButton" Content="Pause" Click="Pause_Click" IsEnabled="False"/>
                 <Button x:Name="CancelButton" Content="Cancel upload" Click="Cancel_Click" IsEnabled="False"/>
             </StackPanel>

@@ -340,6 +340,22 @@ public sealed class UploadQueueService
     public bool IsRunning { get { lock (_sync) return _isRunning; } }
     public bool IsPaused { get { lock (_sync) return _isRunning && _pauseRequested; } }
 
+    /// <summary>Reorders only a contiguous block of queued work; completed, failed, and active work stay in place.</summary>
+    public void MoveQueued(int fromIndex, int toIndex)
+    {
+        lock (_sync)
+        {
+            if (_isRunning) throw new InvalidOperationException("Pause or stop the queue before reordering it.");
+            if (fromIndex < 0 || fromIndex >= _items.Count || toIndex < 0 || toIndex >= _items.Count) throw new ArgumentOutOfRangeException(nameof(fromIndex));
+            if (fromIndex == toIndex) return;
+            var first = Math.Min(fromIndex, toIndex); var last = Math.Max(fromIndex, toIndex);
+            if (_items.Skip(first).Take(last - first + 1).Any(item => item.State != UploadQueueItemState.Queued))
+                throw new InvalidOperationException("Items can move only within a contiguous group of queued work. Completed or unresolved items keep their order.");
+            var item = _items[fromIndex]; _items.RemoveAt(fromIndex); _items.Insert(toIndex, item);
+        }
+        RaiseChanged();
+    }
+
     public async Task RunAsync(
         Func<UploadQueueItem, IProgress<double>, CancellationToken, Task> executor,
         CancellationToken cancellationToken = default)

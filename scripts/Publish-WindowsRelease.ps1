@@ -83,9 +83,15 @@ $archive = Join-Path $output 'OctoShip-win-x64.zip'
 Compress-Archive -Path (Join-Path $payload '*') -DestinationPath $archive -Force
 $sbom = Join-Path $output 'OctoShip-win-x64-sbom.cdx.json'
 & (Join-Path (Get-Location) 'scripts/New-ReleaseSbom.ps1') -PayloadDirectory $payload -OutputPath $sbom -ApplicationName 'OctoShip for GitHub' -Version $version
+$installerBuild = Join-Path (Get-Location) 'scripts/Build-WindowsInstaller.ps1'
+& $installerBuild -OutputDirectory $output
+if ($LASTEXITCODE -ne 0) { throw 'Windows installer build failed.' }
+$installer = Join-Path $output "OctoShip-Setup-v$version-win-x64.exe"
 $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-[IO.File]::WriteAllText((Join-Path $output 'SHA256SUMS.txt'), "$hash  OctoShip-win-x64.zip`n")
+$installerHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+[IO.File]::WriteAllText((Join-Path $output 'SHA256SUMS.txt'), "$hash  OctoShip-win-x64.zip`n$installerHash  OctoShip-Setup-v$version-win-x64.exe`n")
 Write-Host "Verified package: $archive ($hash)"
+Write-Host "Verified installer: $installer ($installerHash)"
 if ($PackageOnly -or $PrepareRelease) { exit 0 }
 
 if (!$existing) {
@@ -93,7 +99,7 @@ if (!$existing) {
 } else {
     Run-Native gh @('api', '--method', 'PATCH', "repos/$repository/releases/$($existing.id)", '-f', "target_commitish=$env:GITHUB_SHA", '--silent')
 }
-Run-Native gh @('release', 'upload', $tag, $archive, (Join-Path $output 'SHA256SUMS.txt'), $sbom, $auditPath, '--repo', $repository, '--clobber')
+Run-Native gh @('release', 'upload', $tag, $archive, $installer, (Join-Path $output 'SHA256SUMS.txt'), $sbom, $auditPath, '--repo', $repository, '--clobber')
 # The by-tag REST endpoint does not return unpublished drafts. Resolve the draft
 # through the authenticated release list, as gh release upload itself does.
 $releaseJson = & gh api --paginate --slurp "repos/$repository/releases?per_page=100"
@@ -101,7 +107,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not verify uploaded release.' }
 $release = Read-Releases $releaseJson | Where-Object tag_name -EQ $tag | Select-Object -First 1
 if (!$release -or !$release.draft) { throw 'Expected a draft release before publishing.' }
 $asset = $release.assets | Where-Object name -EQ 'OctoShip-win-x64.zip'
-if ($asset.digest -ne "sha256:$hash") { throw 'GitHub asset digest does not match the local package. Draft left unpublished.' }
+$installerAsset = $release.assets | Where-Object name -EQ (Split-Path $installer -Leaf)
+if ($asset.digest -ne "sha256:$hash" -or $installerAsset.digest -ne "sha256:$installerHash") { throw 'GitHub asset digests do not match the local package and installer. Draft left unpublished.' }
 $preview = $version.Contains('-')
 Run-Native gh @('release', 'edit', $tag, '--repo', $repository, '--draft=false', "--prerelease=$($preview.ToString().ToLowerInvariant())", "--latest=$((!$preview).ToString().ToLowerInvariant())")
 Write-Host "Published https://github.com/$repository/releases/tag/$tag"

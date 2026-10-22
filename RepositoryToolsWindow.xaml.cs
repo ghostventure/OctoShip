@@ -50,7 +50,7 @@ public partial class RepositoryToolsWindow : Window
 
     private void Workflow_Click(object sender, RoutedEventArgs e)
     {
-        new RepositoryWorkflowWindow(_http, _tokenProvider, RepositoryBox.Text.Trim(), BranchInput.Text.Trim(), PathInput.Text.Trim()) { Owner = this }.ShowDialog();
+        new RepositoryCollaborationWindow(_http, _tokenProvider, RepositoryBox.Text.Trim()) { Owner = this }.ShowDialog();
     }
 
     private async void CheckConnection_Click(object sender, RoutedEventArgs e)

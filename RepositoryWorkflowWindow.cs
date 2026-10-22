@@ -17,6 +17,8 @@ public sealed class RepositoryWorkflowWindow : Window
     private readonly TextBox _repository = new(), _branch = new(), _remote = new(), _local = new(), _newBranch = new(), _head = new(), _base = new(), _title = new(), _body = new();
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
     private readonly DataGrid _results = new() { IsReadOnly = true, AutoGenerateColumns = true, Height = 240, Background = Brushes.White, Foreground = Brushes.Black };
+    private readonly System.Collections.Generic.HashSet<string> _visibleColumns = new(StringComparer.OrdinalIgnoreCase);
+    private readonly System.Collections.Generic.Dictionary<string, CheckBox> _columnToggles = new(StringComparer.OrdinalIgnoreCase);
     private readonly CheckBox _draft = new() { Content = "Create as draft", Foreground = Brushes.Black, IsChecked = true, Margin = new Thickness(0, 8, 0, 8) };
     private bool _busy;
 
@@ -35,6 +37,15 @@ public sealed class RepositoryWorkflowWindow : Window
         var tabs = new TabControl { Margin = new Thickness(0, 10, 0, 0) }; root.Children.Add(tabs);
         var compare = Panel(); tabs.Items.Add(new TabItem { Header = "Folder comparison", Content = compare });
         compare.Children.Add(Note("Read-only comparison of raw file bytes at a fixed commit. Excludes .git; other ignore rules are not applied. Line endings and LFS pointers can differ from checked-out files. File modes are not compared. Links/junctions stop the scan."));
+        var columns = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+        compare.Children.Add(Note("Choose which comparison columns to show:")); compare.Children.Add(columns);
+        foreach (var name in new[] { "Path", "Status", "PossibleMoveFrom" })
+        {
+            _visibleColumns.Add(name);
+            var toggle = new CheckBox { Content = name, IsChecked = true, Margin = new Thickness(0, 0, 12, 0), Foreground = Brushes.Black };
+            toggle.Checked += (_, _) => ApplyColumnVisibility(); toggle.Unchecked += (_, _) => ApplyColumnVisibility(); columns.Children.Add(toggle); _columnToggles[name] = toggle;
+        }
+        _results.AutoGeneratingColumn += (_, e) => { e.Column.Visibility = _visibleColumns.Contains(e.PropertyName) ? Visibility.Visible : Visibility.Collapsed; };
         AddField(compare, "Remote folder (blank = repository root)", _remote, remoteFolder);
         AddField(compare, "Local folder", _local, "");
         AddButton(compare, "Browse local folder", (_, _) => { using var dialog = new System.Windows.Forms.FolderBrowserDialog(); if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK) _local.Text = dialog.SelectedPath; });
@@ -84,6 +95,12 @@ public sealed class RepositoryWorkflowWindow : Window
         catch (OperationCanceledException) { _status.Text = mutation ? "Request interrupted. Check GitHub before retrying; the action may have completed." : "Comparison cancelled."; }
         catch (Exception ex) { _status.Text = ex.Message + (mutation ? " If the connection failed, check GitHub before retrying." : ""); }
         finally { _busy = false; }
+    }
+    private void ApplyColumnVisibility()
+    {
+        _visibleColumns.Clear();
+        foreach (var pair in _columnToggles) if (pair.Value.IsChecked == true) _visibleColumns.Add(pair.Key);
+        foreach (var column in _results.Columns) column.Visibility = _visibleColumns.Contains(column.SortMemberPath) || _visibleColumns.Contains(column.Header?.ToString() ?? "") ? Visibility.Visible : Visibility.Collapsed;
     }
     private static StackPanel Panel() => new() { Margin = new Thickness(12), Background = Brushes.White };
     private static TextBlock Note(string text) => new() { Text = text, Foreground = Brushes.Black, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 10) };

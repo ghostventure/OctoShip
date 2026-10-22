@@ -2,7 +2,7 @@
 
 ![OctoShip for GitHub logo](branding/octoship-primary.svg)
 
-**Windows source candidate: 1.6.1-preview.15 (not yet published).** The latest public Windows preview is 1.6.1-preview.14; the latest stable release is 1.6.0 (at last release check). Fresh profiles start disconnected and do not preselect an account already saved in Git Credential Manager; existing profiles retain their account choice. The preview.15 workflow is configured to attest the Windows package and SBOM, but that release workflow has not completed successfully, so no preview.15 attestation or release is available yet. The updater verifies GitHub's SHA-256 asset digest. See [security and release verification](SECURITY-OPERATIONS.md) and the [P1 implementation and installation handoff](P1-HANDOFF.md). The app is not Authenticode-signed. Linux is unchanged by this Windows pass.
+**Windows source candidate: 1.6.1-preview.18.** This source includes four additional UX feature groups and the .NET runtime bootstrapper installer workflow. GitHub publication status is tracked in [P1-HANDOFF.md](P1-HANDOFF.md); source presence alone does not mean a release is published. The updater verifies GitHub's SHA-256 asset digest. See [security and release verification](SECURITY-OPERATIONS.md). The app is not Authenticode-signed. Linux is unchanged by this Windows pass.
 
 The Windows 1.6.0-preview.2 build now retains account/workspace preferences and locks after 30 minutes of inactivity, with Windows Hello or Windows account password unlocking. See [account retention and session protection](ACCOUNT-SESSION.md) for behavior and verification boundaries.
 
@@ -36,13 +36,15 @@ remaining Windows-only features.
 
 ## Use OctoShip on Windows
 
-Install Git for Windows with Git Credential Manager and sign in. The Windows installer includes the .NET 10 desktop runtime; no separate .NET runtime install is needed. Launch OctoShip, choose an account, and connect. GitHub tokens stay in memory and are never written to OctoShip settings.
+Install Git for Windows with Git Credential Manager and sign in. The Windows Setup installer checks for .NET 10 Desktop Runtime; if it is missing, Setup downloads the runtime from Microsoft and installs it before continuing. That download requires internet and may request administrator approval. The Windows ZIP package is self-contained and includes its runtime. Launch OctoShip, choose an account, and connect. GitHub tokens stay in memory and are never written to OctoShip settings.
 
 Choose a folder and search by filename or file contents. Search options include regular expressions, exact and case-sensitive matches, file types, size and modified-date filters, hidden files, recursion, excluded folders, sorting, result limits, and cancel. Reparse points are skipped and content searches read at most 2 MiB per file. Review a selected file with image or small-text preview, local SHA-256, and optional text comparison against the remote destination.
 
 VS Code users can open the selected source file or current project folder directly from OctoShip. The Windows source checkout also includes `.vscode` build/debug settings for opening this project in VS Code with the .NET 10 SDK and C# Dev Kit.
 
 Single-file uploads check repository permissions, branches, destination conflicts, and sensitive filename rules. The repository browser can list accessible repositories and folders and check GitHub API connectivity and quota. Batch uploads support up to 100 files, editable paths and messages, ordering, ignore and size rules, rename/replace/skip collision handling, progress, pause, cancel, retry, and GitHub links. The development build adds a single-commit batch option alongside per-file commits.
+
+Recent Windows previews also add shipping/recovery tools, workspace and privacy controls, richer file/revision review, and GitHub issue, branch, tag, repository-setup, and release-maintenance workflows. See [the full guide](OCTOSHIP-GUIDE.md#additional-windows-ux-features) for the feature groups and limits.
 
 ## Component development preview
 
@@ -69,16 +71,15 @@ Settings are stored under `%LOCALAPPDATA%\OctoShipForGitHub`. On first launch, t
 
 ## Build
 
-Build with `dotnet build FileToGitHub.csproj -c Release`. Publish the self-contained Windows app with:
+Build the Windows app with `dotnet build FileToGitHub.csproj -c Release`. To build the runtime-downloading Setup bootstrapper, use:
 
 ```powershell
-dotnet publish FileToGitHub.csproj -c Release -r win-x64 --self-contained true -p:DebugType=None -o installer\payload
-ISCC.exe /DPayloadDir=payload installer\OctoShip.iss
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Build-WindowsInstaller.ps1 -OutputDirectory installers\local-build
 ```
 
-Build the per-user Windows installer with Inno Setup 6 using the commands above; the output name/version comes from `installer/OctoShip.iss`. Setup installs under the current user's LocalAppData, creates Start Menu shortcuts, offers an optional desktop shortcut, and registers an uninstaller. It does not automatically close running applications. User settings and Git credentials are preserved on uninstall. Windows 10 build 19041 or later and Git for Windows with Git Credential Manager are required to use GitHub sign-in. The self-contained package bundles .NET 10. Developers need the .NET 10 SDK and Inno Setup 6. Publisher verification reports unsigned builds until an Authenticode certificate is configured.
+The Setup payload is framework-dependent; if the .NET 10 Desktop Runtime is missing, Setup downloads it from Microsoft and installs it before continuing. The download requires internet, and the runtime installer may request administrator approval. The Windows ZIP release is built separately as a self-contained package with .NET 10 included. Setup installs per-user under LocalAppData, creates Start Menu shortcuts, offers an optional desktop shortcut, and registers an uninstaller. It does not automatically close running applications. User settings and Git credentials are preserved on uninstall. Windows 10 build 19041 or later and Git for Windows with Git Credential Manager are required to use GitHub sign-in. Developers need the .NET 10 SDK and Inno Setup 6 or 7. Publisher verification reports unsigned builds until an Authenticode certificate is configured.
 
-The preview.15 installer source displays the plain-text agreement on Inno Setup's License page and requires the user to check **I accept the agreement** before continuing; **Cancel** exits setup. It also bundles the User Guide, Privacy Notice, Third-Party Notices, Copyright and DMCA Information, and product/security guides in `Docs`, with Start Menu shortcuts. These local installer changes are not in a published release yet. Several legal notices are drafts with unverified publisher/contact fields; user acceptance cannot guarantee immunity from legal claims. Have counsel review them and complete publisher details before treating them as final terms.
+The Windows installer displays the plain-text agreement on Inno Setup's License page and requires the user to check **I accept the agreement** before continuing; **Cancel** exits setup. It also bundles the User Guide, Privacy Notice, Third-Party Notices, Copyright and DMCA Information, and product/security guides in `Docs`, with Start Menu shortcuts. Several legal notices are drafts with unverified publisher/contact fields; user acceptance cannot guarantee immunity from legal claims. Have counsel review them and complete publisher details before treating them as final terms.
 
 The primary OctoShip identity is the original scalable vector logo in `branding/octoship-primary.svg` (with a standalone mark at `branding/octoship-mark.svg`). The multi-size `branding/octoship.ico` supplies the Windows executable, installer, and window title-bar icons; the WPF-drawn mark appears in the app header and splash screen.
 

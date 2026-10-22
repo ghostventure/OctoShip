@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -18,6 +19,8 @@ public partial class FileReviewWindow : Window
     private readonly CancellationTokenSource _lifetime = new();
     private bool _isText;
     private bool _isPdf;
+    private int[] _changedLineIndexes = Array.Empty<int>();
+    private int _changeIndex = -1;
 
     public FileReviewWindow(string localPath, string? destinationRepositoryPath = null,
         Func<string, CancellationToken, Task<string?>>? remoteContentLoader = null,
@@ -103,7 +106,18 @@ public partial class FileReviewWindow : Window
                 {
                     var text = new UTF8Encoding(false, false).GetString(bytes);
                     LocalText.Text = text;
-                    PreviewMessage.Text = text.Length == 0 ? "Empty text file." : text;
+                    if (string.Equals(info.Extension, ".json", StringComparison.OrdinalIgnoreCase))
+                    {
+                        try
+                        {
+                            using var json = JsonDocument.Parse(text);
+                            PreviewMessage.Text = JsonSerializer.Serialize(json.RootElement, new JsonSerializerOptions { WriteIndented = true });
+                        }
+                        catch (JsonException) { PreviewMessage.Text = "This JSON file is malformed. Raw text is shown in the compare tab."; }
+                    }
+                    else if (string.Equals(info.Extension, ".md", StringComparison.OrdinalIgnoreCase) || string.Equals(info.Extension, ".markdown", StringComparison.OrdinalIgnoreCase))
+                        PreviewMessage.Text = text.Length == 0 ? "Empty Markdown file." : text;
+                    else PreviewMessage.Text = text.Length == 0 ? "Empty text file." : text;
                     PreviewMessage.FontFamily = new System.Windows.Media.FontFamily("Consolas");
                 }
                 else PreviewMessage.Text = "Binary preview is not supported for this file type.";
@@ -123,11 +137,40 @@ public partial class FileReviewWindow : Window
         {
             var content = await _remoteContentLoader(DestinationRepositoryPath, _lifetime.Token);
             RemoteText.Text = content ?? string.Empty;
+            BuildChangeLandmarks(LocalText.Text, RemoteText.Text);
             CompareStatus.Text = content == null ? "No remote file exists at this destination." : DescribeDifference(LocalText.Text, content);
         }
         catch (OperationCanceledException) { CompareStatus.Text = "Comparison canceled."; }
         catch (Exception ex) { CompareStatus.Text = "Could not load remote version: " + ex.Message; }
         finally { CompareButton.IsEnabled = true; }
+    }
+
+    private void BuildChangeLandmarks(string local, string remote)
+    {
+        var a = local.Replace("\r\n", "\n").Split('\n'); var b = remote.Replace("\r\n", "\n").Split('\n');
+        _changedLineIndexes = Enumerable.Range(0, Math.Max(a.Length, b.Length)).Where(i => i >= a.Length || i >= b.Length || !string.Equals(a[i], b[i], StringComparison.Ordinal)).ToArray();
+        _changeIndex = _changedLineIndexes.Length == 0 ? -1 : 0;
+        ChangePosition.Text = _changedLineIndexes.Length == 0 ? "No changed lines" : $"Change 1 of {_changedLineIndexes.Length} · line {_changedLineIndexes[0] + 1}";
+        if (_changeIndex >= 0) FocusChange();
+    }
+    private void PreviousChange_Click(object sender, RoutedEventArgs e) => MoveChange(-1);
+    private void NextChange_Click(object sender, RoutedEventArgs e) => MoveChange(1);
+    private void MoveChange(int direction)
+    {
+        if (_changedLineIndexes.Length == 0) return;
+        _changeIndex = (_changeIndex + direction + _changedLineIndexes.Length) % _changedLineIndexes.Length;
+        ChangePosition.Text = $"Change {_changeIndex + 1} of {_changedLineIndexes.Length} · line {_changedLineIndexes[_changeIndex] + 1}";
+        FocusChange();
+    }
+    private void FocusChange()
+    {
+        var line = _changedLineIndexes[_changeIndex];
+        ScrollToLine(LocalText, line); ScrollToLine(RemoteText, line);
+    }
+    private static void ScrollToLine(System.Windows.Controls.TextBox box, int line)
+    {
+        var index = box.GetCharacterIndexFromLineIndex(Math.Min(line, Math.Max(0, box.LineCount - 1)));
+        box.Select(index, 0); box.ScrollToLine(Math.Min(line, Math.Max(0, box.LineCount - 1)));
     }
 
     private static string DescribeDifference(string local, string remote)

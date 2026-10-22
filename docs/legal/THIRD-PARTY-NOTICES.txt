@@ -4,7 +4,7 @@ This document is a release checklist/template, not a complete license notice. Ex
 
 PROJECT-IDENTIFIED COMPONENTS AND SERVICES
 
-• .NET 10 runtime: the Windows installer is described as self-contained and includes the .NET runtime. Use the license terms and third-party notices shipped with the specific runtime/package. Verify the actual runtime files and Microsoft notices for each release.
+• .NET 10 runtime: the versioned Windows ZIP is self-contained and includes the runtime. The Setup installer downloads the Microsoft .NET 10 Desktop Runtime only when it is missing. Use Microsoft's license terms and notices for that runtime; verify the bundled runtime files and Microsoft notices shipped with each ZIP release.
 • Git for Windows and Git Credential Manager: required for Windows GitHub sign-in; project documentation says these are separate prerequisites, not bundled. They have their own licenses and notices.
 • GitHub: a third-party service used for account, repository, transfer, release, and update operations. GitHub is not bundled with OctoShip and is not the publisher of OctoShip by implication.
 • Inno Setup: used to build the Windows installer according to repository packaging instructions. Confirm whether its license requires any notice in the distributed installer/package; do not assume build-tool use makes it a runtime component.

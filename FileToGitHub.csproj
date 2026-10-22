@@ -6,7 +6,7 @@
     <AssemblyName>OctoShip</AssemblyName>
     <ApplicationIcon>branding\octoship.ico</ApplicationIcon>
     <Product>OctoShip for GitHub</Product>
-    <Version>1.6.1-preview.15</Version>
+    <Version>1.6.1-preview.18</Version>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>

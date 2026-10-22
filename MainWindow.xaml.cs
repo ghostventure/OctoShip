@@ -30,9 +30,13 @@ public partial class MainWindow : Window
     private readonly HttpClient _http;
     private readonly HttpClient _updateHttp = new(new SessionLockHttpHandler()) { Timeout = TimeSpan.FromMinutes(2) };
     private readonly System.Windows.Threading.DispatcherTimer _clipboardClearTimer = new();
+    private readonly System.Windows.Threading.DispatcherTimer _draftSaveTimer = new() { Interval = TimeSpan.FromMilliseconds(700) };
     private string? _pendingClipboardText;
     private CancellationTokenSource? _uploadCancellation;
     private CancellationTokenSource? _searchCancellation;
+    private SearchPauseGate? _searchPauseGate;
+    private SearchUxState _searchUx = new();
+    private bool _loadingWorkspaceProfiles;
     private readonly SearchService _searchService = new();
     private readonly GitHubRepositoryService _repositoryService;
     private UploadQueueService? _uploadQueue;
@@ -70,6 +74,10 @@ public partial class MainWindow : Window
         _repositoryService = new GitHubRepositoryService(_http);
         _loadingAccounts = false;
         ResultsList.ItemsSource = _results;
+        _draftSaveTimer.Tick += (_, _) => { _draftSaveTimer.Stop(); SaveSearchDraft(); };
+        foreach (var input in new TextBox[] { ExtensionFilterBox, MinSizeBox, MaxSizeBox, ModifiedAfterBox, ExcludedFoldersBox }) input.TextChanged += (_, _) => ScheduleSearchDraftSave();
+        SearchBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, _) => ScheduleSearchDraftSave()));
+        FolderBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, _) => ScheduleSearchDraftSave()));
         SortPicker.SelectedIndex = 0;
         ResultLimitPicker.SelectedIndex = 2;
         SearchModePicker.SelectedIndex = 0;
@@ -88,12 +96,17 @@ public partial class MainWindow : Window
         };
         RepoPicker.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, _) => UpdateNavigationContext()));
         BranchBox.TextChanged += (_, _) => UpdateNavigationContext();
-        Closing += (_, _) => { if (_settingsLoaded) SaveSettings(); };
+        Closing += (_, _) => { if (_settingsLoaded) { _draftSaveTimer.Stop(); SaveSearchDraft(); SaveSettings(); } };
         Deactivated += (_, _) => { if (_settingsLoaded) SaveSettings(); };
         Closed += (_, _) => { _searchCancellation?.Cancel(); _uploadCancellation?.Cancel(); _http.Dispose(); _updateHttp.Dispose(); _token = null; };
     }
 
     private readonly List<ResultItem> _results = new();
+    private readonly Stack<(bool Tools, int Tab)> _backNavigation = new();
+    private readonly Stack<(bool Tools, int Tab)> _forwardNavigation = new();
+    private bool _restoringNavigation;
+    private bool _restoringDraft;
+    private string? _lastReviewedRevision;
 
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
@@ -103,6 +116,138 @@ public partial class MainWindow : Window
             SetSearchFolder(dialog.SelectedPath);
             SetStatus("Folder selected. Search by part of a file name.");
         }
+    }
+
+    private void LoadSearchUxState()
+    {
+        try { if (File.Exists(SearchUxStatePath)) _searchUx = JsonSerializer.Deserialize<SearchUxState>(File.ReadAllText(SearchUxStatePath)) ?? new(); }
+        catch { _searchUx = new(); }
+        _searchUx.RecentFolders ??= new(); _searchUx.PinnedFolders ??= new(); _searchUx.Workspaces ??= new(StringComparer.OrdinalIgnoreCase);
+        _searchUx.RecentFolders = _searchUx.RecentFolders.Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase).Take(15).ToList();
+        _searchUx.PinnedFolders = _searchUx.PinnedFolders.Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase).Take(15).ToList();
+        RefreshSearchUxPickers();
+    }
+
+    private void RefreshSearchUxPickers()
+    {
+        var folder = FolderBox.Text;
+        var selectedWorkspace = WorkspaceProfilePicker.SelectedItem as string;
+        FolderBox.ItemsSource = _searchUx.PinnedFolders.Concat(_searchUx.RecentFolders).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        FolderBox.Text = folder;
+        _loadingWorkspaceProfiles = true;
+        WorkspaceProfilePicker.ItemsSource = _searchUx.Workspaces.Keys.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
+        WorkspaceProfilePicker.SelectedItem = selectedWorkspace;
+        _loadingWorkspaceProfiles = false;
+    }
+
+    private static string SearchUxStatePath => Path.Combine(ProductDataDirectory, "search-workspaces.json");
+    private static string SearchDraftPath => Path.Combine(ProductDataDirectory, "search-draft.json");
+    private void ScheduleSearchDraftSave()
+    {
+        if (!_settingsLoaded || _restoringDraft || _appPreferences.PrivacyMode) return;
+        _draftSaveTimer.Stop(); _draftSaveTimer.Start();
+    }
+    private void SaveSearchDraft()
+    {
+        if (!_settingsLoaded || _appPreferences.PrivacyMode || !Directory.Exists(FolderBox.Text)) return;
+        try { Directory.CreateDirectory(ProductDataDirectory); File.WriteAllText(SearchDraftPath, JsonSerializer.Serialize(CaptureSearchWorkspace(FolderBox.Text))); }
+        catch { /* Draft recovery is optional; do not interrupt normal searching. */ }
+    }
+    private void RecoverSearchDraft()
+    {
+        if (_appPreferences.PrivacyMode) { try { File.Delete(SearchDraftPath); } catch { } return; }
+        try
+        {
+            if (!File.Exists(SearchDraftPath)) return;
+            var draft = JsonSerializer.Deserialize<SearchWorkspace>(File.ReadAllText(SearchDraftPath));
+            if (draft is null || !Directory.Exists(draft.Folder) || OctoShipDialog.Show(this, "A saved search draft from your previous session is available. Restore its folder, query, and filters?", "Recover search draft", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            _restoringDraft = true;
+            try
+            {
+                FolderBox.Text = draft.Folder; SearchBox.Text = draft.Query; SearchModePicker.SelectedIndex = Math.Clamp(draft.Mode, 0, 2); ExactMatchCheck.IsChecked = draft.Exact;
+                CaseSensitiveCheck.IsChecked = draft.CaseSensitive; RecursiveCheck.IsChecked = draft.Recursive; IncludeHiddenCheck.IsChecked = draft.IncludeHidden;
+                ExtensionFilterBox.Text = draft.Extensions; ExcludedFoldersBox.Text = draft.Excluded; MinSizeBox.Text = draft.Minimum; MaxSizeBox.Text = draft.Maximum;
+                ModifiedAfterBox.Text = draft.ModifiedAfter; SortPicker.SelectedIndex = Math.Clamp(draft.Sort, 0, SortPicker.Items.Count - 1); ResultLimitPicker.SelectedIndex = Math.Clamp(draft.Limit, 0, ResultLimitPicker.Items.Count - 1);
+            }
+            finally { _restoringDraft = false; }
+            SetStatus("Search draft restored. Review the folder and filters, then search when ready.");
+        }
+        catch { /* Ignore malformed drafts; saved preferences remain available. */ }
+        finally { try { File.Delete(SearchDraftPath); } catch { } }
+    }
+    private void SaveSearchUxState()
+    {
+        if (_appPreferences.PrivacyMode) return;
+        try
+        {
+            Directory.CreateDirectory(ProductDataDirectory);
+            File.WriteAllText(SearchUxStatePath, JsonSerializer.Serialize(_searchUx, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (Exception ex) { SetStatus("Could not save search workspaces: " + SafeMessage(ex), true); }
+    }
+
+    private void PinFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var folder = FolderBox.Text.Trim();
+        if (!Directory.Exists(folder)) { SetStatus("Choose an existing folder before pinning it.", true); return; }
+        if (!_searchUx.PinnedFolders.Contains(folder, StringComparer.OrdinalIgnoreCase)) _searchUx.PinnedFolders.Insert(0, folder);
+        _searchUx.PinnedFolders = _searchUx.PinnedFolders.Take(15).ToList();
+        RefreshSearchUxPickers(); SaveSearchUxState(); SetStatus("Folder pinned in your recent folder list.");
+    }
+
+    private void SaveWorkspace_Click(object sender, RoutedEventArgs e)
+    {
+        var name = WorkspaceNameBox.Text.Trim();
+        if (name.Length is < 1 or > 60) { SetStatus("Enter a workspace name between 1 and 60 characters.", true); return; }
+        var root = FolderBox.Text.Trim();
+        if (!Directory.Exists(root)) { SetStatus("Choose an existing folder before saving a workspace.", true); return; }
+        try { _ = BuildFileSearchOptions(SearchBox.Text.Trim().Length == 0 ? "workspace" : SearchBox.Text.Trim(), root); }
+        catch (InvalidOperationException ex) { SetStatus(ex.Message, true); return; }
+        _searchUx.Workspaces[name] = CaptureSearchWorkspace(root);
+        RefreshSearchUxPickers(); WorkspaceNameBox.Text = name; WorkspaceProfilePicker.SelectedItem = name; SaveSearchUxState(); SetStatus($"Workspace '{name}' saved.");
+    }
+
+    private SearchWorkspace CaptureSearchWorkspace(string root) => new()
+    {
+        Folder = root, Query = SearchBox.Text, Mode = SearchModePicker.SelectedIndex, Exact = ExactMatchCheck.IsChecked == true,
+        CaseSensitive = CaseSensitiveCheck.IsChecked == true, Recursive = RecursiveCheck.IsChecked != false, IncludeHidden = IncludeHiddenCheck.IsChecked == true,
+        Extensions = ExtensionFilterBox.Text, Excluded = ExcludedFoldersBox.Text, Minimum = MinSizeBox.Text, Maximum = MaxSizeBox.Text,
+        ModifiedAfter = ModifiedAfterBox.Text, Sort = SortPicker.SelectedIndex, Limit = ResultLimitPicker.SelectedIndex
+    };
+
+    private void WorkspaceProfilePicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingWorkspaceProfiles || WorkspaceProfilePicker.SelectedItem is not string name || !_searchUx.Workspaces.TryGetValue(name, out var profile)) return;
+        FolderBox.Text = profile.Folder; SearchBox.Text = profile.Query; SearchModePicker.SelectedIndex = Math.Clamp(profile.Mode, 0, 2);
+        ExactMatchCheck.IsChecked = profile.Exact; CaseSensitiveCheck.IsChecked = profile.CaseSensitive; RecursiveCheck.IsChecked = profile.Recursive; IncludeHiddenCheck.IsChecked = profile.IncludeHidden;
+        ExtensionFilterBox.Text = profile.Extensions; ExcludedFoldersBox.Text = profile.Excluded; MinSizeBox.Text = profile.Minimum; MaxSizeBox.Text = profile.Maximum;
+        ModifiedAfterBox.Text = profile.ModifiedAfter; SortPicker.SelectedIndex = Math.Clamp(profile.Sort, 0, SortPicker.Items.Count - 1); ResultLimitPicker.SelectedIndex = Math.Clamp(profile.Limit, 0, ResultLimitPicker.Items.Count - 1);
+        WorkspaceNameBox.Text = name; UpdateScopePreview(); SetStatus($"Workspace '{name}' loaded.");
+    }
+
+    private void UpdateScopePreview()
+    {
+        var root = FolderBox.Text.Trim();
+        var recursive = RecursiveCheck.IsChecked == true ? "including subfolders" : "this folder only";
+        var hidden = IncludeHiddenCheck.IsChecked == true ? "hidden entries included" : "hidden entries skipped";
+        var excluded = string.IsNullOrWhiteSpace(ExcludedFoldersBox.Text) ? ".git, node_modules, bin, obj, .next and packages" : ".git, node_modules, bin, obj, .next, packages and " + ExcludedFoldersBox.Text;
+        var mode = SearchModePicker.SelectedIndex switch { 1 => "filename regular expression", 2 => "file contents", _ => "filename" };
+        var extension = string.IsNullOrWhiteSpace(ExtensionFilterBox.Text) ? "all file types" : "types " + ExtensionFilterBox.Text.Trim();
+        var size = string.IsNullOrWhiteSpace(MinSizeBox.Text) && string.IsNullOrWhiteSpace(MaxSizeBox.Text) ? "any size" :
+            (string.IsNullOrWhiteSpace(MinSizeBox.Text) ? "no minimum" : "min " + MinSizeBox.Text.Trim() + " MB") + ", " +
+            (string.IsNullOrWhiteSpace(MaxSizeBox.Text) ? "no maximum" : "max " + MaxSizeBox.Text.Trim() + " MB");
+        ScopePreviewText.Text = Directory.Exists(root)
+            ? $"Scope: {root} · {recursive} · {mode} · {extension} · {size} · {hidden} · skips {excluded} · content reads capped at 2 MiB per file. Reparse points are never followed."
+            : "Scope preview: choose an existing folder. Standard excluded folders are .git, node_modules, bin, obj, .next and packages.";
+    }
+
+    private void GroupResults_Changed(object sender, RoutedEventArgs e)
+    {
+        if (ResultsList is null) return;
+        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(_results);
+        view.GroupDescriptions.Clear();
+        if (GroupResultsCheck?.IsChecked == true) view.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription(nameof(ResultItem.ParentFolder)));
+        view.Refresh();
     }
 
     private void OpenFolderInCode_Click(object sender, RoutedEventArgs e)
@@ -125,13 +270,25 @@ public partial class MainWindow : Window
         if (query.Length == 0 || (query.Length < 2 && SearchModePicker.SelectedIndex == 0 && ExactMatchCheck.IsChecked != true)) { SetStatus("Enter at least two characters, or enable Exact name for a one-character filename.", true); return; }
         SearchConfiguration configuration;
         try { configuration = BuildFileSearchOptions(query, root); }
-        catch (InvalidOperationException ex) { SetStatus(ex.Message, true); return; }
+        catch (InvalidOperationException ex)
+        {
+            var errors = ex.Message.Split("\n", StringSplitOptions.RemoveEmptyEntries);
+            SetStatus("Fix these search settings:\n• " + string.Join("\n• ", errors), true);
+            var first = errors.FirstOrDefault() ?? "";
+            if (first.Contains("Minimum size", StringComparison.OrdinalIgnoreCase)) MinSizeBox.Focus();
+            else if (first.Contains("Maximum size", StringComparison.OrdinalIgnoreCase)) MaxSizeBox.Focus();
+            else if (first.Contains("Modified-after", StringComparison.OrdinalIgnoreCase)) ModifiedAfterBox.Focus();
+            else if (first.Contains("Exact name", StringComparison.OrdinalIgnoreCase)) ExactMatchCheck.Focus();
+            return;
+        }
+        UpdateScopePreview();
         RememberSearch(query);
         SaveSettings();
         _searchCancellation?.Dispose();
         _searchCancellation = new CancellationTokenSource();
+        _searchPauseGate = new SearchPauseGate();
         var token = _searchCancellation.Token;
-        SearchButton.IsEnabled = false; CancelSearchButton.Visibility = Visibility.Visible; CancelSearchButton.IsEnabled = true;
+        SearchButton.IsEnabled = false; CancelSearchButton.Visibility = Visibility.Visible; CancelSearchButton.IsEnabled = true; PauseSearchButton.Visibility = Visibility.Visible; PauseSearchButton.Content = "Pause";
         var progress = new Progress<SearchProgress>(value =>
         {
             ResultCount.Text = $"Scanning {value.VisitedEntries:N0} entries · {value.MatchesFound:N0} matches";
@@ -139,8 +296,8 @@ public partial class MainWindow : Window
         SetStatus("Searching files…");
         try
         {
-            var page = await Task.Run(async () => await _searchService.SearchAsync(configuration.Options, progress, token));
-            var found = page.Items.Select(item => new ResultItem(item.FullPath, item.Size, item.LastModified, item.LastModifiedUtc)).ToList();
+            var page = await Task.Run(async () => await _searchService.SearchAsync(configuration.Options, progress, token, _searchPauseGate));
+            var found = page.Items.Select(item => new ResultItem(item.FullPath, item.Size, item.LastModified, item.LastModifiedUtc, item.MatchSnippet, _appPreferences.ScreenSharePrivacyMask)).ToList();
             found = configuration.SortBy switch
             {
                 SearchSort.Largest => found.OrderByDescending(r => r.Size).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList(),
@@ -149,48 +306,80 @@ public partial class MainWindow : Window
                 _ => found.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList()
             };
             _results.Clear(); _results.AddRange(found);
-            ResultsList.Items.Refresh(); ResultCount.Text = $"{found.Count} file{(found.Count == 1 ? "" : "s")} found" + (page.Limited ? " · scan limit reached" : "");
+            ResultsEmptyTitle.Text = found.Count == 0 ? "No matching files" : "Your files appear here";
+            ResultsEmptyMessage.Text = found.Count == 0
+                ? $"Nothing matched \"{query}\" in {Path.GetFileName(root)}. Check spelling, filters, and excluded folders, then try again."
+                : "Choose a result to preview it. Hold Shift to select a range or Ctrl to add individual files.";
+            GroupResults_Changed(this, new RoutedEventArgs()); ResultsList.Items.Refresh(); ResultCount.Text = $"{found.Count} file{(found.Count == 1 ? "" : "s")} found" + (page.Limited ? " · scan limit reached" : "");
+            if (!_appPreferences.PrivacyMode)
+            {
+                _searchUx.RecentFolders.RemoveAll(path => string.Equals(path, root, StringComparison.OrdinalIgnoreCase));
+                _searchUx.RecentFolders.Insert(0, root); _searchUx.RecentFolders = _searchUx.RecentFolders.Take(15).ToList();
+                RefreshSearchUxPickers(); SaveSearchUxState();
+            }
             ResultsList.SelectedItem = null;
             SetStatus(found.Count == 0 ? "No files matched. Try another search." : $"Choose a result to review it. {page.InaccessibleEntries} inaccessible item(s) were skipped.");
         }
         catch (OperationCanceledException) { SetStatus("Search canceled."); }
         catch (Exception ex) { SetStatus($"Search could not finish: {SafeMessage(ex)}", true); }
-        finally { SearchButton.IsEnabled = true; CancelSearchButton.Visibility = Visibility.Collapsed; CancelSearchButton.IsEnabled = false; _searchCancellation?.Dispose(); _searchCancellation = null; }
+        finally { _searchPauseGate?.Resume(); _searchPauseGate = null; SearchButton.IsEnabled = true; PauseSearchButton.Visibility = Visibility.Collapsed; PauseSearchButton.Content = "Pause"; CancelSearchButton.Visibility = Visibility.Collapsed; CancelSearchButton.IsEnabled = false; _searchCancellation?.Dispose(); _searchCancellation = null; }
     }
 
-    private void CancelSearch_Click(object sender, RoutedEventArgs e) => _searchCancellation?.Cancel();
+    private void CancelSearch_Click(object sender, RoutedEventArgs e) { _searchPauseGate?.Resume(); _searchCancellation?.Cancel(); }
+    private void PauseSearch_Click(object sender, RoutedEventArgs e)
+    {
+        if (_searchPauseGate is null) return;
+        if (_searchPauseGate.IsPaused) { _searchPauseGate.Resume(); PauseSearchButton.Content = "Pause"; SetStatus("Search resumed."); }
+        else { _searchPauseGate.Pause(); PauseSearchButton.Content = "Resume"; SetStatus("Search paused. Resume to continue scanning."); }
+    }
 
     private void Results_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var item = ResultsList.SelectedItem as ResultItem;
         OpenFileButton.IsEnabled = OpenFileInCodeButton.IsEnabled = RevealFileButton.IsEnabled = CopyPathButton.IsEnabled = CopyHashButton.IsEnabled = ReviewFileButton.IsEnabled = item is not null;
-        if (item is null) { UploadButton.IsEnabled = false; SelectedFileLabel.Text = "Select one search result to review it here."; return; }
+        PreviousPreviewButton.IsEnabled = NextPreviewButton.IsEnabled = item is not null && _results.Count > 1;
+        if (item is null) { UploadButton.IsEnabled = false; SelectedFileLabel.Text = ResultsList.SelectedItems.Count > 1 ? $"{ResultsList.SelectedItems.Count} files selected. Use Shift or Ctrl to adjust the selection." : "Select one search result to review it here."; return; }
         if (!_pathManuallyEdited || string.IsNullOrWhiteSpace(PathBox.Text))
         {
             _loadingAccounts = true; PathBox.Text = item.Name; _loadingAccounts = false;
         }
-        SelectedFileLabel.Text = $"{item.FullPath}\n{FormatSize(item.Size)}  ·  Modified {item.LastModified:yyyy-MM-dd HH:mm}";
-        UploadButton.IsEnabled = !_busy && _token is not null;
+        var visiblePath = _appPreferences.ScreenSharePrivacyMask ? "Path hidden during screen sharing" : item.FullPath;
+        SelectedFileLabel.Text = $"{visiblePath}\n{FormatSize(item.Size)}  ·  Modified {item.LastModified:yyyy-MM-dd HH:mm}" + (IsCurrentRevisionReviewed(item) ? "\nReviewed: this exact file revision" : "\nNot reviewed in this session");
+        SelectedFileLabel.ToolTip = visiblePath;
+        System.Windows.Automation.AutomationProperties.SetName(SelectedFileLabel, $"Selected file {item.Name}, {FormatSize(item.Size)}, modified {item.LastModified:yyyy-MM-dd HH:mm}, path {item.FullPath}");
+        UploadButton.IsEnabled = !_busy && _token is not null && !IsWorkspaceArchived(RepoPicker.Text.Trim());
     }
+
+    private bool IsCurrentRevisionReviewed(ResultItem item)
+    {
+        try { var info = new FileInfo(item.FullPath); return string.Equals(_lastReviewedRevision, $"{item.FullPath}|{info.Length}|{info.LastWriteTimeUtc.Ticks}", StringComparison.Ordinal); }
+        catch { return false; }
+    }
+
+    private void SelectAllResults_Click(object sender, RoutedEventArgs e) => ResultsList.SelectAll();
+    private void ClearResultsSelection_Click(object sender, RoutedEventArgs e) => ResultsList.SelectedItems.Clear();
 
     private SearchConfiguration BuildFileSearchOptions(string query, string root)
     {
+        var errors = new List<string>();
         static decimal? ParseMegabytes(string value, string label)
         {
             if (string.IsNullOrWhiteSpace(value)) return null;
             if (!decimal.TryParse(value, out var result) || result < 0 || result > 1024 * 1024)
-                throw new InvalidOperationException($"{label} must be a number between 0 and 1,048,576 MB.");
+                return null;
             return result;
         }
         var min = ParseMegabytes(MinSizeBox.Text, "Minimum size");
         var max = ParseMegabytes(MaxSizeBox.Text, "Maximum size");
-        if (min.HasValue && max.HasValue && min > max) throw new InvalidOperationException("Minimum size cannot be larger than maximum size.");
+        if (!string.IsNullOrWhiteSpace(MinSizeBox.Text) && min is null) errors.Add("Minimum size must be a number between 0 and 1,048,576 MB.");
+        if (!string.IsNullOrWhiteSpace(MaxSizeBox.Text) && max is null) errors.Add("Maximum size must be a number between 0 and 1,048,576 MB.");
+        if (min.HasValue && max.HasValue && min > max) errors.Add("Minimum size cannot be larger than maximum size.");
         DateTime? modified = null;
         if (!string.IsNullOrWhiteSpace(ModifiedAfterBox.Text))
         {
             if (!DateTime.TryParseExact(ModifiedAfterBox.Text.Trim(), "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out var parsed))
-                throw new InvalidOperationException("Modified-after date must use YYYY-MM-DD format.");
-            modified = parsed.Date;
+                errors.Add("Modified-after date must use YYYY-MM-DD format.");
+            else modified = parsed.Date;
         }
         var extensions = ExtensionFilterBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(ext => ext.StartsWith('.') ? ext : "." + ext).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -198,8 +387,8 @@ public partial class MainWindow : Window
         var maxResults = int.TryParse((ResultLimitPicker.SelectedItem as ComboBoxItem)?.Content?.ToString(), out var parsedLimit) ? parsedLimit : 200;
         var sort = SortPicker.SelectedIndex switch { 1 => SearchSort.Largest, 2 => SearchSort.Newest, 3 => SearchSort.Oldest, _ => SearchSort.Name };
         var mode = SearchModePicker.SelectedIndex switch { 1 => SearchQueryMode.RegularExpression, 2 => SearchQueryMode.FileContents, _ => SearchQueryMode.FileName };
-        if (mode == SearchQueryMode.FileContents && (ExactMatchCheck.IsChecked == true))
-            throw new InvalidOperationException("Exact name applies only to filename searches; turn it off for content search.");
+        if (mode == SearchQueryMode.FileContents && (ExactMatchCheck.IsChecked == true)) errors.Add("Exact name applies only to filename searches; turn it off for content search.");
+        if (errors.Count > 0) throw new InvalidOperationException(string.Join("\n", errors));
         var options = new global::FileToGitHub.SearchOptions(new[] { root }, query, mode, ExactMatchCheck.IsChecked == true, CaseSensitiveCheck.IsChecked == true,
             RecursiveCheck.IsChecked == true, IncludeHiddenCheck.IsChecked == true, extensions, excluded,
             min.HasValue ? (long?)(min.Value * 1024m * 1024m) : null,
@@ -234,6 +423,18 @@ public partial class MainWindow : Window
         _loadingAccounts = true; PathBox.Clear(); _loadingAccounts = false; _pathManuallyEdited = false;
         UploadButton.IsEnabled = false;
         SaveSettings();
+        UpdateScopePreview();
+    }
+
+    private void PreviousPreview_Click(object sender, RoutedEventArgs e) => NavigateResult(-1);
+    private void NextPreview_Click(object sender, RoutedEventArgs e) => NavigateResult(1);
+    private void NavigateResult(int delta)
+    {
+        var current = ResultsList.SelectedItem is ResultItem item ? _results.IndexOf(item) : -1;
+        if (current < 0 || _results.Count == 0) return;
+        var next = (current + delta + _results.Count) % _results.Count;
+        ResultsList.SelectedItem = _results[next]; ResultsList.ScrollIntoView(_results[next]);
+        ReviewFile_Click(this, new RoutedEventArgs());
     }
 
     private void RememberSearch(string query)
@@ -268,7 +469,7 @@ public partial class MainWindow : Window
             SetSearchFolder(Path.GetDirectoryName(path)!);
             SearchBox.Text = Path.GetFileName(path);
             var info = new FileInfo(path);
-            _results.Add(new ResultItem(path, info.Length, info.LastWriteTime, info.LastWriteTimeUtc));
+            _results.Add(new ResultItem(path, info.Length, info.LastWriteTime, info.LastWriteTimeUtc, masked: _appPreferences.ScreenSharePrivacyMask));
             ResultsList.Items.Refresh(); ResultsList.SelectedIndex = 0;
             ResultCount.Text = "1 file dropped";
             SetStatus(paths.Length > 1 ? "First dropped file ready. Other dropped items were ignored." : "File ready. Review its GitHub destination, then send it.");
@@ -353,6 +554,13 @@ public partial class MainWindow : Window
             remoteLoader = LoadRemoteTextForReviewAsync;
         var review = new FileReviewWindow(item.FullPath, PathBox.Text.Trim(), remoteLoader, new FileSafetyRules(_sensitivePatterns)) { Owner = this };
         var proceed = review.ShowDialog() == true;
+        if (File.Exists(item.FullPath))
+        {
+            var info = new FileInfo(item.FullPath);
+            _lastReviewedRevision = $"{item.FullPath}|{info.Length}|{info.LastWriteTimeUtc.Ticks}";
+            if (ReferenceEquals(SelectedResult, item))
+                SelectedFileLabel.Text = $"{(_appPreferences.ScreenSharePrivacyMask ? "Path hidden during screen sharing" : item.FullPath)}\n{FormatSize(item.Size)}  ·  Modified {item.LastModified:yyyy-MM-dd HH:mm}\nReviewed: this exact file revision";
+        }
         SetStatus(proceed ? "Review complete. Check the destination, then choose Send selected file." : "File review closed.");
         await Task.CompletedTask;
     }
@@ -385,6 +593,12 @@ public partial class MainWindow : Window
         ShowUpdateFailureIfPresent();
         var saved = ReadSavedSettings();
         _appPreferences = ReadAppPreferences();
+        if (_appPreferences.PrivacyMode)
+        {
+            _searchUx = new SearchUxState();
+            RefreshSearchUxPickers();
+        }
+        else LoadSearchUxState();
         ReadSafetyAndPresetSettings();
         _preferredAccount = saved.Account;
         _autoConnect = saved.AutoConnect;
@@ -397,9 +611,11 @@ public partial class MainWindow : Window
         DestinationPicker.ItemsSource = _namedPresets.Select(x => x.Label == x.Value ? x.Value : x.Label + "  ·  " + x.Value).ToList();
         if (!_appPreferences.PrivacyMode && !string.IsNullOrWhiteSpace(saved.LastFolder) && Directory.Exists(saved.LastFolder)) FolderBox.Text = saved.LastFolder;
         RestoreWorkspaceSettings();
+        UpdateScopePreview();
         AutoConnectCheckBox.IsChecked = _autoConnect;
         RequireWindowsAuthenticationCheckBox.IsChecked = _requireWindowsAuthentication;
         _settingsLoaded = true;
+        RecoverSearchDraft();
         if (AccountSessionLock.Current is { } session)
         {
             try { await session.WaitUntilUnlockedAsync(); }
@@ -922,6 +1138,7 @@ public partial class MainWindow : Window
 
     private void SaveSettings()
     {
+        if (_appPreferences.PrivacyMode) try { File.Delete(SearchDraftPath); } catch { }
         string? temporary = null;
         try
         {
@@ -1013,11 +1230,32 @@ public partial class MainWindow : Window
         if (!accepted) throw new OperationCanceledException("Content review declined. Nothing further was sent.", ct);
     }
 
+    private void EnsureWorkspacePublishable(string repository, bool repositoryIsPrivate)
+    {
+        if (IsWorkspaceArchived(repository))
+            throw new InvalidOperationException("This repository is archived in the current OctoShip workspace and is read-only. Unarchive it before publishing.");
+        if (!OctoShipWorkspacePolicyService.CanPublishToRepository(_appPreferences, repository, repositoryIsPrivate))
+            throw new InvalidOperationException("This repository is marked private-only in OctoShip, but GitHub reports that it is public. Publishing is blocked by your local policy.");
+    }
+
+    private bool IsWorkspaceArchived(string repository) => OctoShipWorkspacePolicyService.IsArchived(repository)
+        || _appPreferences.ArchivedWorkspaces.Contains(repository, StringComparer.OrdinalIgnoreCase);
+
+    private void RefreshPublishControls()
+    {
+        var writableWorkspace = !_busy && _token is not null && !IsWorkspaceArchived(RepoPicker.Text.Trim());
+        if (UploadButton is not null) UploadButton.IsEnabled = writableWorkspace && ResultsList.SelectedItem is ResultItem;
+        if (QueueRunButton is not null) QueueRunButton.IsEnabled = writableWorkspace && _uploadQueue is not null && !_uploadQueue.IsRunning
+            && _uploadQueue.Items.Any(item => item.State is UploadQueueItemState.Queued or UploadQueueItemState.Failed);
+        if (ResumeBatchButton is not null) ResumeBatchButton.IsEnabled = writableWorkspace;
+    }
+
     private void ShowToolsPage_Click(object sender, RoutedEventArgs e)
         => ShowToolsPage();
 
     private void ShowToolsPage()
     {
+        RecordNavigation();
         HomeView.Visibility = Visibility.Collapsed;
         ToolsView.Visibility = Visibility.Visible;
         ToolsVersionLabel.Text = VersionLabel.Text;
@@ -1030,7 +1268,7 @@ public partial class MainWindow : Window
     {
         UpdateNavigationContext();
         ProfileAccount.Text = _account ?? _preferredAccount ?? "Not set";
-        ProfileRepository.Text = string.IsNullOrWhiteSpace(RepoPicker.Text) ? "Not selected" : RepoPicker.Text.Trim();
+        ProfileRepository.Text = string.IsNullOrWhiteSpace(RepoPicker.Text) ? "Not selected" : _appPreferences.ScreenSharePrivacyMask ? "Repository hidden during screen sharing" : RepoPicker.Text.Trim();
         ProfileChannel.Text = _appPreferences.UpdateChannel.ToString();
         ProfilePrivacy.Text = _appPreferences.PrivacyMode ? "On" : "Off";
     }
@@ -1054,9 +1292,31 @@ public partial class MainWindow : Window
 
     private void BackToSearch_Click(object sender, RoutedEventArgs e)
     {
+        RecordNavigation();
         ToolsView.Visibility = Visibility.Collapsed;
         HomeView.Visibility = Visibility.Visible;
     }
+
+    private void RecordNavigation()
+    {
+        if (_restoringNavigation) return;
+        var state = (Tools: ToolsView.Visibility == Visibility.Visible, Tab: ToolsTabs.SelectedIndex);
+        if (_backNavigation.TryPeek(out var previous) && previous == state) return;
+        _backNavigation.Push(state); _forwardNavigation.Clear(); UpdateNavigationButtons();
+    }
+    private void NavigationBack_Click(object sender, RoutedEventArgs e) => RestoreNavigation(_backNavigation, _forwardNavigation);
+    private void NavigationForward_Click(object sender, RoutedEventArgs e) => RestoreNavigation(_forwardNavigation, _backNavigation);
+    private void RestoreNavigation(Stack<(bool Tools, int Tab)> source, Stack<(bool Tools, int Tab)> destination)
+    {
+        if (!source.TryPop(out var target)) return;
+        destination.Push((ToolsView.Visibility == Visibility.Visible, ToolsTabs.SelectedIndex));
+        _restoringNavigation = true;
+        ToolsView.Visibility = target.Tools ? Visibility.Visible : Visibility.Collapsed;
+        HomeView.Visibility = target.Tools ? Visibility.Collapsed : Visibility.Visible;
+        if (target.Tools) ToolsTabs.SelectedIndex = Math.Clamp(target.Tab, 0, ToolsTabs.Items.Count - 1);
+        _restoringNavigation = false; UpdateNavigationButtons();
+    }
+    private void UpdateNavigationButtons() { NavigationBackButton.IsEnabled = _backNavigation.Count > 0; NavigationForwardButton.IsEnabled = _forwardNavigation.Count > 0; }
 
     private void NavigateRepositories_Click(object sender, RoutedEventArgs e) { ShowToolsPage(); ToolsTabs.SelectedIndex = 0; }
     private void NavigateAccount_Click(object sender, RoutedEventArgs e) { ShowToolsPage(); ToolsTabs.SelectedIndex = 2; }
@@ -1065,8 +1325,11 @@ public partial class MainWindow : Window
     {
         if (NavigationContext is null) return;
         UniformUi.SetAccount(_account);
-        NavigationContext.Text = "Account: " + (_account ?? "not connected") + "   ·   " +
-            (string.IsNullOrWhiteSpace(RepoPicker.Text) ? "No repository selected" : RepoPicker.Text.Trim() + "  /  " + BranchBox.Text.Trim());
+        var repository = RepoPicker.Text.Trim();
+        NavigationContext.Text = "Account: " + (_account is null ? "not connected" : _appPreferences.ScreenSharePrivacyMask ? "hidden during screen sharing" : _account) + "   ·   " +
+            (string.IsNullOrWhiteSpace(repository) ? "No repository selected" : _appPreferences.ScreenSharePrivacyMask ? "Repository and branch hidden during screen sharing" : repository + "  /  " + BranchBox.Text.Trim()) +
+            (IsWorkspaceArchived(repository) ? "   ·   Archived / read-only" : "");
+        RefreshPublishControls();
     }
 
     private void OpenDataFolder_Click(object sender, RoutedEventArgs e)
@@ -1262,7 +1525,12 @@ public partial class MainWindow : Window
             _pendingUpdateScript = null;
             _pendingUpdateVersion = null;
         }
+        var wasPrivacyMode = _appPreferences.PrivacyMode;
         _appPreferences = settings.Preferences; _sensitivePatterns = settings.SensitivePatterns.ToArray(); _namedPresets = settings.DestinationPresets.ToList();
+        foreach (var result in _results) result.Masked = _appPreferences.ScreenSharePrivacyMask;
+        ResultsList.Items.Refresh();
+        if (wasPrivacyMode && !_appPreferences.PrivacyMode) LoadSearchUxState();
+        else if (_appPreferences.PrivacyMode) { _searchUx = new SearchUxState(); RefreshSearchUxPickers(); }
         _destinationHistory.Clear(); _destinationHistory.AddRange(_namedPresets.Select(x => x.Value).Distinct(StringComparer.OrdinalIgnoreCase).Take(12));
         DestinationPicker.ItemsSource = _namedPresets.Select(x => x.Label + "  ·  " + x.Value).ToList();
         _searchHistory.Clear();
@@ -1272,6 +1540,11 @@ public partial class MainWindow : Window
         SaveSettings(); SetStatus("Settings saved. Privacy mode and update channel apply immediately.");
         _nextAutomaticUpdateCheck = DateTimeOffset.MinValue;
         _ = CheckForUpdatesAsync(silent: true);
+    }
+
+    private void PolicyReview_Click(object sender, RoutedEventArgs e)
+    {
+        new PolicyReviewWindow(_appPreferences) { Owner = this }.ShowDialog();
     }
 
     private async void Update_Click(object sender, RoutedEventArgs e) => await CheckForUpdatesAsync(silent: false);
@@ -1530,6 +1803,7 @@ public partial class MainWindow : Window
             var token = cancellation.Token;
             var identity = repository.Split('/', 2);
             var repositoryInfo = await _repositoryService.GetRepositoryAsync(identity[0], identity[1], _token, token);
+            EnsureWorkspacePublishable(repository, repositoryInfo.IsPrivate);
             if (repositoryInfo.Archived || repositoryInfo.Disabled)
                 throw new InvalidOperationException("This repository is archived or disabled, so OctoShip will not upload to it.");
             if (repositoryInfo.CanPush == false)
@@ -1620,7 +1894,7 @@ public partial class MainWindow : Window
             RefreshQueueView();
             QueueList.Visibility = Visibility.Visible;
             QueueStatusLabel.Text = $"{items.Count} file(s) queued · {(double)items.Sum(item => item.CapturedLength) / (1024 * 1024):0.##} MB total. Each file creates its own commit.";
-            QueueRunButton.IsEnabled = _token is not null;
+            RefreshPublishControls();
             QueueRetryButton.IsEnabled = false;
         }
         catch (Exception ex) { SetStatus($"Could not queue this folder: {SafeMessage(ex)}", true); }
@@ -1631,7 +1905,7 @@ public partial class MainWindow : Window
         if (!Dispatcher.CheckAccess()) { Dispatcher.BeginInvoke(new Action(RefreshQueueView)); return; }
         var items = _uploadQueue?.Items ?? Array.Empty<UploadQueueItem>();
         QueueList.ItemsSource = items.Select(item => $"{item.State,-9} {item.ProgressPercent,3:0}%  {item.DestinationPath}" + (string.IsNullOrWhiteSpace(item.Error) ? "" : $" · {item.Error}")).ToArray();
-        QueueRunButton.IsEnabled = _uploadQueue is not null && !_uploadQueue.IsRunning && _token is not null && items.Any(item => item.State is UploadQueueItemState.Queued or UploadQueueItemState.Failed);
+        QueueRunButton.IsEnabled = _uploadQueue is not null && !_uploadQueue.IsRunning && _token is not null && !IsWorkspaceArchived(RepoPicker.Text.Trim()) && items.Any(item => item.State is UploadQueueItemState.Queued or UploadQueueItemState.Failed);
         QueuePauseButton.IsEnabled = _uploadQueue?.IsRunning == true;
         QueuePauseButton.Content = _uploadQueue?.IsPaused == true ? "Resume" : "Pause";
         QueueRetryButton.IsEnabled = _uploadQueue is not null && !_uploadQueue.IsRunning && items.Any(item => item.State is UploadQueueItemState.Failed or UploadQueueItemState.Cancelled);
@@ -1659,6 +1933,7 @@ public partial class MainWindow : Window
         try
         {
             var metadata = await _repositoryService.GetRepositoryAsync(identity[0], identity[1], _token, cancellation.Token);
+            EnsureWorkspacePublishable(repository, metadata.IsPrivate);
             if (metadata.Archived || metadata.Disabled) throw new InvalidOperationException("This repository is archived or disabled.");
             if (metadata.CanPush == false) throw new InvalidOperationException("GitHub confirms that this account cannot push to this repository.");
             if (metadata.CanPush is null && OctoShipDialog.Show(this, "GitHub did not report write permission for this repository. Continue with branch and file checks?", "Write access could not be confirmed", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
@@ -1737,6 +2012,7 @@ public partial class MainWindow : Window
     private async Task OpenBatchWindowAsync(bool restoreOnly)
     {
         if ((!restoreOnly && _uploadQueue is null) || string.IsNullOrWhiteSpace(_token) || string.IsNullOrWhiteSpace(_account)) { SetStatus("Connect a GitHub account and choose a folder first.", true); return; }
+        if (IsWorkspaceArchived(RepoPicker.Text.Trim())) { SetStatus("This workspace is archived and read-only. Unarchive it before opening a publication flow.", true); return; }
         if (restoreOnly && _appPreferences.PrivacyMode) { SetStatus("Saved queue recovery is disabled in privacy mode.", true); return; }
         var repository = RepoPicker.Text.Trim(); var branch = BranchBox.Text.Trim(); var message = CommitMessageBox.Text.Trim();
         var folder = QueuePathBox.Text.Trim().Replace('\\', '/').Trim('/');
@@ -1752,6 +2028,7 @@ public partial class MainWindow : Window
         {
             var parts = repository.Split('/', 2);
             var metadata = await _repositoryService.GetRepositoryAsync(parts[0], parts[1], _token, cts.Token);
+            EnsureWorkspacePublishable(repository, metadata.IsPrivate);
             if (metadata.Archived || metadata.Disabled || metadata.CanPush == false) throw new InvalidOperationException("The repository is archived, disabled, or not writable.");
             if (metadata.CanPush is null && OctoShipDialog.Show(this, "GitHub did not confirm write access. Continue with destination checks?", "Write access unconfirmed", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             using (var branchResponse = await SendAsync(HttpMethod.Get, $"https://api.github.com/repos/{repository}/branches/{Uri.EscapeDataString(branch)}", _token, cancellationToken: cts.Token)) await EnsureSuccess(branchResponse);
@@ -1928,7 +2205,8 @@ public partial class MainWindow : Window
         _busy = busy; SearchButton.IsEnabled = !busy; QueueFolderButton.IsEnabled = !busy; QueuePathBox.IsEnabled = !busy; QueueRunButton.IsEnabled = !busy && _uploadQueue is not null && _token is not null; ConnectButton.IsEnabled = !busy;
         AccountPicker.IsEnabled = !busy; AddAccountButton.IsEnabled = !busy; SignOutButton.IsEnabled = !busy && _account is not null;
         BrowseButton.IsEnabled = !busy;
-        UploadButton.IsEnabled = !busy && ResultsList.SelectedItem is ResultItem && _token is not null;
+        UploadButton.IsEnabled = !busy && ResultsList.SelectedItem is ResultItem && _token is not null && !IsWorkspaceArchived(RepoPicker.Text.Trim());
+        RefreshPublishControls();
         if (message is not null) SetStatus(message);
         Mouse.OverrideCursor = busy ? Cursors.Wait : null;
     }
@@ -1981,18 +2259,49 @@ public partial class MainWindow : Window
     private sealed class ResultItem
     {
         public string FullPath { get; }
+        public bool Masked { get; set; }
+        public string DisplayFullPath => Masked ? "Path hidden during screen sharing" : FullPath;
         public string Name => Path.GetFileName(FullPath);
+        public string ParentFolder => Path.GetDirectoryName(FullPath) ?? "";
+        public string? MatchSnippet { get; }
         public long Size { get; }
         public DateTime LastModified { get; }
         public DateTime LastWriteTimeUtc { get; }
-        public ResultItem(string path, long size, DateTime lastModified, DateTime lastWriteTimeUtc)
+        public ResultItem(string path, long size, DateTime lastModified, DateTime lastWriteTimeUtc, string? matchSnippet = null, bool masked = false)
         {
             FullPath = path; Size = size; LastModified = lastModified;
             LastWriteTimeUtc = lastWriteTimeUtc;
+            MatchSnippet = matchSnippet;
+            Masked = masked;
         }
         public bool HasChangedOnDisk() => !File.Exists(FullPath) || new FileInfo(FullPath).Length != Size || File.GetLastWriteTimeUtc(FullPath) != LastWriteTimeUtc;
-        public string Details => $"{Name}   ·   {FormatSize(Size)}   ·   {LastModified:yyyy-MM-dd HH:mm}\n{FullPath}";
+        public string Details => $"{Name}   ·   {FormatSize(Size)}   ·   {LastModified:yyyy-MM-dd HH:mm}\n{DisplayFullPath}";
         public string Summary => $"{FormatSize(Size)}  ·  {LastModified:yyyy-MM-dd HH:mm}";
+    }
+
+    private sealed class SearchUxState
+    {
+        public List<string> RecentFolders { get; set; } = new();
+        public List<string> PinnedFolders { get; set; } = new();
+        public Dictionary<string, SearchWorkspace> Workspaces { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed class SearchWorkspace
+    {
+        public string Folder { get; set; } = "";
+        public string Query { get; set; } = "";
+        public int Mode { get; set; }
+        public bool Exact { get; set; }
+        public bool CaseSensitive { get; set; }
+        public bool Recursive { get; set; } = true;
+        public bool IncludeHidden { get; set; }
+        public string Extensions { get; set; } = "";
+        public string Excluded { get; set; } = "";
+        public string Minimum { get; set; } = "";
+        public string Maximum { get; set; } = "";
+        public string ModifiedAfter { get; set; } = "";
+        public int Sort { get; set; }
+        public int Limit { get; set; } = 2;
     }
 
     private enum SearchSort { Name, Largest, Newest, Oldest }

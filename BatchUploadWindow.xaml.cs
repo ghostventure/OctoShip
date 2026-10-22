@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -9,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Threading;
 
 namespace FileToGitHub;
@@ -82,11 +84,11 @@ public sealed class BatchUploadEntry : System.ComponentModel.INotifyPropertyChan
         StatusText = item.State == UploadQueueItemState.Skipped ? "Skipped" : "Ready";
         Error = item.Error;
     }
-    internal UploadQueueItem Item { get; }
+    internal UploadQueueItem Item { get; private set; }
     public string SourcePath => Item.SourcePath;
     public string DestinationPath { get => _destinationPath; set { if (_destinationPath != value) { _destinationPath = value; Item.DestinationPath = UploadQueueItem.NormalizeDestination(value); Changed(nameof(DestinationPath)); } } }
     public string CommitMessage { get => _commitMessage; set { _commitMessage = value ?? ""; Changed(nameof(CommitMessage)); } }
-    public long Size { get; }
+    public long Size { get; private set; }
     public string SizeText => Size < 1024 * 1024 ? $"{Size / 1024d:0.#} KB" : $"{Size / (1024d * 1024):0.##} MB";
     public string ProgressText { get; internal set; } = "—";
     public string StatusText { get; internal set; }
@@ -95,6 +97,12 @@ public sealed class BatchUploadEntry : System.ComponentModel.INotifyPropertyChan
     public bool HasUrl => Uri.TryCreate(Url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps && uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase);
     public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     internal void Changed(string property) => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(property));
+    internal void RefreshSource()
+    {
+        var current = UploadQueuePlanner.FromFiles(new[] { SourcePath }).Single();
+        Item = current; Size = current.CapturedLength; StatusText = "Ready"; Error = null; ProgressText = "—";
+        Changed(nameof(Size)); Changed(nameof(SizeText)); Refresh();
+    }
     internal void Refresh() { Changed(nameof(DestinationPath)); Changed(nameof(CommitMessage)); Changed(nameof(ProgressText)); Changed(nameof(StatusText)); Changed(nameof(Error)); Changed(nameof(Url)); Changed(nameof(HasUrl)); }
 }
 
@@ -159,6 +167,60 @@ public partial class BatchUploadWindow : Window
         else { QueueGrid.Columns[3].Header = one ? "Per-file messages ignored" : "Commit message"; StartButton.IsEnabled = true; }
     }
     private void CollisionBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
+    private bool MatchesFilter(BatchUploadEntry entry) => QueueFilterBox.SelectedIndex switch
+    {
+        1 => entry.StatusText == "Ready",
+        2 => entry.StatusText == "Skipped",
+        3 => entry.StatusText == "Uploaded",
+        4 => entry.StatusText is "Failed" or "Cancelled" or "Uncertain" or "Changed",
+        _ => true
+    };
+    private void QueueFilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyQueueFilter();
+    private void ApplyQueueFilter()
+    {
+        if (QueueGrid == null || _entries == null) return;
+        var view = CollectionViewSource.GetDefaultView(_entries);
+        view.Filter = item => item is BatchUploadEntry entry && MatchesFilter(entry);
+        view.Refresh();
+    }
+    private void SelectByRule_Click(object sender, RoutedEventArgs e)
+    {
+        var pattern = SelectPatternBox.Text.Trim();
+        if (pattern.Length == 0) { OctoShipDialog.Show(this, "Enter a path or glob pattern, such as docs/** or *.md."); return; }
+        QueueGrid.SelectedItems.Clear();
+        foreach (var entry in _entries.Where(x => MatchesPattern(x.SourcePath, pattern) || MatchesPattern(x.DestinationPath, pattern)))
+            QueueGrid.SelectedItems.Add(entry);
+        if (QueueGrid.SelectedItems.Count == 0) OctoShipDialog.Show(this, "No queued files match that pattern.", "Select files", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+    private void DestinationTree_Click(object sender, RoutedEventArgs e) => OctoShipDialog.Show(this, BuildDestinationTree(_entries), "Planned repository paths", MessageBoxButton.OK, MessageBoxImage.Information);
+    private static string BuildDestinationTree(IEnumerable<BatchUploadEntry> entries)
+    {
+        var root = new SortedDictionary<string, object>(StringComparer.Ordinal);
+        foreach (var entry in entries)
+        {
+            var node = root;
+            var parts = entry.DestinationPath.Split('/');
+            for (var i = 0; i < parts.Length - 1; i++)
+            {
+                if (!node.TryGetValue(parts[i], out var child)) node[parts[i]] = child = new SortedDictionary<string, object>(StringComparer.Ordinal);
+                if (child is not SortedDictionary<string, object> next) break;
+                node = next;
+            }
+            if (parts.Length > 0) node[parts[^1]] = null!;
+        }
+        var lines = new System.Collections.Generic.List<string>();
+        void Add(SortedDictionary<string, object> tree, int depth)
+        {
+            foreach (var pair in tree)
+            {
+                lines.Add(new string(' ', depth * 2) + pair.Key + (pair.Value is SortedDictionary<string, object> ? "/" : ""));
+                if (pair.Value is SortedDictionary<string, object> child) Add(child, depth + 1);
+            }
+        }
+        Add(root, 0);
+        var text = string.Join("\n", lines);
+        return text.Length == 0 ? "No destination paths are queued." : text.Length > 12000 ? text[..12000] + "\n… (tree truncated)" : text;
+    }
     private void QueueGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e) => Dispatcher.BeginInvoke(new Action(UpdateSummary));
     private void AddFiles_Click(object sender, RoutedEventArgs e)
     {
@@ -187,6 +249,11 @@ public partial class BatchUploadWindow : Window
         if (selected.Count != 1) return;
         var index = _entries.IndexOf(selected[0]); var next = Math.Clamp(index + offset, 0, _entries.Count - 1);
         if (index == next) return;
+        if (selected[0].StatusText != "Ready" || _entries[next].StatusText != "Ready")
+        {
+            OctoShipDialog.Show(this, "Reorder only adjacent ready items. Uploaded, skipped, failed, changed, and uncertain items keep their relative position until resolved.", "Safe queue ordering", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         _entries.Move(index, next); QueueGrid.SelectedItem = selected[0]; SaveQueue();
     }
     private void ApplyRules_Click(object sender, RoutedEventArgs e) { ApplyRules(); UpdateSummary(); }
@@ -197,7 +264,7 @@ public partial class BatchUploadWindow : Window
         var patterns = IgnoreBox.Text.Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).Where(x => x.Length > 0).ToArray();
         foreach (var entry in _entries)
         {
-            if (entry.StatusText is "Uploaded" or "Uploading") continue;
+            if (entry.StatusText is "Uploaded" or "Uploading" or "Uncertain" or "Changed") continue;
             if (entry.Size > maxMB * 1024 * 1024) { entry.StatusText = "Skipped"; entry.Error = $"Exceeds {maxMB:0.##} MB limit."; }
             else if (patterns.Any(pattern => MatchesPattern(entry.SourcePath, pattern) || MatchesPattern(entry.DestinationPath, pattern))) { entry.StatusText = "Skipped"; entry.Error = "Matched an ignore pattern."; }
             else { entry.StatusText = "Ready"; entry.Error = null; }
@@ -237,12 +304,22 @@ public partial class BatchUploadWindow : Window
         {
             if (!BatchUploadSourceReadiness.TryValidate(entry.SourcePath, entry.Item.CapturedLength, entry.Item.CapturedLastWriteTimeUtc, out var sourceError))
             {
-                entry.StatusText = "Failed"; entry.Error = sourceError; entry.ProgressText = "—"; entry.Refresh();
+                entry.StatusText = sourceError?.Contains("changed after it was queued", StringComparison.OrdinalIgnoreCase) == true ? "Changed" : "Failed";
+                entry.Error = sourceError; entry.ProgressText = "—"; entry.Refresh();
             }
             else { entry.StatusText = "Ready"; entry.Error = null; entry.Refresh(); }
         }
         UpdateSummary();
         var ready = candidates.Where(x => x.StatusText == "Ready").ToArray();
+        var blocked = _entries.Where(x => x.StatusText is "Changed" or "Uncertain" or "Failed").ToArray();
+        if (blocked.Length > 0)
+        {
+            var details = string.Join("\n", blocked.Take(12).Select(x => $"• {Path.GetFileName(x.SourcePath)} — {x.Error ?? (x.StatusText == "Uncertain" ? "Check GitHub before retrying." : x.StatusText)}"));
+            OctoShipDialog.Show(this, "Resolve these files before starting. Select a row to inspect its full details. Changed sources can be refreshed with Review changed source; uncertain uploads need a GitHub check before retry.\n\n" + details,
+                "Preflight needs attention", MessageBoxButton.OK, MessageBoxImage.Warning);
+            if (blocked.Length > 0) { QueueFilterBox.SelectedIndex = 4; QueueGrid.SelectedItem = blocked[0]; QueueGrid.ScrollIntoView(blocked[0]); }
+            return;
+        }
         if (ready.Length == 0) { OctoShipDialog.Show(this, "There are no ready files to upload.", "Upload", MessageBoxButton.OK, MessageBoxImage.Information); return; }
         if (ready.Length > 100) { OctoShipDialog.Show(this, "A batch supports at most 100 files."); return; }
         foreach (var entry in ready)
@@ -259,7 +336,10 @@ public partial class BatchUploadWindow : Window
             string.Join("\n", pathWarnings) + "\n\nContinue with the exact paths shown in the queue?",
             "Destination path review", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         var totalBytes = ready.Sum(x => x.Size);
-        if (OctoShipDialog.Show(this, $"Upload {ready.Length} files ({FormatBytes(totalBytes)}) to {_repository}?\n\nReview the paths and commit settings before continuing.", "Confirm upload", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        var plan = string.Join("\n", ready.Take(20).Select(x => $"{x.DestinationPath}  ←  {Path.GetFileName(x.SourcePath)}"));
+        if (ready.Length > 20) plan += $"\n… and {ready.Length - 20} more file(s)";
+        var dryRun = $"DRY RUN — no files have been sent.\n\nRepository: {_repository}\nBranch: {_branch}\nFiles: {ready.Length}\nTotal: {FormatBytes(totalBytes)}\nCommit mode: {(CommitMode == BatchCommitMode.SingleBatch ? "one commit" : "one commit per file")}\n\n{plan}\n\nSkipped: {_entries.Count(x => x.StatusText == "Skipped")}. Existing destinations are checked again immediately before upload.";
+        if (OctoShipDialog.Show(this, dryRun + "\n\nProceed with this reviewed plan?", "Dry run and shipment review", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         _runCts = new CancellationTokenSource(); SetRunning(true);
         try
         {
@@ -274,7 +354,9 @@ public partial class BatchUploadWindow : Window
         finally { _runCts.Dispose(); _runCts = null; SetRunning(false); SaveQueue(); }
         FinalResults = _entries.Select(x => new BatchUploadResult(x.SourcePath, x.StatusText == "Uploaded", x.Url, x.Error)).ToArray();
         var ok = FinalResults.Count(x => x.Succeeded); var skipped = _entries.Count(x => x.StatusText == "Skipped"); var failed = FinalResults.Count(x => !x.Succeeded) - skipped;
-        OctoShipDialog.Show(this, $"Batch finished.\n\nUploaded: {ok}\nSkipped: {skipped}\nFailed or cancelled: {Math.Max(0, failed)}", "Upload summary", MessageBoxButton.OK, ok == ready.Length ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        var receipt = string.Join("\n", _entries.Select(x => $"{x.StatusText}: {x.DestinationPath}" + (x.Url is not null ? $"\n  {x.Url}" : x.Error is not null ? $"\n  {x.Error}" : "")));
+        if (receipt.Length > 12000) receipt = receipt[..12000] + "\n… (receipt truncated)";
+        OctoShipDialog.Show(this, $"Shipment receipt\n\nRepository: {_repository}\nBranch: {_branch}\nUploaded: {ok}  ·  Skipped: {skipped}  ·  Failed or uncertain: {Math.Max(0, failed)}\n\n{receipt}", "Shipment receipt", MessageBoxButton.OK, ok == ready.Length ? MessageBoxImage.Information : MessageBoxImage.Warning);
     }
     private async Task RunPerFileAsync(BatchUploadEntry[] entries, CancellationToken token)
     {
@@ -296,8 +378,9 @@ public partial class BatchUploadWindow : Window
                 entry.StatusText = result.Succeeded ? "Uploaded" : "Failed"; entry.Error = result.Error; entry.ProgressText = result.Succeeded ? "100%" : entry.ProgressText;
                 if (result.Succeeded) sent += entry.Size;
             }
-            catch (OperationCanceledException) { entry.StatusText = "Cancelled"; entry.Error = "Upload cancelled."; }
-            catch (Exception ex) { entry.StatusText = "Failed"; entry.Error = ex.Message; }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested) { entry.StatusText = "Failed"; entry.Error = "Upload was declined or cancelled before the request completed."; }
+            catch (OperationCanceledException) { entry.StatusText = "Uncertain"; entry.Error = "The upload was interrupted after it started. Check the destination on GitHub before retrying."; }
+            catch (Exception ex) { entry.StatusText = "Uncertain"; entry.Error = "The request may have reached GitHub. Check the destination on GitHub before retrying. " + ex.Message; }
             processed++; entry.Refresh(); UpdateSummary();
         }
     }
@@ -335,19 +418,35 @@ public partial class BatchUploadWindow : Window
             foreach (var entry in entries)
             {
                 var result = results.FirstOrDefault(x => x.SourcePath.Equals(entry.SourcePath, StringComparison.OrdinalIgnoreCase));
-                entry.StatusText = result?.Succeeded == true ? "Uploaded" : "Failed"; entry.Url = result?.Url; entry.Error = result?.Error ?? (result == null ? "No result returned by batch callback." : null);
+                entry.StatusText = result?.Succeeded == true ? "Uploaded" : result == null ? "Uncertain" : "Failed";
+                entry.Url = result?.Url;
+                entry.Error = result?.Error ?? (result == null ? "No result was returned for this file. The batch may have published it; check GitHub before retrying." : null);
                 entry.ProgressText = result?.Succeeded == true ? "100%" : entry.ProgressText; entry.Refresh();
             }
         }
-        catch (Exception ex) { foreach (var entry in entries) { entry.StatusText = token.IsCancellationRequested ? "Cancelled" : "Failed"; entry.Error = ex.Message; entry.Refresh(); } }
+        catch (Exception ex) { foreach (var entry in entries) { entry.StatusText = "Uncertain"; entry.Error = "The batch request may have reached GitHub. Check all destinations on GitHub before retrying. " + ex.Message; entry.Refresh(); } }
         OverallProgress.Value = entries.Count(x => x.StatusText == "Uploaded") * 100d / entries.Length; UpdateSummary();
     }
     private void Retry_Click(object sender, RoutedEventArgs e)
     {
-        var selected = QueueGrid.SelectedItems.Cast<object>().OfType<BatchUploadEntry>().Where(x => x.StatusText is "Failed" or "Cancelled").ToArray();
-        var retry = selected.Length > 0 ? selected : _entries.Where(x => x.StatusText is "Failed" or "Cancelled").ToArray();
+        var selected = QueueGrid.SelectedItems.Cast<object>().OfType<BatchUploadEntry>().Where(x => x.StatusText is "Failed" or "Cancelled" or "Uncertain").ToArray();
+        var retry = selected.Length > 0 ? selected : _entries.Where(x => x.StatusText is "Failed" or "Cancelled" or "Uncertain").ToArray();
+        if (retry.Any(x => x.StatusText == "Uncertain") && OctoShipDialog.Show(this,
+            "Some requests may already have published. Check each destination on GitHub first. Retry only files you confirmed are still missing.",
+            "Resolve uncertain uploads", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
         foreach (var entry in retry) { entry.StatusText = "Ready"; entry.Error = null; entry.ProgressText = "—"; entry.Refresh(); }
         StartButton.IsEnabled = true; RetryButton.IsEnabled = false; UpdateSummary();
+    }
+    private void RefreshSource_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = QueueGrid.SelectedItems.Cast<object>().OfType<BatchUploadEntry>().Where(x => x.StatusText == "Changed").ToArray();
+        var targets = selected.Length > 0 ? selected : _entries.Where(x => x.StatusText == "Changed").ToArray();
+        foreach (var entry in targets)
+        {
+            try { entry.RefreshSource(); }
+            catch (Exception ex) { entry.StatusText = "Failed"; entry.Error = "Could not review current source: " + ex.Message; entry.Refresh(); }
+        }
+        UpdateSummary();
     }
     private void Pause_Click(object sender, RoutedEventArgs e)
     {
@@ -364,7 +463,7 @@ public partial class BatchUploadWindow : Window
         CommitModeBox.IsEnabled = CollisionBox.IsEnabled = MaxSizeBox.IsEnabled = IgnoreBox.IsEnabled = ApplyRulesButton.IsEnabled = !running;
         BatchMessageBox.IsEnabled = !running && CommitMode == BatchCommitMode.SingleBatch;
         StartButton.IsEnabled = !running && (CommitMode != BatchCommitMode.SingleBatch || _uploadBatch != null);
-        foreach (var control in new[] { RetryButton, AddFilesButtonControl, RemoveButtonControl, MoveUpButtonControl, MoveDownButtonControl }) control.IsEnabled = !running;
+        foreach (var control in new[] { RetryButton, RefreshSourceButton, AddFilesButtonControl, RemoveButtonControl, MoveUpButtonControl, MoveDownButtonControl, SelectByRuleButton, DestinationTreeButton }) control.IsEnabled = !running;
         PauseButton.IsEnabled = running && CommitMode == BatchCommitMode.PerFile; CancelButton.IsEnabled = running;
         if (!running) { _resumeSignal?.TrySetResult(true); _resumeSignal = null; PauseButton.Content = "Pause"; _paused = false; }
     }
@@ -373,7 +472,9 @@ public partial class BatchUploadWindow : Window
         if (TotalsText == null) return;
         var bytes = _entries.Where(x => x.StatusText == "Ready").Sum(x => x.Size);
         TotalsText.Text = $"{_entries.Count} files · {FormatBytes(_entries.Sum(x => x.Size))} total · {FormatBytes(bytes)} ready";
-        RetryButton.IsEnabled = _runCts == null && _entries.Any(x => x.StatusText is "Failed" or "Cancelled");
+        RetryButton.IsEnabled = _runCts == null && _entries.Any(x => x.StatusText is "Failed" or "Cancelled" or "Uncertain");
+        RefreshSourceButton.IsEnabled = _runCts == null && _entries.Any(x => x.StatusText == "Changed");
+        ApplyQueueFilter();
         SaveQueue();
     }
     private void RestoreQueue(object sender, RoutedEventArgs e)
@@ -389,8 +490,9 @@ public partial class BatchUploadWindow : Window
             {
                 var entry = new BatchUploadEntry(PersistentUploadQueueStore.RestoreItem(row), row.CommitMessage)
                 {
-                    StatusText = row.Status == "Uploaded" ? "Uploaded" : "Ready",
+                    StatusText = row.Status == "Uploaded" ? "Uploaded" : row.Status is "Uploading" or "Cancelled" or "Uncertain" ? "Uncertain" : row.Status == "Changed" ? "Changed" : "Ready",
                     Url = row.Url,
+                    Error = row.Status is "Uploading" or "Cancelled" or "Uncertain" ? "Previous upload was interrupted. Check GitHub before retrying." : null,
                     ProgressText = row.Status == "Uploaded" ? "100%" : "?"
                 };
                 _entries.Add(entry);

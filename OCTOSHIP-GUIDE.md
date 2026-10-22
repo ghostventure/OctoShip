@@ -2,13 +2,13 @@
 
 ## Versions and scope
 
-Windows source candidate: **1.6.1-preview.15** (.NET 10 WPF, Windows 10 build 19041 or newer, x64 self-contained installer). It is not published yet. At last release check, preview.14 was the latest public preview and 1.6.0 the latest stable release. See the [P1 handoff](P1-HANDOFF.md) for package and release status. Linux source and packages are maintained independently under `linux/`; see [Linux guide](linux/README.md) and [packaging](linux/packaging/README.md). Windows verification does not establish Linux package behavior.
+Windows source candidate: **1.6.1-preview.18** (.NET 10 WPF, Windows 10 build 19041 or newer). Check the [P1 handoff](P1-HANDOFF.md) for package and GitHub publication status; source changes do not themselves publish a release. Linux source and packages are maintained independently under `linux/`; see [Linux guide](linux/README.md) and [packaging](linux/packaging/README.md). Windows verification does not establish Linux package behavior.
 
 The [P1 handoff](P1-HANDOFF.md) records implemented Windows changes, local installation, and remaining work. Earlier release documents are historical; building or installing a package locally does not publish it to GitHub.
 
 ## Install and first use
 
-Windows users need Git for Windows with Git Credential Manager for GitHub sign-in. The current self-contained installer bundles .NET 10, so users do not need a separate .NET runtime installation. Developers need the .NET 10 SDK and Inno Setup 6. The per-user installer installs to `%LOCALAPPDATA%\Programs\OctoShip for GitHub`, registers an uninstaller and Start Menu shortcut, and optionally adds a desktop shortcut. Close OctoShip before upgrading.
+Windows users need Git for Windows with Git Credential Manager for GitHub sign-in. Setup checks for the .NET 10 Desktop Runtime and downloads it from Microsoft only when missing. The download requires internet, and the runtime installer may request administrator approval. The versioned Windows ZIP is self-contained and includes .NET 10, so it can run offline after download. Developers need the .NET 10 SDK and Inno Setup 6 or 7. The per-user installer installs to `%LOCALAPPDATA%\Programs\OctoShip for GitHub`, registers an uninstaller and Start Menu shortcut, and optionally adds a desktop shortcut. Close OctoShip before upgrading.
 
 1. Launch OctoShip, choose a saved GitHub account and Connect, or use Add account.
 2. Choose a local folder and search. Review a result before uploading.
@@ -20,7 +20,7 @@ The navigation stays visible: Files, Uploads, Repositories, Releases, Activity, 
 
 ## Installer agreement and included documents
 
-The preview.15 Windows installer source shows a plain-text agreement on the Inno Setup License page before installation can continue. The user must select **I accept the agreement**; choosing **Cancel** exits setup. The installer also places the User Guide, Privacy Notice, Third-Party Notices, Copyright and DMCA Information, and product/security guides in the installed `Docs` folder, with Start Menu shortcuts for the user-facing documents. These changes are local source changes and are not in a public release yet.
+The Windows installer shows a plain-text agreement on the Inno Setup License page before installation can continue. The user must select **I accept the agreement**; choosing **Cancel** exits setup. The installer also places the User Guide, Privacy Notice, Third-Party Notices, Copyright and DMCA Information, and product/security guides in the installed `Docs` folder, with Start Menu shortcuts for the user-facing documents.
 
 The terms, privacy, copyright/DMCA, and third-party notices are drafts that include review language and publisher/contact details needing verification. They are informational drafts, not legal advice or a guarantee against claims. Do not present them as final legal terms until the publisher details are complete and counsel has reviewed them. The DMCA document does not itself designate an agent or promise statutory protection.
 
@@ -41,6 +41,17 @@ Search supports filename/content matching, regular expressions, exact/case-sensi
 File review shows small text/images, SHA-256 and optional remote text comparison; PDFs open in the default Windows viewer. It is not a syntax-aware code editor. Sensitive-name rules and bounded secret scanning assist review; they cannot prove that a file has no secrets. Binary, oversized and unsupported content is explicitly unscanned. Findings omit matched secret values.
 
 Batch uploads support editable destinations, conflict choices, ordering, progress, pause/cancel/retry, and optional queue recovery. Per-file mode makes separate commits; atomic mode creates one commit and a non-forced ref update. A moved branch or changed source can stop publication. Saved queues never automatically replay after restart. Comparison uses raw Git blob hashes at a fixed commit; it does not normalize line endings or synchronize deletions.
+
+## Additional Windows UX features
+
+The recent 40-feature UX wave groups into four areas:
+
+- **Operations and recovery:** bounded upload attempt history, workflow sequencing and closeout summaries; safeguards for network changes; repository relink guidance; cloud-storage warnings; disk-space and duplicate-shipment estimates; temporary-file cleanup preview; and safe reordering of queued jobs.
+- **Settings and privacy:** workspace health/archive and retention controls, settings export/import with conflict choices, profile repair, screen-share masking, private-repository policy, settings search, pending-change review and section reset.
+- **Review and navigation:** policy review/import preview, back/forward navigation, contextual empty states, multi-error search validation, adjustable columns, long-path copying, range selection, diff navigation, draft recovery and revision markers.
+- **GitHub workflows:** saved queries, issue triage and creation from a file path, milestone/classic project linking, reviewer requests, stale-branch cleanup preview, tag management, private-repository setup, draft-release asset repair and release comparison.
+
+These tools remain bounded by repository permissions and API result limits. Project linking uses classic GitHub Projects. Some storage/duplicate checks are local heuristics, and screen-share masking does not cover every editable field or dialog. Confirm the target repository and review every proposed remote write.
 
 ## Shipping workbench: first feature group
 
@@ -147,13 +158,14 @@ The updater requires a writable installation directory. HTTPS validates the GitH
 
 ## Build, package and verify
 
-From the repository root in PowerShell:
+From the repository root in PowerShell, build the Setup bootstrapper with the repository script. It publishes a framework-dependent application payload so Setup can install the .NET Desktop Runtime if needed:
 
 ```powershell
 dotnet build FileToGitHub.csproj -c Release
-dotnet publish FileToGitHub.csproj -c Release -r win-x64 --self-contained true -p:DebugType=None -o installer\payload
-& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" /Q /DPayloadDir=payload installer\OctoShip.iss
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Build-WindowsInstaller.ps1 -OutputDirectory installers\local-build
 ```
+
+The Windows ZIP release is built separately as a self-contained package. Keep its .NET runtime bundled so it can run without downloading a runtime. Inno Setup 6 or 7 can compile the installer; configure `ISCC_EXE` if it is not on `PATH`.
 
 The project embeds `branding/octoship.ico` into `OctoShip.exe`; the installer uses the ICO for its own identity and includes it with the SVG logo assets. The release script packages the same branding files alongside the published app. Rebuild the app before creating an installer or release ZIP after changing the icon, and verify the newly installed executable and window title bar. Running these commands locally does not publish a GitHub release.
 

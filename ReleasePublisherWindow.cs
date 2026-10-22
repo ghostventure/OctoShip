@@ -13,6 +13,7 @@ namespace FileToGitHub;
 public sealed class ReleasePublisherWindow : Window
 {
     private readonly GitHubReleaseService _service;
+    private readonly HttpClient _http;
     private readonly string _owner, _repository, _branch, _token;
     private readonly TextBox _tag = new(), _title = new(), _notes = new() { AcceptsReturn = true, Height = 125, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     private readonly CheckBox _prerelease = new() { Content = "Pre-release", Margin = new Thickness(0, 8, 0, 8) };
@@ -30,7 +31,7 @@ public sealed class ReleasePublisherWindow : Window
     {
         UniformUi.Prepare(this);
         UniformUi.SetDestination(this, () => owner + "/" + repository + "  /  " + branch);
-        _service = new GitHubReleaseService(http);
+        _service = new GitHubReleaseService(http); _http = http;
         _owner = owner; _repository = repository; _branch = branch; _token = token;
         Title = "Release publisher — OctoShip"; Width = 730; Height = 750; MinWidth = 600; MinHeight = 620;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -68,6 +69,9 @@ public sealed class ReleasePublisherWindow : Window
         panel.Children.Add(_status);
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
         actions.Children.Add(_create); actions.Children.Add(_publish); panel.Children.Add(actions);
+        var maintenance = new Button { Content = "Draft repair and release comparison", Padding = new Thickness(10), Margin = new Thickness(0, 10, 0, 0) };
+        maintenance.Click += (_, _) => new RepositoryWorkflowExtrasWindow(_http, owner + "/" + repository, _token) { Owner = this }.ShowDialog();
+        panel.Children.Add(maintenance);
         foreach (var button in new[] { add, remove, _create, _publish })
         {
             button.Foreground = Brushes.White;

@@ -20,7 +20,8 @@ public sealed class SearchService
     public async Task<SearchPage> SearchAsync(
         SearchOptions options,
         IProgress<SearchProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        SearchPauseGate? pauseGate = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         var validated = Validate(options);
@@ -70,6 +71,7 @@ public sealed class SearchService
         while (pending.Count > 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (pauseGate is not null) await pauseGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             if (visited >= validated.MaxVisitedEntries) { limited = true; break; }
             var directory = pending.Pop();
             string[] entries;
@@ -81,6 +83,7 @@ public sealed class SearchService
             foreach (var path in entries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (pauseGate is not null) await pauseGate.WaitAsync(cancellationToken).ConfigureAwait(false);
                 if (++visited > validated.MaxVisitedEntries) { limited = true; break; }
                 if ((visited & 127) == 0)
                     progress?.Report(new SearchProgress(visited, matchedBeforePage + page.Count, Path.GetDirectoryName(path) ?? directory));
@@ -107,6 +110,7 @@ public sealed class SearchService
                     var filenameMatch = validated.QueryMode != SearchQueryMode.FileContents &&
                         Matches(name, validated.Query, validated.QueryMode, validated.CaseSensitive, regex, validated.ExactMatch);
                     var contentMatch = false;
+                    string? snippet = null;
                     if (!filenameMatch && validated.QueryMode == SearchQueryMode.FileContents)
                     {
                         if (info.Length <= validated.MaxContentBytes)
@@ -115,6 +119,7 @@ public sealed class SearchService
                             {
                                 var contents = await File.ReadAllTextAsync(path, validated.TextEncoding, cancellationToken).ConfigureAwait(false);
                                 contentMatch = Matches(contents, validated.Query, validated.QueryMode, validated.CaseSensitive, regex, false);
+                                if (contentMatch) snippet = GetSnippet(contents, validated.Query, validated.CaseSensitive, regex);
                             }
                             catch (OperationCanceledException) { throw; }
                             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DecoderFallbackException)
@@ -126,7 +131,7 @@ public sealed class SearchService
 
                     if (matchedBeforePage < validated.Offset) { matchedBeforePage++; continue; }
                     if (page.Count == validated.MaxResults) { stoppedWithExtra = true; break; }
-                    page.Add(new SearchFile(info.FullName, info.Name, info.Length, info.LastWriteTime, info.LastWriteTimeUtc, contentMatch));
+                    page.Add(new SearchFile(info.FullName, info.Name, info.Length, info.LastWriteTime, info.LastWriteTimeUtc, contentMatch, snippet));
                 }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -139,6 +144,20 @@ public sealed class SearchService
         progress?.Report(new SearchProgress(visited, matchedBeforePage + page.Count, null, Complete: !limited));
         return new SearchPage(page, validated.Offset, next, limited, visited, inaccessible,
             "Search never follows reparse points (including junctions and symlinks). Hidden entries are skipped unless IncludeHidden is set. The standard excluded folder names are always excluded; configured names are added to that list.");
+    }
+
+    private static string? GetSnippet(string content, string query, bool caseSensitive, Regex? regex)
+    {
+        var match = regex?.Match(content);
+        var index = match is { Success: true } ? match.Index : content.IndexOf(query, caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
+        if (index < 0) return null;
+        var start = Math.Max(0, index - 55);
+        var length = Math.Min(content.Length - start, Math.Min(150, index - start + Math.Max(query.Length, 1) + 65));
+        var excerpt = content.Substring(start, length).Replace('\r', ' ').Replace('\n', ' ');
+        var localIndex = Math.Clamp(index - start, 0, excerpt.Length);
+        var highlightLength = Math.Clamp(query.Length, 0, excerpt.Length - localIndex);
+        var highlighted = excerpt.Insert(localIndex + highlightLength, "⟧").Insert(localIndex, "⟦").Trim();
+        return (start > 0 ? "…" : "") + highlighted + (start + length < content.Length ? "…" : "");
     }
 
     private static bool Matches(string candidate, string query, SearchQueryMode mode, bool caseSensitive, Regex? regex, bool exact)
@@ -208,7 +227,7 @@ public sealed record SearchOptions(
     internal Encoding TextEncoding { get; init; } = TextEncodingOverride ?? new UTF8Encoding(false, false);
 }
 
-public sealed record SearchFile(string FullPath, string Name, long Size, DateTime LastModified, DateTime LastModifiedUtc, bool MatchedContents);
+public sealed record SearchFile(string FullPath, string Name, long Size, DateTime LastModified, DateTime LastModifiedUtc, bool MatchedContents, string? MatchSnippet = null);
 
 /// <summary>NextOffset is null when the scan found no further page; when Limited is true, continue by raising MaxVisitedEntries.</summary>
 public sealed record SearchPage(
@@ -221,3 +240,16 @@ public sealed record SearchPage(
     string TraversalNotes);
 
 public sealed record SearchProgress(int VisitedEntries, int MatchesFound, string? CurrentFolder, bool Complete = false);
+
+public sealed class SearchPauseGate
+{
+    private volatile TaskCompletionSource<bool>? _resume;
+    public bool IsPaused => _resume is not null;
+    public void Pause() => Interlocked.CompareExchange(ref _resume, new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously), null);
+    public void Resume() => Interlocked.Exchange(ref _resume, null)?.TrySetResult(true);
+    public async Task WaitAsync(CancellationToken cancellationToken)
+    {
+        var pending = _resume?.Task;
+        if (pending is not null) await pending.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+}

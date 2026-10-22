@@ -15,7 +15,12 @@ public partial class OctoCatSettingsWindow : Window
 {
     private readonly List<string> _patterns = new();
     private readonly List<DestinationPreset> _presets = new();
+    private string[] _originalPatterns = Array.Empty<string>();
+    private DestinationPreset[] _originalPresets = Array.Empty<DestinationPreset>();
     private OctoCatPreferences _preferences;
+    private readonly OctoCatPreferences _originalPreferences;
+    private readonly List<string> _archived = new();
+    private readonly List<string> _privateRepositories = new();
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNameCaseInsensitive = true };
 
     public OctoCatPreferences Preferences { get; private set; }
@@ -29,14 +34,23 @@ public partial class OctoCatSettingsWindow : Window
         InitializeComponent();
         _preferences = OctoCatPreferencesService.Normalize(preferences ?? new OctoCatPreferences());
         Preferences = _preferences;
+        _originalPreferences = _preferences;
         SensitivePatterns = Array.Empty<string>();
         DestinationPresets = Array.Empty<DestinationPreset>();
         PrivacyCheck.IsChecked = _preferences.PrivacyMode;
         AutomaticUpdatesCheck.IsChecked = _preferences.AutomaticUpdates;
         ClipboardClearPicker.SelectedIndex = ClipboardClearSelection(_preferences.ClearCopiedTextAfterSeconds);
         ChannelPicker.SelectedIndex = _preferences.UpdateChannel == OctoCatUpdateChannel.Preview ? 1 : 0;
+        ScreenShareMaskCheck.IsChecked = _preferences.ScreenSharePrivacyMask;
+        _privateRepositories.AddRange(_preferences.PrivateOnlyRepositories);
+        PrivateRepositoryList.ItemsSource = _privateRepositories.ToArray();
+        _archived.AddRange(OctoShipWorkspacePolicyService.ReadArchived());
+        ArchivedWorkspaceList.ItemsSource = _archived.ToArray();
+        RefreshRetention();
         _patterns.AddRange(NormalizePatterns(sensitivePatterns ?? Array.Empty<string>()));
         _presets.AddRange((destinationPresets ?? ToPresets(_preferences.Destinations)).Where(IsValidPreset).Take(50));
+        _originalPatterns = _patterns.ToArray();
+        _originalPresets = _presets.ToArray();
         PatternList.ItemsSource = _patterns.ToArray();
         RefreshPresets();
     }
@@ -156,13 +170,56 @@ public partial class OctoCatSettingsWindow : Window
             }
             else
             {
-                _preferences = OctoCatPreferencesService.Normalize(package.Preferences);
-                _patterns.Clear(); _patterns.AddRange(NormalizePatterns(package.SensitivePatterns ?? Array.Empty<string>()));
-                _presets.Clear(); _presets.AddRange((package.DestinationPresets ?? ToPresets(_preferences.Destinations)).Where(IsValidPreset).Take(50));
+                if (package.SchemaVersion > 2) throw new InvalidOperationException($"Settings package version {package.SchemaVersion} is newer than this app supports.");
+                var imported = OctoCatPreferencesService.Normalize(package.Preferences);
+                var choices = new Dictionary<string, bool>(StringComparer.Ordinal);
+                var conflictDetails = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var key in new[] { "PrivacyMode", "ScreenSharePrivacyMask", "UpdateChannel", "AutomaticUpdates", "ClearCopiedTextAfterSeconds", "SearchHistory", "RecentRepositories", "Destinations", "DefaultUploadFolders", "PrivateOnlyRepositories", "ArchivedWorkspaces" })
+                {
+                    var currentValue = JsonSerializer.Serialize(GetPreferenceValue(_preferences, key));
+                    var importedValue = JsonSerializer.Serialize(GetPreferenceValue(imported, key));
+                    if (currentValue != importedValue) { choices[key] = true; conflictDetails[key] = $"Current: {ShortValue(currentValue)}\nImported: {ShortValue(importedValue)}"; }
+                }
+                var importedPatterns = NormalizePatterns(package.SensitivePatterns ?? Array.Empty<string>()).ToArray();
+                var importedPresets = (package.DestinationPresets ?? ToPresets(imported.Destinations)).Where(IsValidPreset).Take(50).ToArray();
+                AddCollectionConflict("Sensitive filename patterns", _patterns.ToArray(), importedPatterns);
+                AddCollectionConflict("Destination presets", _presets.ToArray(), importedPresets);
+                if (choices.Count > 0)
+                {
+                    var resolver = new SettingsImportConflictWindow(conflictDetails) { Owner = this };
+                    if (resolver.ShowDialog() != true) { SetStatus("Import canceled; no settings changed."); return; }
+                    imported = imported with
+                    {
+                        PrivacyMode = Merge("PrivacyMode", imported.PrivacyMode, _preferences.PrivacyMode),
+                        ScreenSharePrivacyMask = Merge("ScreenSharePrivacyMask", imported.ScreenSharePrivacyMask, _preferences.ScreenSharePrivacyMask),
+                        UpdateChannel = Merge("UpdateChannel", imported.UpdateChannel, _preferences.UpdateChannel),
+                        AutomaticUpdates = Merge("AutomaticUpdates", imported.AutomaticUpdates, _preferences.AutomaticUpdates),
+                        ClearCopiedTextAfterSeconds = Merge("ClearCopiedTextAfterSeconds", imported.ClearCopiedTextAfterSeconds, _preferences.ClearCopiedTextAfterSeconds),
+                        SearchHistory = Merge("SearchHistory", imported.SearchHistory, _preferences.SearchHistory),
+                        RecentRepositories = Merge("RecentRepositories", imported.RecentRepositories, _preferences.RecentRepositories),
+                        Destinations = Merge("Destinations", imported.Destinations, _preferences.Destinations),
+                        DefaultUploadFolders = Merge("DefaultUploadFolders", imported.DefaultUploadFolders, _preferences.DefaultUploadFolders),
+                        PrivateOnlyRepositories = Merge("PrivateOnlyRepositories", imported.PrivateOnlyRepositories, _preferences.PrivateOnlyRepositories),
+                        ArchivedWorkspaces = Merge("ArchivedWorkspaces", imported.ArchivedWorkspaces, _preferences.ArchivedWorkspaces)
+                    };
+                    T Merge<T>(string name, T value, T current) => choices.TryGetValue(name, out var useImported) && !useImported ? current : value;
+                }
+                _preferences = imported;
+                if (!choices.TryGetValue("Sensitive filename patterns", out var usePatterns) || usePatterns) { _patterns.Clear(); _patterns.AddRange(importedPatterns); }
+                if (!choices.TryGetValue("Destination presets", out var usePresets) || usePresets) { _presets.Clear(); _presets.AddRange(importedPresets); }
+
+                void AddCollectionConflict<T>(string key, T current, T proposed)
+                {
+                    var currentText = JsonSerializer.Serialize(current); var importedText = JsonSerializer.Serialize(proposed);
+                    if (currentText != importedText) { choices[key] = true; conflictDetails[key] = $"Current: {ShortValue(currentText)}\nImported: {ShortValue(importedText)}"; }
+                }
             }
             PrivacyCheck.IsChecked = _preferences.PrivacyMode;
             ChannelPicker.SelectedIndex = _preferences.UpdateChannel == OctoCatUpdateChannel.Preview ? 1 : 0;
             AutomaticUpdatesCheck.IsChecked = _preferences.AutomaticUpdates;
+            ScreenShareMaskCheck.IsChecked = _preferences.ScreenSharePrivacyMask;
+            _privateRepositories.Clear(); _privateRepositories.AddRange(_preferences.PrivateOnlyRepositories); PrivateRepositoryList.ItemsSource = _privateRepositories.ToArray();
+            _archived.Clear(); _archived.AddRange(_preferences.ArchivedWorkspaces); ArchivedWorkspaceList.ItemsSource = _archived.ToArray();
             ClipboardClearPicker.SelectedIndex = ClipboardClearSelection(_preferences.ClearCopiedTextAfterSeconds);
             PatternList.ItemsSource = _patterns.ToArray();
             RefreshPresets();
@@ -190,7 +247,11 @@ public partial class OctoCatSettingsWindow : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
+        try { BackupCurrentPreferencesIfChanged(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { SetStatus("Could not preserve the previous preferences before saving: " + ex.Message, true); return; }
         Preferences = BuildResultPreferences();
+        try { OctoShipWorkspacePolicyService.SaveArchived(_archived); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { SetStatus("Could not save workspace archive: " + ex.Message, true); return; }
         SensitivePatterns = _patterns.ToArray();
         DestinationPresets = _presets.ToArray();
         DialogResult = true;
@@ -207,6 +268,9 @@ public partial class OctoCatSettingsWindow : Window
         var result = _preferences with
         {
             PrivacyMode = privacy,
+            ScreenSharePrivacyMask = ScreenShareMaskCheck.IsChecked == true,
+            PrivateOnlyRepositories = _privateRepositories.ToArray(),
+            ArchivedWorkspaces = _archived.ToArray(),
             UpdateChannel = channel,
             AutomaticUpdates = AutomaticUpdatesCheck.IsChecked == true,
             ClearCopiedTextAfterSeconds = ClipboardClearDelay(ClipboardClearPicker.SelectedIndex),
@@ -225,6 +289,77 @@ public partial class OctoCatSettingsWindow : Window
         StatusText.Text = text;
         StatusText.Foreground = error ? System.Windows.Media.Brushes.OrangeRed : System.Windows.Media.Brushes.LightSteelBlue;
     }
+
+    private void SettingsSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        var query = SettingsSearchBox.Text.Trim();
+        foreach (var group in new[] { WorkspaceHealthGroup, PrivacyPolicyGroup, RetentionRepairGroup, ChangeReviewGroup, PrivacyUpdatesGroup, ClearHistoryGroup, DestinationPresetsGroup, SensitivePatternsGroup, PublisherSignatureGroup, SettingsTransferGroup })
+            group.Visibility = string.IsNullOrEmpty(query) || (group.Header?.ToString()?.Contains(query, StringComparison.OrdinalIgnoreCase) == true) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void HealthReport_Click(object sender, RoutedEventArgs e) => HealthReportText.Text = string.Join(Environment.NewLine, OctoShipWorkspacePolicyService.HealthReport());
+    private void ArchiveWorkspace_Click(object sender, RoutedEventArgs e)
+    {
+        var name = ArchiveWorkspaceInput.Text.Trim();
+        if (name.Length is < 1 or > 500 || name.Any(char.IsControl)) { SetStatus("Enter a workspace name of 1 to 500 characters.", true); return; }
+        if (!_archived.Contains(name, StringComparer.OrdinalIgnoreCase)) _archived.Add(name);
+        ArchivedWorkspaceList.ItemsSource = _archived.ToArray(); ArchiveWorkspaceInput.Clear(); SetStatus("Workspace archive status will be saved with your settings.");
+    }
+    private void RestoreWorkspace_Click(object sender, RoutedEventArgs e)
+    {
+        if (ArchivedWorkspaceList.SelectedItem is not string name) return;
+        _archived.Remove(name); ArchivedWorkspaceList.ItemsSource = _archived.ToArray(); SetStatus("Workspace restored from archive.");
+    }
+    private void AddPrivateRepository_Click(object sender, RoutedEventArgs e)
+    {
+        var value = PrivateRepositoryInput.Text.Trim();
+        if (!Regex.IsMatch(value, "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$") || value.Split('/').Any(x => x is "." or "..")) { SetStatus("Use a repository in owner/name format.", true); return; }
+        if (!_privateRepositories.Contains(value, StringComparer.OrdinalIgnoreCase)) _privateRepositories.Add(value);
+        PrivateRepositoryList.ItemsSource = _privateRepositories.ToArray(); PrivateRepositoryInput.Clear();
+    }
+    private void RemovePrivateRepository_Click(object sender, RoutedEventArgs e)
+    { if (PrivateRepositoryList.SelectedItem is string value) { _privateRepositories.Remove(value); PrivateRepositoryList.ItemsSource = _privateRepositories.ToArray(); } }
+    private void RefreshRetention_Click(object sender, RoutedEventArgs e) => RefreshRetention();
+    private void RefreshRetention() => RetentionList.ItemsSource = OctoShipWorkspacePolicyService.RetentionInventory().Select(x => $"{x.Name} — {x.Bytes:N0} bytes").ToArray();
+    private void PurgeRetention_Click(object sender, RoutedEventArgs e)
+    {
+        var items = RetentionList.SelectedItems.Cast<string>().Select(x => x.Split(" — ", StringSplitOptions.None)[0]).ToArray();
+        if (items.Length == 0) { SetStatus("Select local data in the preview first.", true); return; }
+        if (!DestructiveActionConfirmation.Confirm(this, "Purge selected local data?", string.Join(Environment.NewLine, items), "Purge selected data", "Keep data")) return;
+        try { OctoShipWorkspacePolicyService.PurgeRetainable(items); RefreshRetention(); SetStatus("Selected local data purged. Protected account settings were not touched."); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException) { SetStatus("Could not purge local data: " + ex.Message, true); }
+    }
+    private void RepairProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (!DestructiveActionConfirmation.Confirm(this, "Repair preference profile?", "A malformed preference file will be preserved as a timestamped backup before defaults are written. Valid profiles are left unchanged.", "Repair profile", "Cancel")) return;
+        try { SetStatus(OctoShipWorkspacePolicyService.RepairPreferences()); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { SetStatus("Profile repair did not complete: " + ex.Message, true); }
+    }
+    private void PreviewChanges_Click(object sender, RoutedEventArgs e)
+    {
+        var current = BuildResultPreferences();
+        var changes = new List<string>();
+        Add("Privacy", _originalPreferences.PrivacyMode, current.PrivacyMode);
+        Add("Screen-share mask", _originalPreferences.ScreenSharePrivacyMask, current.ScreenSharePrivacyMask);
+        Add("Update channel", _originalPreferences.UpdateChannel, current.UpdateChannel);
+        Add("Automatic updates", _originalPreferences.AutomaticUpdates, current.AutomaticUpdates);
+        Add("Clipboard clearing", _originalPreferences.ClearCopiedTextAfterSeconds, current.ClearCopiedTextAfterSeconds);
+        Add("Search history", _originalPreferences.SearchHistory.Count, current.SearchHistory.Count);
+        Add("Repository policy rules", string.Join(", ", _originalPreferences.PrivateOnlyRepositories), string.Join(", ", current.PrivateOnlyRepositories));
+        Add("Archived workspaces", string.Join(", ", _originalPreferences.ArchivedWorkspaces), string.Join(", ", current.ArchivedWorkspaces));
+        Add("Sensitive filename patterns", string.Join(", ", _originalPatterns), string.Join(", ", _patterns));
+        Add("Destination presets", string.Join("; ", _originalPresets.Select(x => x.Label + "=" + x.Value)), string.Join("; ", _presets.Select(x => x.Label + "=" + x.Value)));
+        PendingChangesText.Text = changes.Count == 0 ? "No preference changes are pending." : string.Join(Environment.NewLine, changes);
+        void Add(string label, object? before, object? after) { if (!Equals(before, after)) changes.Add($"{label}: {before} → {after}"); }
+    }
+    private void ResetPrivacy_Click(object sender, RoutedEventArgs e) { PrivacyCheck.IsChecked = _originalPreferences.PrivacyMode; ScreenShareMaskCheck.IsChecked = _originalPreferences.ScreenSharePrivacyMask; _privateRepositories.Clear(); _privateRepositories.AddRange(_originalPreferences.PrivateOnlyRepositories); PrivateRepositoryList.ItemsSource = _privateRepositories.ToArray(); }
+    private void ResetUpdates_Click(object sender, RoutedEventArgs e) { AutomaticUpdatesCheck.IsChecked = _originalPreferences.AutomaticUpdates; ChannelPicker.SelectedIndex = _originalPreferences.UpdateChannel == OctoCatUpdateChannel.Preview ? 1 : 0; }
+    private void ResetHistory_Click(object sender, RoutedEventArgs e) { ClearSearchCheck.IsChecked = false; ClearRecentCheck.IsChecked = false; ClearDestinationsCheck.IsChecked = false; _archived.Clear(); _archived.AddRange(_originalPreferences.ArchivedWorkspaces); ArchivedWorkspaceList.ItemsSource = _archived.ToArray(); }
+    private void ResetPatterns_Click(object sender, RoutedEventArgs e) { _patterns.Clear(); _patterns.AddRange(_originalPatterns); PatternList.ItemsSource = _patterns.ToArray(); }
+    private void ResetDestinations_Click(object sender, RoutedEventArgs e) { _presets.Clear(); _presets.AddRange(_originalPresets); RefreshPresets(); }
+
+    private static object? GetPreferenceValue(OctoCatPreferences preferences, string name) => typeof(OctoCatPreferences).GetProperty(name)?.GetValue(preferences);
+    private static string ShortValue(string value) => value.Length <= 160 ? value : value[..157] + "...";
 
     private static IEnumerable<DestinationPreset> ToPresets(IEnumerable<string> values) => values.Select(value => new DestinationPreset(value, value));
     private static bool IsValidPreset(DestinationPreset item) => item is not null && item.Label is { Length: > 0 and <= 80 } && !item.Label.Any(char.IsControl) && IsSafePresetValue(item.Value);
@@ -250,7 +385,18 @@ public partial class OctoCatSettingsWindow : Window
         finally { if (File.Exists(tempPath)) File.Delete(tempPath); }
     }
 
-    private sealed record SettingsPackage(OctoCatPreferences Preferences, IReadOnlyList<string> SensitivePatterns, IReadOnlyList<DestinationPreset> DestinationPresets);
+    private void BackupCurrentPreferencesIfChanged()
+    {
+        var current = BuildResultPreferences();
+        if (JsonSerializer.Serialize(current) == JsonSerializer.Serialize(_originalPreferences)) return;
+        var source = Path.Combine(OctoShipWorkspacePolicyService.DataDirectory, "preferences.json");
+        if (!File.Exists(source)) return;
+        var backup = source + ".backup-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + ".json";
+        File.Copy(source, backup, false);
+    }
+
+    private sealed record SettingsPackage(OctoCatPreferences Preferences, IReadOnlyList<string> SensitivePatterns, IReadOnlyList<DestinationPreset> DestinationPresets)
+    { public int SchemaVersion { get; init; } = 2; }
 }
 
 /// <summary>A display label paired with the original owner/repository|branch|folder value.</summary>

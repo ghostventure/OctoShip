@@ -8,6 +8,8 @@
         <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="16,8">
             <StackPanel>
                 <WrapPanel x:Name="AppNavigation">
+                    <Button x:Name="NavigationBackButton" Content="◀" Click="NavigationBack_Click" IsEnabled="False" ToolTip="Back to the previous OctoShip view" />
+                    <Button x:Name="NavigationForwardButton" Content="▶" Click="NavigationForward_Click" IsEnabled="False" ToolTip="Forward to the next OctoShip view" />
                     <Button Content="Files" Click="BackToSearch_Click" ToolTip="Find and review local files" />
                     <Button Content="Uploads" Click="ShippingWorkbench_Click" ToolTip="Review and ship a project" />
                     <Button Content="Repositories" Click="NavigateRepositories_Click" />
@@ -79,6 +81,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <DockPanel>
                                 <Button x:Name="ClearFiltersButton" DockPanel.Dock="Right" Content="Reset filters" Padding="9,5" FontSize="10" Margin="0" Click="ClearFilters_Click" />
@@ -95,19 +98,21 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBox x:Name="FolderBox" Text="Choose a folder to search…" ToolTip="Paste a folder path or browse to choose one" />
+                                <ComboBox x:Name="FolderBox" IsEditable="True" IsTextSearchEnabled="True" ToolTip="Choose a recent folder or paste a path" AutomationProperties.Name="Search folder" />
                                 <Button x:Name="BrowseButton" Grid.Column="1" Content="Browse folders" Margin="8,0,0,0" Click="Browse_Click" />
-                                <Button x:Name="OpenFolderInCodeButton" Grid.Column="2" Content="Open in VS Code" Margin="8,0,0,0" Click="OpenFolderInCode_Click" ToolTip="Open this project folder in Visual Studio Code" />
+                                <Button x:Name="PinFolderButton" Grid.Column="2" Content="Pin folder" Margin="8,0,0,0" Click="PinFolder_Click" ToolTip="Keep this folder in your recent folders" />
                             </Grid>
                             <Grid Grid.Row="2" Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <ComboBox x:Name="SearchBox" IsEditable="True" IsTextSearchEnabled="True" StaysOpenOnEdit="True" ToolTip="Search filenames or enter a query" KeyDown="SearchBox_KeyDown" />
                                 <Button x:Name="SearchButton" Grid.Column="1" Content="Search files" Background="#174550" BorderBrush="#2D7F83" Margin="8,0,0,0" Click="Search_Click" />
-                                <Button x:Name="CancelSearchButton" Grid.Column="2" Content="Cancel" Padding="10,8" Margin="7,0,0,0" Visibility="Collapsed" Click="CancelSearch_Click" />
+                                <Button x:Name="PauseSearchButton" Grid.Column="2" Content="Pause" Padding="10,8" Margin="7,0,0,0" Visibility="Collapsed" Click="PauseSearch_Click" />
+                                <Button x:Name="CancelSearchButton" Grid.Column="3" Content="Cancel" Padding="10,8" Margin="7,0,0,0" Visibility="Collapsed" Click="CancelSearch_Click" />
                             </Grid>
                             <ToggleButton x:Name="FilterToggleButton" Grid.Row="3" Content="Search filters" HorizontalAlignment="Left" Padding="0" Margin="0,9,0,0" BorderThickness="0" Background="Transparent" Foreground="#64CEC9" FontSize="11" IsChecked="{Binding IsOpen, ElementName=FiltersPopup, Mode=TwoWay}" Focusable="True">
                                 <ToggleButton.Template>
@@ -192,6 +197,14 @@
                                     </Grid>
                                 </Border>
                             </Popup>
+                            <Grid Grid.Row="4" Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="180"/><ColumnDefinition Width="120"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Workspace" VerticalAlignment="Center" Foreground="#91A0B7" Margin="0,0,8,0" />
+                                <ComboBox x:Name="WorkspaceProfilePicker" Grid.Column="1" SelectionChanged="WorkspaceProfilePicker_SelectionChanged" ToolTip="Load a saved search workspace" AutomationProperties.Name="Saved workspaces" />
+                                <TextBox x:Name="WorkspaceNameBox" Grid.Column="2" Margin="8,0,0,0" ToolTip="Name this workspace" AutomationProperties.Name="Workspace name" />
+                                <Button Grid.Column="3" Content="Save workspace" HorizontalAlignment="Left" Margin="8,0,0,0" Padding="8,5" Click="SaveWorkspace_Click" />
+                            </Grid>
+                            <TextBlock x:Name="ScopePreviewText" Grid.Row="5" Text="Scope preview appears here before search." Foreground="#91A0B7" FontSize="10" Margin="0,7,0,0" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                         </Grid>
                     </Border>
                     <Border Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="11" Padding="14" Grid.Row="1">
@@ -208,20 +221,31 @@
                                         <TextBlock Text="2" Foreground="#60D7D1" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </Border>
                                     <TextBlock Text="  Search results" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <CheckBox x:Name="GroupResultsCheck" Content="Group by folder" Margin="14,0,0,0" VerticalAlignment="Center" Checked="GroupResults_Changed" Unchecked="GroupResults_Changed" AutomationProperties.Name="Group search results by folder" />
                                 </StackPanel>
                             </DockPanel>
-                            <ListBox x:Name="ResultsList" Grid.Row="1" Height="400" SelectionChanged="Results_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox x:Name="ResultsList" Grid.Row="1" Height="400" SelectionMode="Extended" SelectionChanged="Results_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="File search results">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding Details}" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel>
                                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" Foreground="#E8F0FA" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{Binding FullPath}" ToolTip="{Binding FullPath}" FontSize="11" Foreground="#91A0B7" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                                            <TextBlock Text="{Binding DisplayFullPath}" ToolTip="{Binding DisplayFullPath}" FontSize="11" Foreground="#91A0B7" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
                                             <TextBlock Text="{Binding Summary}" FontSize="10" Foreground="#728AA3" Margin="0,4,0,0" />
+                                            <TextBlock Text="{Binding MatchSnippet}" FontSize="10" Foreground="#E8C879" TextWrapping="Wrap" Margin="0,4,0,0" AutomationProperties.Name="Matching content excerpt" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
                             <WrapPanel Grid.Row="2" Margin="0,10,0,0">
+                                <Button Content="Select all" Padding="10,6" FontSize="11" Click="SelectAllResults_Click" Margin="0,0,6,6" />
+                                <Button Content="Clear selection" Padding="10,6" FontSize="11" Click="ClearResultsSelection_Click" Margin="0,0,6,6" />
+                                <Button x:Name="PreviousPreviewButton" Content="Previous result" Padding="10,6" FontSize="11" Click="PreviousPreview_Click" IsEnabled="False" Margin="0,0,6,6" />
+                                <Button x:Name="NextPreviewButton" Content="Next result" Padding="10,6" FontSize="11" Click="NextPreview_Click" IsEnabled="False" Margin="0,0,6,6" />
                                 <Button x:Name="ReviewFileButton" Content="Preview / review" Padding="10,6" FontSize="11" Click="ReviewFile_Click" IsEnabled="False" Margin="0,0,6,6" Background="#174550" />
                                 <Button x:Name="OpenFileButton" Content="Open" Padding="10,6" FontSize="11" Click="OpenFile_Click" IsEnabled="False" Margin="0,0,6,6" />
                                 <Button x:Name="OpenFileInCodeButton" Content="Open in VS Code" Padding="10,6" FontSize="11" Click="OpenFileInCode_Click" IsEnabled="False" Margin="0,0,6,6" ToolTip="Open this file in Visual Studio Code" />
@@ -240,8 +264,8 @@
                                         </Style.Triggers>
                                     </Style>
                                 </StackPanel.Style>
-                                <TextBlock Text="Your files appear here" FontSize="17" Foreground="#CEDBEA" HorizontalAlignment="Center" />
-                                <TextBlock Text="Choose a folder, then search by name or content." FontSize="12" Foreground="#8194AE" TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,0" />
+                                <TextBlock x:Name="ResultsEmptyTitle" Text="Your files appear here" FontSize="17" Foreground="#CEDBEA" HorizontalAlignment="Center" />
+                                <TextBlock x:Name="ResultsEmptyMessage" Text="Choose a folder, then search by name or content. Browse folders, enter a filename or phrase, then select Preview / review." FontSize="12" Foreground="#8194AE" TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,0" />
                                 <TextBlock Text="Select a result to preview it before uploading." FontSize="11" Foreground="#657F99" TextWrapping="Wrap" TextAlignment="Center" Margin="0,5,0,0" />
                             </StackPanel>
                         </Grid>
@@ -304,7 +328,7 @@
                                         <WrapPanel>
                                             <Button x:Name="QueueFolderButton" Content="Choose local folder" Padding="9,6" FontSize="10" Click="QueueFolder_Click" Margin="0,0,6,6" />
                                             <Button x:Name="QueueRunButton" Content="Review batch" Padding="9,6" FontSize="10" IsEnabled="False" Click="QueueRunWindow_Click" Margin="0,0,6,6" Background="#174550" />
-                                            <Button Content="Resume saved batch" Padding="9,6" FontSize="10" Click="ResumeBatch_Click" Margin="0,0,6,6" />
+                                            <Button x:Name="ResumeBatchButton" Content="Resume saved batch" Padding="9,6" FontSize="10" IsEnabled="False" Click="ResumeBatch_Click" Margin="0,0,6,6" />
                                             <Button x:Name="QueuePauseButton" Content="Pause" Padding="9,6" FontSize="10" IsEnabled="False" Click="QueuePause_Click" Visibility="Collapsed" Margin="0,0,6,6" />
                                             <Button x:Name="QueueRetryButton" Content="Retry failed" Padding="9,6" FontSize="10" IsEnabled="False" Margin="0,0,6,6" Click="QueueRetry_Click" Visibility="Collapsed" />
                                         </WrapPanel>
@@ -425,6 +449,7 @@
                                     <TextBlock Text="Privacy and saved choices" FontSize="16" FontWeight="SemiBold" Margin="0,6,0,6" />
                                     <TextBlock Text="Choose an update channel, manage sensitive-file warnings, rename destination presets, clear selected histories, or import and export credential-free settings." Foreground="{DynamicResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,16" />
                                     <Button Content="Open settings editor" HorizontalAlignment="Left" Click="Settings_Click" />
+                                    <Button Content="Review effective policies / preview import" HorizontalAlignment="Left" Margin="0,4,0,0" Click="PolicyReview_Click" />
                                     <Button Content="Open OctoShip data folder" HorizontalAlignment="Left" Margin="0,4,0,0" Click="OpenDataFolder_Click" />
                                     <TextBlock Text="GitHub credentials are not included in settings exports." Foreground="#72839A" TextWrapping="Wrap" FontSize="10" Margin="0,12,0,0" />
                                 </StackPanel>

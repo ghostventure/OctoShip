@@ -47,7 +47,10 @@ public static class OctoCatPreferencesService
         PrivacyMode = value.PrivacyMode,
         UpdateChannel = value.UpdateChannel == OctoCatUpdateChannel.Preview ? OctoCatUpdateChannel.Preview : OctoCatUpdateChannel.Stable,
         AutomaticUpdates = value.AutomaticUpdates,
-        ClearCopiedTextAfterSeconds = ClipboardClearPolicy.NormalizeDelay(value.ClearCopiedTextAfterSeconds)
+        ClearCopiedTextAfterSeconds = ClipboardClearPolicy.NormalizeDelay(value.ClearCopiedTextAfterSeconds),
+        ArchivedWorkspaces = CleanList(value.ArchivedWorkspaces, 100, 500),
+        PrivateOnlyRepositories = CleanList(value.PrivateOnlyRepositories, 100, 200).Where(IsRepository).ToArray(),
+        ScreenSharePrivacyMask = value.ScreenSharePrivacyMask
     };
 
     /// <summary>Checks the Windows Authenticode signature and optional expected signer thumbprint.</summary>
@@ -164,4 +167,7 @@ public sealed record OctoCatPreferences
     public OctoCatUpdateChannel UpdateChannel { get; init; } = OctoCatUpdateChannel.Stable;
     public bool AutomaticUpdates { get; init; } = true;
     public int ClearCopiedTextAfterSeconds { get; init; }
+    public IReadOnlyList<string> ArchivedWorkspaces { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> PrivateOnlyRepositories { get; init; } = Array.Empty<string>();
+    public bool ScreenSharePrivacyMask { get; init; }
 }

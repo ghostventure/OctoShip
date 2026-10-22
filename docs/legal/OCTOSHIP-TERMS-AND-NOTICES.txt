@@ -63,7 +63,7 @@ No verified DMCA designated agent or notice address was found in the project mat
 
 THIRD-PARTY AND OPEN-SOURCE SOFTWARE
 
-OctoShip's Windows installer is described by the project as a self-contained .NET 10 application. Git for Windows with Git Credential Manager is a separate prerequisite and is not stated to be bundled. GitHub is an independently operated third-party service. Exact runtime/native components and applicable license texts can vary by release. The publisher must ship and verify the release-specific software bill of materials and all required third-party license notices before distribution. This draft is not a complete component inventory and does not replace required license texts. See the release SBOM and the installed Third-Party Notices document for the exact package.
+OctoShip's Windows ZIP package is self-contained and includes .NET 10. The Windows Setup installer uses a framework-dependent app payload and downloads Microsoft's .NET 10 Desktop Runtime if it is missing; this requires an internet connection and may prompt for administrator approval. Git for Windows with Git Credential Manager is a separate prerequisite and is not bundled. GitHub is an independently operated third-party service. Exact runtime/native components and applicable license texts can vary by release. The publisher must ship and verify the release-specific software bill of materials and all required third-party license notices before distribution. This draft is not a complete component inventory and does not replace required license texts. See the release SBOM and the installed Third-Party Notices document for the exact package.
 
 SECURITY CONTACT AND VULNERABILITY REPORTS
 

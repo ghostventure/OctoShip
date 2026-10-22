@@ -9,8 +9,40 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel>
                 <TextBlock Text="Settings and privacy" FontSize="23" FontWeight="SemiBold" Margin="0,0,0,14"/>
+                <TextBox x:Name="SettingsSearchBox" ToolTip="Search settings" TextChanged="SettingsSearch_TextChanged" Margin="0,0,0,12"/>
+                <GroupBox x:Name="WorkspaceHealthGroup" Header="Workspace health and archive" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
+                    <StackPanel>
+                        <Button Content="Inspect local workspace health" HorizontalAlignment="Left" Click="HealthReport_Click"/>
+                        <TextBox x:Name="HealthReportText" IsReadOnly="True" TextWrapping="Wrap" MinHeight="48" MaxHeight="100" VerticalScrollBarVisibility="Auto"/>
+                        <TextBlock Text="Archive labels hide inactive workspaces from archive-aware tools. Existing workspaces are read-only only where the consuming workflow honors this policy." TextWrapping="Wrap" Foreground="#A9B9CE" Margin="0,6,0,4"/>
+                        <DockPanel><TextBox x:Name="ArchiveWorkspaceInput" DockPanel.Dock="Left" ToolTip="Workspace name to archive"/><Button Content="Archive" Click="ArchiveWorkspace_Click"/><Button Content="Restore selected" Click="RestoreWorkspace_Click"/></DockPanel>
+                        <ListBox x:Name="ArchivedWorkspaceList" Height="80"/>
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox x:Name="PrivacyPolicyGroup" Header="Privacy and project policies" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
+                    <StackPanel>
+                        <CheckBox x:Name="ScreenShareMaskCheck" Content="Enable screen-sharing privacy mask preference"/>
+                        <TextBlock Text="This preference is stored locally; live-window redaction is controlled by the app workflow integration." TextWrapping="Wrap" Foreground="#A9B9CE"/>
+                        <TextBlock Text="Repositories that must remain private (owner/name)" Foreground="#A9B9CE" Margin="0,8,0,0"/>
+                        <DockPanel><TextBox x:Name="PrivateRepositoryInput" DockPanel.Dock="Left" ToolTip="owner/repository"/><Button Content="Add rule" Click="AddPrivateRepository_Click"/></DockPanel>
+                        <ListBox x:Name="PrivateRepositoryList" Height="75"/><Button Content="Remove selected rule" HorizontalAlignment="Left" Click="RemovePrivateRepository_Click"/>
+                        <TextBlock Text="A publication policy is saved for workflow enforcement. Existing publication code must consult this rule before sending files." TextWrapping="Wrap" Foreground="#A9B9CE"/>
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox x:Name="RetentionRepairGroup" Header="Local data retention and profile repair" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Preview eligible local data. Account settings.json is protected because it can contain sign-in state." TextWrapping="Wrap" Foreground="#A9B9CE"/>
+                        <Button Content="Refresh retention preview" HorizontalAlignment="Left" Click="RefreshRetention_Click"/>
+                        <ListBox x:Name="RetentionList" Height="90" SelectionMode="Extended"/>
+                        <Button Content="Purge selected local data" HorizontalAlignment="Left" Click="PurgeRetention_Click"/>
+                        <Button Content="Repair preference profile" HorizontalAlignment="Left" Click="RepairProfile_Click"/>
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox x:Name="ChangeReviewGroup" Header="Pending changes" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
+                    <StackPanel><Button Content="Preview pending changes" HorizontalAlignment="Left" Click="PreviewChanges_Click"/><TextBlock x:Name="PendingChangesText" TextWrapping="Wrap" Foreground="#A9B9CE"/><WrapPanel><Button Content="Reset privacy section" Click="ResetPrivacy_Click"/><Button Content="Reset update section" Click="ResetUpdates_Click"/><Button Content="Reset history section" Click="ResetHistory_Click"/><Button Content="Reset patterns" Click="ResetPatterns_Click"/><Button Content="Reset destinations" Click="ResetDestinations_Click"/></WrapPanel></StackPanel>
+                </GroupBox>
                 <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,16"><local:AppearanceControls /></Border>
-                <GroupBox Header="Privacy and update channel" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
+                <GroupBox x:Name="PrivacyUpdatesGroup" Header="Privacy and update channel" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
                     <StackPanel>
                         <CheckBox x:Name="PrivacyCheck" Content="Privacy Mode: do not retain search terms, recent repositories, or local upload paths"/>
                         <TextBlock Text="Clipboard copies" Foreground="#A9B9CE" Margin="0,8,0,0"/>
@@ -26,13 +58,13 @@
                         </ComboBox>
                     </StackPanel>
                 </GroupBox>
-                <GroupBox Header="Clear saved history" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
+                <GroupBox x:Name="ClearHistoryGroup" Header="Clear saved history" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
                     <StackPanel>
                         <WrapPanel><CheckBox x:Name="ClearSearchCheck" Content="Search history"/><CheckBox x:Name="ClearRecentCheck" Content="Recent repositories"/><CheckBox x:Name="ClearDestinationsCheck" Content="Destination presets"/></WrapPanel>
                         <Button Content="Clear selected history" HorizontalAlignment="Left" Click="ClearHistory_Click"/>
                     </StackPanel>
                 </GroupBox>
-                <GroupBox Header="Saved destination presets" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
+                <GroupBox x:Name="DestinationPresetsGroup" Header="Saved destination presets" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
                     <StackPanel>
                         <TextBlock Text="Rename a preset label or delete it. Its repository, branch, and upload path stay intact." Foreground="#A9B9CE" TextWrapping="Wrap" Margin="0,0,0,8"/>
                         <ListBox x:Name="PresetList" Height="110" DisplayMemberPath="Label" SelectionChanged="PresetList_SelectionChanged"/>
@@ -40,7 +72,7 @@
                         <Button Content="Delete selected preset" HorizontalAlignment="Left" Click="DeletePreset_Click"/>
                     </StackPanel>
                 </GroupBox>
-                <GroupBox Header="Sensitive filename patterns" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
+                <GroupBox x:Name="SensitivePatternsGroup" Header="Sensitive filename patterns" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
                     <StackPanel>
                         <TextBlock Text="Add glob patterns such as *.pem or **/.env. These add warnings; they do not block uploads." Foreground="#A9B9CE" TextWrapping="Wrap" Margin="0,0,0,8"/>
                         <DockPanel><TextBox x:Name="PatternInput" DockPanel.Dock="Left" ToolTip="Glob pattern" TextChanged="PatternInput_TextChanged"/><Button Content="Add pattern" Click="AddPattern_Click"/></DockPanel>
@@ -49,7 +81,7 @@
                         <Button Content="Remove selected pattern" HorizontalAlignment="Left" Click="RemovePattern_Click"/>
                     </StackPanel>
                 </GroupBox>
-                <GroupBox Header="Publisher signature verification" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
+                <GroupBox x:Name="PublisherSignatureGroup" Header="Publisher signature verification" Foreground="#DCE6F4" Padding="12" Margin="0,0,0,12">
                     <StackPanel>
                         <TextBlock Text="Checks Windows Authenticode trust for a selected executable. OctoShip for GitHub needs a trusted code-signing certificate; unsigned builds will be reported as unsigned." Foreground="#A9B9CE" TextWrapping="Wrap" Margin="0,0,0,8"/>
                         <TextBlock Text="Optional expected publisher thumbprint (pinning)" Foreground="#A9B9CE"/>
@@ -58,9 +90,9 @@
                         <TextBlock x:Name="SignatureStatus" Text="No file checked." TextWrapping="Wrap" Foreground="#A9B9CE"/>
                     </StackPanel>
                 </GroupBox>
-                <GroupBox Header="Credential-free settings transfer" Foreground="#DCE6F4" Padding="12">
+                <GroupBox x:Name="SettingsTransferGroup" Header="Credential-free settings transfer" Foreground="#DCE6F4" Padding="12">
                     <StackPanel>
-                        <TextBlock Text="Exports include preferences, histories, and sensitive filename rules. Account credentials and local machine paths are never included." Foreground="#A9B9CE" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <TextBlock Text="Versioned imports migrate supported settings packages. Exports include preferences, histories, and sensitive filename rules. Account credentials and local machine paths are never included." Foreground="#A9B9CE" TextWrapping="Wrap" Margin="0,0,0,8"/>
                         <WrapPanel><Button Content="Import settings" Click="Import_Click"/><Button Content="Export settings" Click="Export_Click"/></WrapPanel>
                     </StackPanel>
                 </GroupBox>

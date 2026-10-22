@@ -43,7 +43,7 @@ The Windows app stores preferences under `%LOCALAPPDATA%\\OctoShipForGitHub` and
 
 ## Windows build and package
 
-Requirements to build and package the Windows client are the .NET 10 SDK, Git for Windows with Git Credential Manager, and Inno Setup 6. The current Windows installer is self-contained and bundles the .NET 10 runtime; a separate runtime installation is not required to run it.
+Requirements to build and package the Windows client are the .NET 10 SDK, Git for Windows with Git Credential Manager, and Inno Setup 6 or 7. The Setup installer uses a framework-dependent app payload and downloads Microsoft's .NET 10 Desktop Runtime only when it is missing; that step requires internet and may request administrator approval. The Windows ZIP is built separately as a self-contained package with the runtime included.
 
 ```powershell
 dotnet build FileToGitHub.csproj -c Release
@@ -53,7 +53,7 @@ dotnet publish FileToGitHub.csproj -c Release -r win-x64 --self-contained true -
 ISCC.exe installer\OctoShip.iss
 ```
 
-The setup output name/version is configured in `installer/OctoShip.iss`. It installs per-user under LocalAppData, creates a Start Menu shortcut, optionally creates a desktop shortcut, and registers an uninstaller. The current package is self-contained and bundles .NET 10; it is not Authenticode-signed. Git for Windows with Git Credential Manager is required for GitHub sign-in. Preserve user settings and Credential Manager entries when uninstalling.
+The setup output name/version is configured in `installer/OctoShip.iss`. `scripts/Build-WindowsInstaller.ps1` builds its framework-dependent payload and compiles the runtime-bootstrapper installer. Setup installs per-user under LocalAppData, creates a Start Menu shortcut, optionally creates a desktop shortcut, and registers an uninstaller. The Windows ZIP is self-contained and bundles .NET 10; the installer and app are not Authenticode-signed. Git for Windows with Git Credential Manager is required for GitHub sign-in. Preserve user settings and Credential Manager entries when uninstalling.
 
 The component preview includes focused offline harnesses under `verification/`. Their source templates avoid the application project's default C# compilation glob. Build the app and run these harnesses before packaging. Mock HTTP verification does not establish live GitHub integration or installer behavior. The Linux package builder and offline/GUI harnesses are documented in `linux/README.md`; verification evidence is in `verification/linux-port-1.6.0.md`. Linux 1.7.0 also has a self-contained runtime installer and bundled Debian package; see `linux/packaging/README.md`. Linux CI and AppImage packaging remain future work.
 
